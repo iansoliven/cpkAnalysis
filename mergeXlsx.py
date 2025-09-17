@@ -239,6 +239,21 @@ def _coerce_float(value: Any) -> Optional[float]:
     return None
 
 
+
+
+def _normalize_serial_value(value: Any) -> Any:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if stripped.isdigit():
+                try:
+                    return int(stripped)
+                except ValueError:
+                    return value
+        return value
+    return int(numeric) if isinstance(numeric, float) and numeric.is_integer() else numeric
+
 def _normalize_measurement(value: Any) -> Optional[Any]:
     if value is None:
         return None
@@ -469,11 +484,12 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
         detail_ws = workbook.create_sheet(title=sheet_title, index=worksheet_index)
         detail_ws.append(headers)
         for record in chunk:
+            sn_value = _normalize_serial_value(record.sn)
             detail_ws.append([
                 record.lot,
                 record.event,
                 record.intensity,
-                record.sn,
+                sn_value,
                 record.test_number,
                 record.test_name,
                 record.test_unit,
