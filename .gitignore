@@ -1,0 +1,18 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+ENV/
+venv/
+
+# Editors
+.vscode/
+.idea/
+
+# Excel outputs
+*.xlsx
+
+# Misc
+.DS_Store
