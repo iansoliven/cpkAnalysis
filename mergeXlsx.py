@@ -15,7 +15,7 @@ import sys
 from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils import get_column_letter
@@ -91,6 +91,20 @@ class SummaryEntry:
     file_link: str
     pass_count: int
     fail_count: int
+
+
+@dataclass
+class MeasurementRecord:
+    lot: str
+    event: str
+    intensity: str
+    sn: str
+    test_number: str
+    test_name: str
+    test_unit: str
+    low_limit: Optional[float]
+    high_limit: Optional[float]
+    measurement: Any
 
 
 def parse_filename_metadata(stem: str) -> Tuple[str, str, str]:
@@ -192,6 +206,211 @@ def analyze_unit_results(sheet: Worksheet) -> Tuple[int, int]:
     return pass_total, fail_total
 
 
+def _find_column_index(row: Sequence[Any], target_label: str) -> Optional[int]:
+    target = target_label.strip().upper()
+    for idx, value in enumerate(row):
+        if isinstance(value, str) and value.strip().upper() == target:
+            return idx
+    return None
+
+
+def _get_cell(row: Optional[Sequence[Any]], index: int) -> Any:
+    if row is None or index < 0 or index >= len(row):
+        return None
+    return row[index]
+
+
+def _coerce_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        upper = stripped.upper()
+        if upper in {'.', 'X', 'N/A'}:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return None
+    return None
+
+
+def _normalize_measurement(value: Any) -> Optional[Any]:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        upper = stripped.upper()
+        if upper in {'.', 'X', 'N/A', 'PASS', 'FAIL'}:
+            return None
+        try:
+            return float(stripped)
+        except ValueError:
+            return stripped
+    return value
+
+
+def _clean_test_name(raw: Any) -> str:
+    if raw is None:
+        return ''
+    text = str(raw).strip()
+
+    if not text:
+        return ''
+    if text.startswith('"') and text.endswith('"') and len(text) > 1:
+        text = text[1:-1]
+    if '",' in text:
+        text = text.split('",', 1)[0]
+    return text
+
+
+def _build_test_columns(header_row: Sequence[Any], metadata: Dict[str, Sequence[Any]], status_col: int) -> List[Dict[str, Any]]:
+    number_row = metadata.get('number')
+    name_row = metadata.get('name')
+    unit_row = metadata.get('unit')
+    low_row = metadata.get('low')
+    high_row = metadata.get('high')
+    if not number_row or not name_row or not unit_row:
+        return []
+
+    start_index: Optional[int] = None
+    for idx, value in enumerate(header_row):
+        if isinstance(value, str) and value.strip().upper() == 'RETEST ANALYSIS':
+            start_index = idx + 1
+            break
+    if start_index is None:
+        start_index = status_col + 1
+
+    max_len = max(len(number_row), len(name_row), len(unit_row), len(low_row or []), len(high_row or []))
+    columns: List[Dict[str, Any]] = []
+    for idx in range(start_index, max_len):
+        test_number = _get_cell(number_row, idx)
+        test_name = _get_cell(name_row, idx)
+        test_unit = _get_cell(unit_row, idx)
+        if test_number is None or test_name is None or test_unit is None:
+            continue
+        number_text = str(test_number).strip()
+        if not number_text:
+            continue
+        name_text = _clean_test_name(test_name)
+        if not name_text:
+            continue
+        unit_text = str(test_unit).strip()
+        if not unit_text:
+            continue
+        columns.append(
+            {
+                'index': idx,
+                'test_number': number_text,
+                'test_name': name_text,
+                'test_unit': unit_text,
+                'low_limit': _coerce_float(_get_cell(low_row, idx)),
+                'high_limit': _coerce_float(_get_cell(high_row, idx)),
+            }
+        )
+    return columns
+
+
+def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity: str) -> List[MeasurementRecord]:
+    metadata_rows: Dict[str, Sequence[Any]] = {}
+    header_row: Optional[Sequence[Any]] = None
+    header_row_index: Optional[int] = None
+    for idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+        if not row:
+            continue
+        first_cell = row[0]
+        if not isinstance(first_cell, str):
+            continue
+        label = first_cell.strip().upper()
+        if label == 'TEST NUMBER':
+            metadata_rows['number'] = list(row)
+        elif label == 'TEST NAME':
+            metadata_rows['name'] = list(row)
+        elif label == 'TEST UNIT':
+            metadata_rows['unit'] = list(row)
+        elif label == 'LOW LIMIT':
+            metadata_rows['low'] = list(row)
+        elif label == 'HIGH LIMIT':
+            metadata_rows['high'] = list(row)
+        elif label == 'UNIT SN':
+            header_row = list(row)
+            header_row_index = idx
+            break
+
+    if header_row is None or header_row_index is None:
+        return []
+
+    sn_col = _find_column_index(header_row, 'UNIT SN')
+    status_col = _find_column_index(header_row, 'PASS/FAIL')
+    if sn_col is None or status_col is None:
+        return []
+
+    test_columns = _build_test_columns(header_row, metadata_rows, status_col)
+    if not test_columns:
+        return []
+
+    pass_rows_start: Optional[int] = None
+    for idx, row in enumerate(sheet.iter_rows(min_row=header_row_index + 1, values_only=True), start=header_row_index + 1):
+        if not row:
+            continue
+        first_cell = row[0]
+        if isinstance(first_cell, str) and 'PASS UNITS' in first_cell.strip().upper():
+            pass_rows_start = idx + 1
+            break
+
+    if pass_rows_start is None:
+        return []
+
+    records: List[MeasurementRecord] = []
+    for row in sheet.iter_rows(min_row=pass_rows_start, values_only=True):
+        if not row:
+            break
+        sn_value = _get_cell(row, sn_col)
+        status_value = _get_cell(row, status_col)
+        if sn_value is None and status_value is None:
+            if all(cell in (None, '') for cell in row):
+                break
+            continue
+        status_text = ''
+        if isinstance(status_value, str):
+            status_text = status_value.strip().upper()
+        elif status_value is not None:
+            status_text = str(status_value).strip().upper()
+        if status_text not in {'P', 'PASS'}:
+            continue
+        sn_text = str(sn_value).strip() if sn_value is not None else ''
+        if not sn_text:
+            continue
+        for column in test_columns:
+            measurement_raw = _get_cell(row, column['index'])
+            measurement_value = _normalize_measurement(measurement_raw)
+            if measurement_value is None:
+                continue
+            records.append(
+                MeasurementRecord(
+                    lot=lot,
+                    event=event,
+                    intensity=intensity,
+                    sn=sn_text,
+                    test_number=column['test_number'],
+                    test_name=column['test_name'],
+                    test_unit=column['test_unit'],
+                    low_limit=column['low_limit'],
+                    high_limit=column['high_limit'],
+                    measurement=measurement_value,
+                )
+            )
+    return records
+
+
 def create_summary_sheet(workbook: Workbook, entries: Sequence[SummaryEntry]) -> None:
     if not entries:
         return
@@ -226,6 +445,54 @@ def create_summary_sheet(workbook: Workbook, entries: Sequence[SummaryEntry]) ->
     summary_ws.freeze_panes = 'A2'
     for index, width in ((1, 32), (2, 14), (3, 18), (4, 16), (5, 48), (6, 18), (7, 18)):
         summary_ws.column_dimensions[get_column_letter(index)].width = width
+
+
+def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementRecord]) -> None:
+    if not records:
+        return
+    max_rows = 1048576
+    data_capacity = max_rows - 1
+    base_index = 1 if 'Summary' in workbook.sheetnames else 0
+    headers = ['Lot', 'Event', 'Int', 'SN', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
+    widths = [16, 18, 12, 12, 18, 42, 12, 14, 14, 16]
+    total = len(records)
+    chunks = (total + data_capacity - 1) // data_capacity
+    for chunk_idx in range(chunks):
+        start_row = chunk_idx * data_capacity
+        end_row = min(start_row + data_capacity, total)
+        chunk = records[start_row:end_row]
+        if not chunk:
+            continue
+        suffix = '' if chunk_idx == 0 else f'_{chunk_idx + 1}'
+        sheet_title = 'Measurements' if chunk_idx == 0 else f'Measurements{suffix}'
+        worksheet_index = base_index + chunk_idx
+        detail_ws = workbook.create_sheet(title=sheet_title, index=worksheet_index)
+        detail_ws.append(headers)
+        for record in chunk:
+            detail_ws.append([
+                record.lot,
+                record.event,
+                record.intensity,
+                record.sn,
+                record.test_number,
+                record.test_name,
+                record.test_unit,
+                record.low_limit,
+                record.high_limit,
+                record.measurement,
+            ])
+        last_row = len(chunk) + 1
+        table_name = 'MeasurementTable' if chunk_idx == 0 else f'MeasurementTable{chunk_idx + 1}'
+        table = Table(displayName=table_name, ref=f'A1:J{last_row}')
+        table.tableStyleInfo = TableStyleInfo(
+            name='TableStyleMedium9',
+            showRowStripes=True,
+            showColumnStripes=False,
+        )
+        detail_ws.add_table(table)
+        detail_ws.freeze_panes = 'A2'
+        for idx, width in enumerate(widths, start=1):
+            detail_ws.column_dimensions[get_column_letter(idx)].width = width
 
 
 def gather_sources(inputs: Sequence[Path], directory: Path, output_path: Path) -> List[Path]:
@@ -335,6 +602,7 @@ def main() -> int:
     skipped_hidden = 0
     failures: List[str] = []
     summary_entries: List[SummaryEntry] = []
+    measurement_records: List[MeasurementRecord] = []
 
     for source_file in sources:
         print(f"Processing {source_file}...")
@@ -357,6 +625,14 @@ def main() -> int:
                 target_sheet = workbook.create_sheet(title=title)
                 target_sheet.sheet_state = sheet.sheet_state
                 copy_sheet_contents(sheet, target_sheet, copy_formatting=not args.values_only)
+                measurement_records.extend(
+                    extract_pass_measurements(
+                        sheet,
+                        lot=lot,
+                        event=event,
+                        intensity=intensity,
+                    )
+                )
                 summary_entries.append(
                     SummaryEntry(
                         sheet_title=title,
@@ -381,6 +657,7 @@ def main() -> int:
         return 1
 
     create_summary_sheet(workbook, summary_entries)
+    create_measurements_sheet(workbook, measurement_records)
 
     try:
         destination_dir.mkdir(parents=True, exist_ok=True)
