@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Combine worksheets from multiple Excel workbooks into a single workbook.
 
@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.utils import get_column_letter, column_index_from_string
+from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import quote_sheetname
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
@@ -100,6 +100,7 @@ class MeasurementRecord:
     lot: str
     event: str
     intensity: str
+    source_sheet: str
     sn: str
     test_number: str
     test_name: str
@@ -336,7 +337,7 @@ def _build_test_columns(header_row: Sequence[Any], metadata: Dict[str, Sequence[
     return columns
 
 
-def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity: str) -> List[MeasurementRecord]:
+def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity: str, source_sheet: str) -> List[MeasurementRecord]:
     metadata_rows: Dict[str, Sequence[Any]] = {}
     header_row: Optional[Sequence[Any]] = None
     header_row_index: Optional[int] = None
@@ -416,6 +417,7 @@ def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity:
                     lot=lot,
                     event=event,
                     intensity=intensity,
+                    source_sheet=source_sheet,
                     sn=sn_text,
                     test_number=column['test_number'],
                     test_name=column['test_name'],
@@ -470,8 +472,8 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
     max_rows = 1048576
     data_capacity = max_rows - 1
     base_index = 1 if 'Summary' in workbook.sheetnames else 0
-    headers = ['Lot', 'Event', 'Int', 'SN', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
-    widths = [16, 18, 12, 12, 18, 42, 12, 14, 14, 16]
+    headers = ['Lot', 'Event', 'Int', 'Source Worksheet', 'SN', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
+    widths = [16, 18, 12, 28, 12, 18, 42, 12, 14, 14, 16]
     serial_column_index = None
     for candidate in ('Serial', 'SN'):
         if candidate in headers:
@@ -496,6 +498,7 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
                 record.lot,
                 record.event,
                 record.intensity,
+                record.source_sheet,
                 sn_value,
                 record.test_number,
                 record.test_name,
@@ -509,7 +512,8 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
             for row_idx in range(2, last_row + 1):
                 detail_ws.cell(row=row_idx, column=serial_column_index).number_format = numbers.FORMAT_NUMBER
         table_name = 'MeasurementTable' if chunk_idx == 0 else f'MeasurementTable{chunk_idx + 1}'
-        table = Table(displayName=table_name, ref=f'A1:J{last_row}')
+        last_col_letter = get_column_letter(len(headers))
+        table = Table(displayName=table_name, ref=f'A1:{last_col_letter}{last_row}')
         table.tableStyleInfo = TableStyleInfo(
             name='TableStyleMedium9',
             showRowStripes=True,
@@ -659,6 +663,7 @@ def main() -> int:
                         lot=lot,
                         event=event,
                         intensity=intensity,
+                        source_sheet=title,
                     )
                 )
                 summary_entries.append(
