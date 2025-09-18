@@ -27,3 +27,9 @@ python mergeXlsx.py -o F104547_Merge.xlsx
 - `--directory <path>` to merge all `.xlsx` files found in another folder.
 - Provide explicit file paths after the flags to merge just those workbooks.
 
+## Maintainer Notes
+- Keep `load_workbook(..., read_only=False)` so formatting survives copy; switching to read-only drops styles and merged ranges.
+- `_normalize_serial_value` and `create_measurements_sheet` coerce Serial/SN values to numbers and set the table column format to `0`; update both if the Measurements layout changes.
+- After code changes run `python -m py_compile mergeXlsx.py` and spot-check `python mergeXlsx.py` against sample workbooks; the latter takes ~3 minutes on the current data set.
+- The Measurements exporter chunks data to stay under Excel's 1,048,576-row ceiling; adjust `data_capacity` if you ever add headers or padding rows.
+- Preserve the hyperlink logic in `create_summary_sheet`; it ties the Summary view back to both merged sheets and source files.

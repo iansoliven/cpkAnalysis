@@ -22,6 +22,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import quote_sheetname
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.styles import numbers
 
 EXCEL_SHEET_NAME_LIMIT = 31
 INVALID_SHEET_CHARS = set('[]:*?/\\')
@@ -470,6 +471,11 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
     base_index = 1 if 'Summary' in workbook.sheetnames else 0
     headers = ['Lot', 'Event', 'Int', 'SN', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
     widths = [16, 18, 12, 12, 18, 42, 12, 14, 14, 16]
+    serial_column_index = None
+    for candidate in ('Serial', 'SN'):
+        if candidate in headers:
+            serial_column_index = headers.index(candidate) + 1
+            break
     total = len(records)
     chunks = (total + data_capacity - 1) // data_capacity
     for chunk_idx in range(chunks):
@@ -498,6 +504,9 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
                 record.measurement,
             ])
         last_row = len(chunk) + 1
+        if serial_column_index is not None and last_row > 1:
+            for row_idx in range(2, last_row + 1):
+                detail_ws.cell(row=row_idx, column=serial_column_index).number_format = numbers.FORMAT_NUMBER
         table_name = 'MeasurementTable' if chunk_idx == 0 else f'MeasurementTable{chunk_idx + 1}'
         table = Table(displayName=table_name, ref=f'A1:J{last_row}')
         table.tableStyleInfo = TableStyleInfo(
