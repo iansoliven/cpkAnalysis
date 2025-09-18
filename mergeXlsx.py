@@ -18,11 +18,12 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from openpyxl import Workbook, load_workbook
-from openpyxl.utils import get_column_letter
+from openpyxl.utils import get_column_letter, column_index_from_string
 from openpyxl.utils.cell import quote_sheetname
 from openpyxl.worksheet.table import Table, TableStyleInfo
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.styles import numbers
+from openpyxl.cell.cell import MergedCell
 
 EXCEL_SHEET_NAME_LIMIT = 31
 INVALID_SHEET_CHARS = set('[]:*?/\\')
@@ -594,6 +595,8 @@ def copy_sheet_contents(source_ws, target_ws, copy_formatting: bool) -> None:
 
     for row in source_ws.iter_rows():
         for cell in row:
+            if isinstance(cell, MergedCell):
+                continue
             target_cell = target_ws.cell(row=cell.row, column=cell.col_idx, value=cell.value)
             if copy_formatting and cell.has_style:
                 target_cell.font = copy(cell.font)
