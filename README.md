@@ -24,7 +24,7 @@ python mergeXlsx.py -o F104547_Merge.xlsx
 - Skips any `.xlsx` file that matches the requested output filename or starts with Excel's `~$` temp prefix.
 
 ### Adding Histogram Charts
-Run `python addCharts.py` after the merge completes to create a **Charts** worksheet. The script groups rows in the Measurements tables by Test Name, renders a histogram that respects the recorded low/high limits, and embeds one chart per test sized approximately 10" × 5" with vertical markers for the limits. Use `--output <file>` to save the charts to a separate workbook, or `--charts-per-row` to adjust the layout.
+Run `python addCharts.py` after the merge completes to append a **Charts** worksheet. The script groups rows in the Measurements tables by Test Name, renders a histogram that respects the recorded low/high limits, and embeds one chart per test sized approximately 10" x 5" with vertical limit markers. Each execution widens the X axis slightly so the limit lines stay visible even when they coincide with the min/max data values. Use `--output <file>` to save the charts to a separate workbook, or `--charts-per-row` to adjust the layout.
 
 ### Helpful options
 - `--values-only` to skip formatting and speed up the merge.
