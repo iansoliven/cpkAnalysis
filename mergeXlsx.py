@@ -267,15 +267,25 @@ def _normalize_measurement(value: Any) -> Optional[Any]:
         stripped = value.strip()
         if not stripped:
             return None
+        sentinel_tokens = {'.', 'X', 'N/A', 'PASS', 'FAIL'}
         upper = stripped.upper()
-        if upper in {'.', 'X', 'N/A', 'PASS', 'FAIL'}:
+        if upper in sentinel_tokens:
             return None
-        try:
-            return float(stripped)
-        except ValueError:
-            return stripped
+        candidate = stripped
+        if candidate.upper() == 'F':
+            return None
+        if candidate and candidate[0].upper() == 'F':
+            remainder = candidate[1:].strip()
+            if not remainder:
+                return None
+            candidate = remainder
+            if candidate.upper() in sentinel_tokens:
+                return None
+        coerced = _coerce_float(candidate)
+        if coerced is not None:
+            return coerced
+        return candidate
     return value
-
 
 def _clean_test_name(raw: Any) -> str:
     if raw is None:
@@ -842,3 +852,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
