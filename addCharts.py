@@ -1,18 +1,19 @@
-#!/usr/bin/env python3
-"""Generate histogram charts per Test Name from the Measurements tables.
+﻿#!/usr/bin/env python3
+"""Generate histogram charts grouped by Test Name and Lot.
 
 The script scans every worksheet whose name starts with "Measurements" inside the
-combined workbook produced by mergeXlsx.py. For each distinct Test Name it builds a
-histogram of the Measurement column, scales the X axis to the Low/High limits, draws
-vertical limit lines, and embeds the rendered chart image into a dedicated Charts
-worksheet sized approximately 10" x 5" (width x height).
+combined workbook produced by mergeXlsx.py. For each distinct Test Name and Lot it
+builds a histogram of the Measurement column, scales the X axis so the documented
+limits remain visible, and embeds the rendered chart image into a Charts worksheet.
+Charts are arranged with one Test Name per row and one Lot per column, each sized
+approximately 10" x 5" (width x height).
 """
 
 from __future__ import annotations
 
 import argparse
 import math
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -33,9 +34,23 @@ CHART_HEIGHT_IN = 5
 CHART_WIDTH_PX = int(CHART_WIDTH_IN * INCH_TO_PIXELS)
 CHART_HEIGHT_PX = int(CHART_HEIGHT_IN * INCH_TO_PIXELS)
 CHARTS_SHEET_NAME = "Charts"
-CHARTS_PER_ROW = 2
 ROW_STRIDE = 27  # heuristic rows to leave between chart anchors
 COL_STRIDE = 15  # heuristic columns to leave between chart anchors
+TEST_LABEL_COLUMN = 1
+FIRST_CHART_COLUMN = 2
+HEADER_ROW = 3
+DEFAULT_MAX_LOTS = 0  # 0 means include every lot discovered
+
+
+@dataclass
+class LotData:
+    lot: str
+    measurements: List[float]
+    low_limits: List[float]
+    high_limits: List[float]
+
+    def representative_limits(self) -> Tuple[Optional[float], Optional[float]]:
+        return _first_finite(self.low_limits), _first_finite(self.high_limits)
 
 
 @dataclass
@@ -43,20 +58,13 @@ class TestData:
     name: str
     number: Optional[str]
     unit: Optional[str]
-    measurements: List[float]
-    low_limits: List[float]
-    high_limits: List[float]
+    lots: "OrderedDict[str, LotData]"
 
     @property
     def title(self) -> str:
-        if self.number and str(self.number).strip():
+        if self.number and self.number.strip():
             return f"{self.name} (Test {self.number})"
         return self.name
-
-    def representative_limits(self) -> Tuple[Optional[float], Optional[float]]:
-        low = _first_finite(self.low_limits)
-        high = _first_finite(self.high_limits)
-        return low, high
 
 
 def _first_finite(values: Iterable[float]) -> Optional[float]:
@@ -67,7 +75,9 @@ def _first_finite(values: Iterable[float]) -> Optional[float]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Add histogram charts for each Test Name in the combined workbook.")
+    parser = argparse.ArgumentParser(
+        description="Add histogram charts for each Test Name/Lot pairing in the combined workbook."
+    )
     parser.add_argument(
         "workbook",
         nargs="?",
@@ -82,10 +92,10 @@ def parse_args() -> argparse.Namespace:
         help="Optional path to save the augmented workbook. Defaults to overwriting the input.",
     )
     parser.add_argument(
-        "--charts-per-row",
+        "--max-lots",
         type=int,
-        default=CHARTS_PER_ROW,
-        help="Number of charts per row in the output layout (default: 2).",
+        default=DEFAULT_MAX_LOTS,
+        help="Maximum number of Lot columns to render (0 means all lots).",
     )
     return parser.parse_args()
 
@@ -106,50 +116,59 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
             except StopIteration:
                 continue
             header_map = {str(value).strip(): idx for idx, value in enumerate(header) if value is not None}
-            required_columns = [
-                "Test Name",
-                "Measurement",
-            ]
+            required_columns = ["Test Name", "Measurement", "Lot"]
             for column in required_columns:
                 if column not in header_map:
                     raise ValueError(f"Column '{column}' was not found in sheet '{sheet_name}'.")
 
             idx_test_name = header_map["Test Name"]
             idx_measurement = header_map["Measurement"]
+            idx_lot = header_map["Lot"]
             idx_test_number = header_map.get("Test Number")
             idx_unit = header_map.get("Test Unit")
             idx_low_limit = header_map.get("Low Limit")
             idx_high_limit = header_map.get("High Limit")
 
             for row in rows:
-                test_name = row[idx_test_name] if idx_test_name < len(row) else None
-                if not isinstance(test_name, str) or not test_name.strip():
+                test_name = _safe_string(row, idx_test_name)
+                if not test_name:
                     continue
                 measurement_raw = row[idx_measurement] if idx_measurement < len(row) else None
                 measurement = _coerce_float(measurement_raw)
                 if measurement is None:
                     continue
 
-                key = (test_name.strip(), _safe_string(row, idx_test_number))
+                lot_label = _safe_string(row, idx_lot) or "Unknown Lot"
+                test_number = _safe_string(row, idx_test_number)
+                unit_text = _safe_string(row, idx_unit)
+
+                key = (test_name, test_number)
                 entry = tests.get(key)
                 if entry is None:
                     entry = TestData(
-                        name=test_name.strip(),
-                        number=_safe_string(row, idx_test_number),
-                        unit=_safe_string(row, idx_unit),
-                        measurements=[],
-                        low_limits=[],
-                        high_limits=[],
+                        name=test_name,
+                        number=test_number,
+                        unit=unit_text,
+                        lots=OrderedDict(),
                     )
                     tests[key] = entry
+                elif not entry.unit and unit_text:
+                    entry.unit = unit_text
 
-                entry.measurements.append(measurement)
-                low_value = _coerce_float(row[idx_low_limit]) if idx_low_limit is not None else None
-                high_value = _coerce_float(row[idx_high_limit]) if idx_high_limit is not None else None
-                if low_value is not None:
-                    entry.low_limits.append(low_value)
-                if high_value is not None:
-                    entry.high_limits.append(high_value)
+                lot_entry = entry.lots.get(lot_label)
+                if lot_entry is None:
+                    lot_entry = LotData(lot=lot_label, measurements=[], low_limits=[], high_limits=[])
+                    entry.lots[lot_label] = lot_entry
+
+                lot_entry.measurements.append(measurement)
+                if idx_low_limit is not None and idx_low_limit < len(row):
+                    low_value = _coerce_float(row[idx_low_limit])
+                    if low_value is not None:
+                        lot_entry.low_limits.append(low_value)
+                if idx_high_limit is not None and idx_high_limit < len(row):
+                    high_value = _coerce_float(row[idx_high_limit])
+                    if high_value is not None:
+                        lot_entry.high_limits.append(high_value)
         if not tests:
             raise ValueError("No measurement rows were found across the Measurements sheets.")
         return tests
@@ -162,9 +181,7 @@ def _coerce_float(value: Optional[object]) -> Optional[float]:
         return None
     if isinstance(value, (int, float)):
         value_float = float(value)
-        if math.isfinite(value_float):
-            return value_float
-        return None
+        return value_float if math.isfinite(value_float) else None
     if isinstance(value, str):
         stripped = value.strip()
         if not stripped:
@@ -212,6 +229,7 @@ def choose_bin_count(values: List[float], low: float, high: float) -> int:
     bins = max(10, min(60, int(round(math.sqrt(n) * 1.5))))
     return bins
 
+
 def _next_charts_sheet_name(existing_names: Iterable[str]) -> str:
     if CHARTS_SHEET_NAME not in existing_names:
         return CHARTS_SHEET_NAME
@@ -221,12 +239,14 @@ def _next_charts_sheet_name(existing_names: Iterable[str]) -> str:
         if candidate not in existing_names:
             return candidate
         index += 1
-def build_chart_image(test: TestData) -> Optional[BytesIO]:
-    if not test.measurements:
+
+
+def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
+    if not lot_data.measurements:
         return None
-    low_declared, high_declared = test.representative_limits()
-    axis_low_raw, axis_high_raw = determine_axis_limits(test.measurements, low_declared, high_declared)
-    bin_count = choose_bin_count(test.measurements, axis_low_raw, axis_high_raw)
+    low_declared, high_declared = lot_data.representative_limits()
+    axis_low_raw, axis_high_raw = determine_axis_limits(lot_data.measurements, low_declared, high_declared)
+    bin_count = choose_bin_count(lot_data.measurements, axis_low_raw, axis_high_raw)
     bin_count = max(1, bin_count)
 
     span = axis_high_raw - axis_low_raw
@@ -247,8 +267,8 @@ def build_chart_image(test: TestData) -> Optional[BytesIO]:
     bin_edges = np.linspace(axis_low, axis_high, bin_count + 1)
 
     fig, ax = plt.subplots(figsize=(CHART_WIDTH_IN, CHART_HEIGHT_IN))
-    ax.hist(test.measurements, bins=bin_edges, color="#4F81BD", edgecolor="#1F497D", alpha=0.8)
-    ax.set_title(test.title)
+    ax.hist(lot_data.measurements, bins=bin_edges, color="#4F81BD", edgecolor="#1F497D", alpha=0.8)
+    ax.set_title(f"{lot_data.lot} – {test.title}")
     axis_label = "Measurement"
     if test.unit:
         axis_label += f" ({test.unit})"
@@ -275,33 +295,57 @@ def build_chart_image(test: TestData) -> Optional[BytesIO]:
     buffer.seek(0)
     return buffer
 
-def add_charts_to_workbook(workbook_path: Path, output_path: Path, tests: Dict[Tuple[str, Optional[str]], TestData], charts_per_row: int) -> None:
+
+def add_charts_to_workbook(
+    workbook_path: Path,
+    output_path: Path,
+    tests: Dict[Tuple[str, Optional[str]], TestData],
+    max_lots: int,
+) -> None:
     wb = load_workbook(workbook_path)
     sheet_name = _next_charts_sheet_name(wb.sheetnames)
     charts_ws = wb.create_sheet(sheet_name)
     charts_ws["A1"] = f"Charts generated by addCharts.py ({sheet_name})"
-    charts_ws.freeze_panes = "A2"
+    charts_ws.freeze_panes = "B4"
 
-    sorted_tests = sorted(tests.values(), key=lambda t: t.title.lower())
-    charts_per_row = max(1, charts_per_row)
+    sorted_tests = [tests[key] for key in tests]
 
-    for idx, test in enumerate(sorted_tests):
-        image_stream = build_chart_image(test)
-        if image_stream is None:
-            continue
-        img = XLImage(image_stream)
-        img.width = CHART_WIDTH_PX
-        img.height = CHART_HEIGHT_PX
+    lot_order: "OrderedDict[str, None]" = OrderedDict()
+    for test in sorted_tests:
+        for lot_name in test.lots:
+            lot_order.setdefault(lot_name, None)
+    lot_names = list(lot_order.keys())
+    if max_lots > 0:
+        lot_names = lot_names[:max_lots]
 
-        row_group = idx // charts_per_row
-        col_group = idx % charts_per_row
-        anchor_row = 2 + row_group * ROW_STRIDE
-        anchor_col = 1 + col_group * COL_STRIDE
-        anchor_cell = f"{get_column_letter(anchor_col)}{anchor_row}"
-        charts_ws.add_image(img, anchor_cell)
+    # Header row that labels each lot column
+    for col_idx, lot_name in enumerate(lot_names):
+        header_column = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
+        charts_ws.cell(row=HEADER_ROW, column=header_column, value=lot_name)
+
+    for test_idx, test in enumerate(sorted_tests):
+        anchor_row = HEADER_ROW + 1 + test_idx * ROW_STRIDE
+        charts_ws.cell(row=anchor_row, column=TEST_LABEL_COLUMN, value=test.title)
+
+        for col_idx, lot_name in enumerate(lot_names):
+            lot_data = test.lots.get(lot_name)
+            if lot_data is None or not lot_data.measurements:
+                continue
+            image_stream = build_chart_image(test, lot_data)
+            if image_stream is None:
+                continue
+            img = XLImage(image_stream)
+            img.width = CHART_WIDTH_PX
+            img.height = CHART_HEIGHT_PX
+
+            anchor_col = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
+            anchor_cell = f"{get_column_letter(anchor_col)}{anchor_row}"
+            charts_ws.add_image(img, anchor_cell)
 
     wb.save(output_path)
     wb.close()
+
+
 def main() -> None:
     args = parse_args()
     workbook_path = args.workbook.expanduser().resolve()
@@ -309,11 +353,13 @@ def main() -> None:
         raise SystemExit(f"Workbook not found: {workbook_path}")
     tests = load_measurement_tests(workbook_path)
     output_path = (args.output or workbook_path).expanduser().resolve()
-    add_charts_to_workbook(workbook_path, output_path, tests, charts_per_row=args.charts_per_row)
-    print(f"Added Charts sheet with {len(tests)} histogram(s) to {output_path}")
+    add_charts_to_workbook(workbook_path, output_path, tests, max_lots=max(args.max_lots, 0))
+    print(
+        f"Added Charts sheet with {sum(len(t.lots) for t in tests.values())} histogram(s) across "
+        f"{len(tests)} test(s) to {output_path}"
+    )
 
 
 if __name__ == "__main__":
     main()
-
 
