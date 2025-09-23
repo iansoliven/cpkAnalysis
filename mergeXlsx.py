@@ -102,12 +102,14 @@ class MeasurementRecord:
     intensity: str
     source_sheet: str
     sn: str
+    status: str
     test_number: str
     test_name: str
     test_unit: str
     low_limit: Optional[float]
     high_limit: Optional[float]
     measurement: Any
+    row_index: int
 
 
 def parse_filename_metadata(stem: str) -> Tuple[str, str, str]:
@@ -242,8 +244,6 @@ def _coerce_float(value: Any) -> Optional[float]:
     return None
 
 
-
-
 def _normalize_serial_value(value: Any) -> Any:
     numeric = _coerce_float(value)
     if numeric is None:
@@ -256,6 +256,7 @@ def _normalize_serial_value(value: Any) -> Any:
                     return value
         return value
     return int(numeric) if isinstance(numeric, float) and numeric.is_integer() else numeric
+
 
 def _normalize_measurement(value: Any) -> Optional[Any]:
     if value is None:
@@ -288,6 +289,37 @@ def _clean_test_name(raw: Any) -> str:
     if '",' in text:
         text = text.split('",', 1)[0]
     return text
+
+
+def _normalize_outcome(value: Any, default: str) -> str:
+    default_upper = default.strip().upper() if isinstance(default, str) else 'FAIL'
+    if not default_upper:
+        default_upper = 'FAIL'
+    if value is None:
+        return default_upper
+    if isinstance(value, str):
+        upper = value.strip().upper()
+    else:
+        upper = str(value).strip().upper()
+    if upper in {'P', 'PASS'}:
+        return 'PASS'
+    if upper in {'F', 'FAIL'}:
+        return 'FAIL'
+    return default_upper
+
+
+def _is_blank_row(row: Sequence[Any]) -> bool:
+    if not row:
+        return True
+    for cell in row:
+        if cell is None:
+            continue
+        if isinstance(cell, str):
+            if cell.strip():
+                return False
+        else:
+            return False
+    return True
 
 
 def _build_test_columns(header_row: Sequence[Any], metadata: Dict[str, Sequence[Any]], status_col: int) -> List[Dict[str, Any]]:
@@ -336,8 +368,7 @@ def _build_test_columns(header_row: Sequence[Any], metadata: Dict[str, Sequence[
         )
     return columns
 
-
-def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity: str, source_sheet: str) -> List[MeasurementRecord]:
+def extract_measurements(sheet: Worksheet, lot: str, event: str, intensity: str, source_sheet: str) -> List[MeasurementRecord]:
     metadata_rows: Dict[str, Sequence[Any]] = {}
     header_row: Optional[Sequence[Any]] = None
     header_row_index: Optional[int] = None
@@ -375,40 +406,62 @@ def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity:
     if not test_columns:
         return []
 
-    pass_rows_start: Optional[int] = None
-    for idx, row in enumerate(sheet.iter_rows(min_row=header_row_index + 1, values_only=True), start=header_row_index + 1):
-        if not row:
+    pass_entries: List[Tuple[str, Sequence[Any]]] = []
+    pass_serials: Set[str] = set()
+    fail_entries: Dict[str, Tuple[Sequence[Any], str]] = {}
+    fail_order: List[str] = []
+    mode: Optional[str] = None
+
+    for row_index, row in enumerate(
+        sheet.iter_rows(min_row=header_row_index + 1, values_only=True),
+        start=header_row_index + 1,
+    ):
+        row_values = list(row) if row else []
+        if not row_values:
             continue
-        first_cell = row[0]
-        if isinstance(first_cell, str) and 'PASS UNITS' in first_cell.strip().upper():
-            pass_rows_start = idx + 1
-            break
-
-    if pass_rows_start is None:
-        return []
-
-    records: List[MeasurementRecord] = []
-    for row in sheet.iter_rows(min_row=pass_rows_start, values_only=True):
-        if not row:
-            break
-        sn_value = _get_cell(row, sn_col)
-        status_value = _get_cell(row, status_col)
+        first_cell = row_values[0]
+        if isinstance(first_cell, str):
+            label = first_cell.strip().upper()
+            if 'FAIL UNITS' in label:
+                mode = 'fail'
+                continue
+            if 'PASS UNITS' in label:
+                mode = 'pass'
+                continue
+        if mode not in {'pass', 'fail'}:
+            continue
+        if _is_blank_row(row_values):
+            mode = None
+            continue
+        sn_value = _get_cell(row_values, sn_col)
+        status_value = _get_cell(row_values, status_col)
         if sn_value is None and status_value is None:
-            if all(cell in (None, '') for cell in row):
-                break
-            continue
-        status_text = ''
-        if isinstance(status_value, str):
-            status_text = status_value.strip().upper()
-        elif status_value is not None:
-            status_text = str(status_value).strip().upper()
-        if status_text not in {'P', 'PASS'}:
             continue
         sn_text = str(sn_value).strip() if sn_value is not None else ''
-        if not sn_text:
+        if not sn_text or sn_text.upper() == 'UNIT SN':
             continue
+        outcome = _normalize_outcome(status_value, 'PASS' if mode == 'pass' else 'FAIL')
+        if mode == 'pass':
+            if outcome != 'PASS':
+                continue
+            pass_entries.append((sn_text, row_values))
+            pass_serials.add(sn_text)
+            if sn_text in fail_entries:
+                fail_entries.pop(sn_text, None)
+                if sn_text in fail_order:
+                    fail_order.remove(sn_text)
+        else:
+            if sn_text in pass_serials:
+                continue
+            if sn_text in fail_entries:
+                fail_order.remove(sn_text)
+            fail_entries[sn_text] = (row_values, outcome)
+            fail_order.append(sn_text)
+
+    records: List[MeasurementRecord] = []
+    for sn_text, row_values in pass_entries:
         for column in test_columns:
-            measurement_raw = _get_cell(row, column['index'])
+            measurement_raw = _get_cell(row_values, column['index'])
             measurement_value = _normalize_measurement(measurement_raw)
             if measurement_value is None:
                 continue
@@ -419,16 +472,45 @@ def extract_pass_measurements(sheet: Worksheet, lot: str, event: str, intensity:
                     intensity=intensity,
                     source_sheet=source_sheet,
                     sn=sn_text,
+                    status='PASS',
                     test_number=column['test_number'],
                     test_name=column['test_name'],
                     test_unit=column['test_unit'],
                     low_limit=column['low_limit'],
                     high_limit=column['high_limit'],
                     measurement=measurement_value,
+                    row_index=row_index,
+                )
+            )
+
+    for sn_text in fail_order:
+        if sn_text in pass_serials:
+            continue
+        row_values, outcome = fail_entries[sn_text]
+        status = 'PASS' if outcome == 'PASS' else 'FAIL'
+        for column in test_columns:
+            measurement_raw = _get_cell(row_values, column['index'])
+            measurement_value = _normalize_measurement(measurement_raw)
+            if measurement_value is None:
+                continue
+            records.append(
+                MeasurementRecord(
+                    lot=lot,
+                    event=event,
+                    intensity=intensity,
+                    source_sheet=source_sheet,
+                    sn=sn_text,
+                    status=status,
+                    test_number=column['test_number'],
+                    test_name=column['test_name'],
+                    test_unit=column['test_unit'],
+                    low_limit=column['low_limit'],
+                    high_limit=column['high_limit'],
+                    measurement=measurement_value,
+                    row_index=row_index,
                 )
             )
     return records
-
 
 def create_summary_sheet(workbook: Workbook, entries: Sequence[SummaryEntry]) -> None:
     if not entries:
@@ -466,14 +548,59 @@ def create_summary_sheet(workbook: Workbook, entries: Sequence[SummaryEntry]) ->
         summary_ws.column_dimensions[get_column_letter(index)].width = width
 
 
+def collapse_measurement_records(records: Sequence[MeasurementRecord]) -> List[MeasurementRecord]:
+    if not records:
+        return []
+    collapsed: Dict[Tuple[str, str, str, str], Dict[str, Any]] = {}
+    order: List[Tuple[str, str, str, str]] = []
+    for record in records:
+        key = (record.lot, record.event, record.intensity, record.sn)
+        bucket = collapsed.get(key)
+        if bucket is None:
+            bucket = {
+                'status': record.status,
+                'source_sheet': record.source_sheet,
+                'row_index': record.row_index,
+                'records': [],
+            }
+            collapsed[key] = bucket
+            order.append(key)
+        else:
+            if record.status == 'PASS':
+                if bucket['status'] != 'PASS' or bucket['row_index'] != record.row_index or bucket['source_sheet'] != record.source_sheet:
+                    bucket['status'] = 'PASS'
+                    bucket['source_sheet'] = record.source_sheet
+                    bucket['row_index'] = record.row_index
+                    bucket['records'] = []
+            else:  # FAIL
+                if bucket['status'] == 'PASS':
+                    if (
+                        bucket['source_sheet'] == record.source_sheet
+                        and bucket['row_index'] == record.row_index
+                    ):
+                        pass
+                    else:
+                        continue
+                if bucket['status'] != 'FAIL' or bucket['row_index'] != record.row_index or bucket['source_sheet'] != record.source_sheet:
+                    bucket['status'] = 'FAIL'
+                    bucket['source_sheet'] = record.source_sheet
+                    bucket['row_index'] = record.row_index
+                    bucket['records'] = []
+        bucket['records'].append(record)
+    result: List[MeasurementRecord] = []
+    for key in order:
+        result.extend(collapsed[key]['records'])
+    return result
+
+
 def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementRecord]) -> None:
     if not records:
         return
     max_rows = 1048576
     data_capacity = max_rows - 1
     base_index = 1 if 'Summary' in workbook.sheetnames else 0
-    headers = ['Lot', 'Event', 'Int', 'Source Worksheet', 'SN', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
-    widths = [16, 18, 12, 28, 12, 18, 42, 12, 14, 14, 16]
+    headers = ['Lot', 'Event', 'Int', 'Source Worksheet', 'SN', 'PASS/FAIL', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
+    widths = [16, 18, 12, 28, 12, 12, 18, 42, 12, 14, 14, 16]
     serial_column_index = None
     for candidate in ('Serial', 'SN'):
         if candidate in headers:
@@ -500,6 +627,7 @@ def create_measurements_sheet(workbook: Workbook, records: Sequence[MeasurementR
                 record.intensity,
                 record.source_sheet,
                 sn_value,
+                record.status,
                 record.test_number,
                 record.test_name,
                 record.test_unit,
@@ -658,7 +786,7 @@ def main() -> int:
                 target_sheet.sheet_state = sheet.sheet_state
                 copy_sheet_contents(sheet, target_sheet, copy_formatting=not args.values_only)
                 measurement_records.extend(
-                    extract_pass_measurements(
+                    extract_measurements(
                         sheet,
                         lot=lot,
                         event=event,
@@ -690,7 +818,8 @@ def main() -> int:
         return 1
 
     create_summary_sheet(workbook, summary_entries)
-    create_measurements_sheet(workbook, measurement_records)
+    collapsed_records = collapse_measurement_records(measurement_records)
+    create_measurements_sheet(workbook, collapsed_records)
 
     try:
         destination_dir.mkdir(parents=True, exist_ok=True)
