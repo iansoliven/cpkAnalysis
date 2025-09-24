@@ -5,7 +5,7 @@ Python utility for merging worksheets from multiple Excel workbooks into a singl
 ## Requirements
 - Python 3.11+
 - openpyxl
-- matplotlib (for addHistoCharts.py)
+- matplotlib (for addHistoCharts.py / addBoxCharts.py)
 
 ## Usage
 Run the script from the directory that holds the source workbooks.
@@ -44,6 +44,11 @@ ShiftSummary columns:
 Event-specific histogram sheets are named `Histogram_<EVENT>` with invalid Excel characters replaced by underscores and truncated to Excel's 31-character limit.
 
 Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
+
+### Adding Boxplot Charts
+Run `python addBoxCharts.py` to produce the same Event/Test/Lot layout but with INT-grouped boxplots instead of histograms. Sheets are named `Boxplot_<EVENT>` and share the ShiftSummary sheet described above. Each box displays the INT subgroups for a lot, uses colour coding consistent with the histogram view, and carries the same mean-shift annotation and low/high limit markers (rendered as horizontal lines). Legends sit in the upper-left corner so the mean-shift callout remains readable.
+
+The command-line arguments mirror `addHistoCharts.py`; you can reuse `--output` and `--max-lots` in the same way.
 ### Helpful options
 - `--values-only` to skip formatting and speed up the merge.
 - `--directory <path>` to merge all `.xlsx` files found in another folder.
