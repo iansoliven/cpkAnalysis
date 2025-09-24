@@ -2,17 +2,22 @@
 """Generate histogram charts grouped by Test Name and Lot.
 
 The script scans every worksheet whose name starts with "Measurements" inside the
-combined workbook produced by mergeXlsx.py. For each distinct Test Name and Lot it
-builds a histogram of the Measurement column, scales the X axis so the documented
-limits remain visible, and embeds the rendered chart image into a Charts worksheet.
-Charts are arranged with one Test Name per row and one Lot per column, each sized
-approximately 10" x 5" (width x height).
+combined workbook produced by mergeXlsx.py. For each Event/Test Name/Lot trio it
+builds histograms of the Measurement column, overlays them by INT/Interval subgroups,
+and annotates the mean shift between the smallest and largest INT buckets. Separate
+sheets named `Histogram_<EVENT>` are inserted immediately after the Measurements
+sheets, and a ShiftSummary sheet lists the per-lot limits (taken from the largest INT
+dataset) together with the computed mean shifts. Chart worksheet names are sanitised
+to satisfy Excel's 31-character limit (falling back to `Unknown Event` when no event
+label is present). Charts are arranged with one Test Name per row and one Lot per
+column, each sized approximately 10" x 5" (width x height).
 """
 
 from __future__ import annotations
 
 import argparse
 import math
+import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from io import BytesIO
@@ -33,7 +38,25 @@ CHART_WIDTH_IN = 10
 CHART_HEIGHT_IN = 5
 CHART_WIDTH_PX = int(CHART_WIDTH_IN * INCH_TO_PIXELS)
 CHART_HEIGHT_PX = int(CHART_HEIGHT_IN * INCH_TO_PIXELS)
-CHARTS_SHEET_NAME = "Charts"
+HISTOGRAM_SHEET_PREFIX = "Histogram_"
+SHIFT_SUMMARY_SHEET_NAME = "ShiftSummary"
+MAX_SHEET_NAME_LENGTH = 31
+INVALID_SHEET_CHARS = re.compile(r"[\/:*?\[\]]")
+
+SHIFT_SUMMARY_HEADER = [
+    "Event",
+    "Test Name",
+    "Test Number",
+    "Unit",
+    "Lot",
+    "Min INT",
+    "Max INT",
+    "Min INT Mean",
+    "Max INT Mean",
+    "Mean Shift",
+    "Low Limit (Max INT)",
+    "High Limit (Max INT)",
+]
 ROW_STRIDE = 27  # heuristic rows to leave between chart anchors
 COL_STRIDE = 15  # heuristic columns to leave between chart anchors
 TEST_LABEL_COLUMN = 1
@@ -50,6 +73,8 @@ class LotData:
     high_limits: List[float]
     intervals: "OrderedDict[str, List[float]]"
     interval_numeric_values: Dict[str, float]
+    interval_low_limits: Dict[str, List[float]]
+    interval_high_limits: Dict[str, List[float]]
 
     def representative_limits(self) -> Tuple[Optional[float], Optional[float]]:
         return _first_finite(self.low_limits), _first_finite(self.high_limits)
@@ -67,6 +92,23 @@ class TestData:
         if self.number and self.number.strip():
             return f"{self.name} (Test {self.number})"
         return self.name
+
+
+@dataclass
+class EventData:
+    name: str
+    tests: "OrderedDict[Tuple[str, Optional[str]], TestData]"
+
+
+@dataclass
+class IntervalSummary:
+    min_label: Optional[str]
+    max_label: Optional[str]
+    min_mean: Optional[float]
+    max_mean: Optional[float]
+    mean_shift: Optional[float]
+    low_limit_max: Optional[float]
+    high_limit_max: Optional[float]
 
 
 def _first_finite(values: Iterable[float]) -> Optional[float]:
@@ -102,14 +144,14 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]], TestData]:
+def load_measurement_tests(workbook_path: Path) -> "OrderedDict[str, EventData]":
     wb = load_workbook(workbook_path, data_only=True, read_only=True)
     try:
         measurement_sheet_names = [name for name in wb.sheetnames if name.startswith(MEASUREMENTS_PREFIX)]
         if not measurement_sheet_names:
             raise ValueError("No Measurements sheets were found in the workbook.")
 
-        tests: Dict[Tuple[str, Optional[str]], TestData] = OrderedDict()
+        events: "OrderedDict[str, EventData]" = OrderedDict()
         for sheet_name in measurement_sheet_names:
             ws = wb[sheet_name]
             rows = ws.iter_rows(values_only=True)
@@ -130,6 +172,7 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
             idx_unit = header_map.get("Test Unit")
             idx_low_limit = header_map.get("Low Limit")
             idx_high_limit = header_map.get("High Limit")
+            idx_event = header_map.get("Event")
             idx_interval = None
             for candidate in ("INT", "Int", "int", "Interval", "interval"):
                 idx_interval = header_map.get(candidate)
@@ -153,6 +196,8 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                 lot_label = _safe_string(row, idx_lot) or "Unknown Lot"
                 test_number = _safe_string(row, idx_test_number)
                 unit_text = _safe_string(row, idx_unit)
+                event_label = _safe_string(row, idx_event) if idx_event is not None else None
+                event_key = event_label if event_label else "Unknown Event"
                 interval_label = _safe_string(row, idx_interval) if idx_interval is not None else None
                 interval_numeric = None
                 if idx_interval is not None and idx_interval < len(row):
@@ -160,8 +205,13 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                 if interval_numeric is None and interval_label:
                     interval_numeric = _coerce_float(interval_label)
 
+                event_entry = events.get(event_key)
+                if event_entry is None:
+                    event_entry = EventData(name=event_key, tests=OrderedDict())
+                    events[event_key] = event_entry
+
                 key = (test_name, test_number)
-                entry = tests.get(key)
+                entry = event_entry.tests.get(key)
                 if entry is None:
                     entry = TestData(
                         name=test_name,
@@ -169,7 +219,7 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                         unit=unit_text,
                         lots=OrderedDict(),
                     )
-                    tests[key] = entry
+                    event_entry.tests[key] = entry
                 elif not entry.unit and unit_text:
                     entry.unit = unit_text
 
@@ -182,6 +232,8 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                         high_limits=[],
                         intervals=OrderedDict(),
                         interval_numeric_values={},
+                        interval_low_limits={},
+                        interval_high_limits={},
                     )
                     entry.lots[lot_label] = lot_entry
 
@@ -195,15 +247,18 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                     low_value = _coerce_float(row[idx_low_limit])
                     if low_value is not None:
                         lot_entry.low_limits.append(low_value)
+                        lot_entry.interval_low_limits.setdefault(interval_key, []).append(low_value)
                 if idx_high_limit is not None and idx_high_limit < len(row):
                     high_value = _coerce_float(row[idx_high_limit])
                     if high_value is not None:
                         lot_entry.high_limits.append(high_value)
-        if not tests:
+                        lot_entry.interval_high_limits.setdefault(interval_key, []).append(high_value)
+        if not events:
             raise ValueError("No measurement rows were found across the Measurements sheets.")
-        return tests
+        return events
     finally:
         wb.close()
+
 
 
 def _coerce_float(value: Optional[object]) -> Optional[float]:
@@ -260,15 +315,105 @@ def choose_bin_count(values: List[float], low: float, high: float) -> int:
     return bins
 
 
-def _next_charts_sheet_name(existing_names: Iterable[str]) -> str:
-    if CHARTS_SHEET_NAME not in existing_names:
-        return CHARTS_SHEET_NAME
+def _sanitize_sheet_title(base_name: str, existing_names: Iterable[str]) -> str:
+    sanitized = INVALID_SHEET_CHARS.sub("_", base_name).strip()
+    if not sanitized:
+        sanitized = "Sheet"
+    sanitized = sanitized[:MAX_SHEET_NAME_LENGTH]
+    candidate = sanitized
     index = 1
-    while True:
-        candidate = f"{CHARTS_SHEET_NAME}_{index}"
-        if candidate not in existing_names:
-            return candidate
+    existing_set = set(existing_names)
+    while candidate in existing_set:
+        suffix = f"_{index}"
+        trim_length = MAX_SHEET_NAME_LENGTH - len(suffix)
+        candidate = f"{sanitized[:trim_length]}{suffix}"
         index += 1
+    return candidate
+
+
+def _histogram_sheet_name(event_name: str, existing_names: Iterable[str]) -> str:
+    label = event_name or "Unknown Event"
+    base_title = f"{HISTOGRAM_SHEET_PREFIX}{label}"
+    return _sanitize_sheet_title(base_title, existing_names)
+
+def _format_interval_label(label: str) -> str:
+    label_str = str(label)
+    if label_str in {"All Data", "INT Missing"}:
+        return label_str
+    if label_str.upper().startswith("INT "):
+        return label_str
+    return f"INT {label_str}"
+
+
+def _prepare_interval_groups(lot_data: LotData) -> Tuple[List[Tuple[str, List[float]]], List[Tuple[float, str, List[float]]]]:
+    interval_items = [(label, values) for label, values in lot_data.intervals.items() if values]
+    if not interval_items:
+        interval_items = [("All Data", lot_data.measurements)]
+
+    numeric_groups: List[Tuple[float, str, List[float]]] = []
+    fallback_groups: List[Tuple[str, List[float]]] = []
+    for label, values in interval_items:
+        numeric_value = lot_data.interval_numeric_values.get(label)
+        if numeric_value is None:
+            try:
+                numeric_value = float(label)
+            except (TypeError, ValueError):
+                numeric_value = None
+        if numeric_value is None:
+            fallback_groups.append((label, values))
+        else:
+            numeric_groups.append((numeric_value, label, values))
+    numeric_groups.sort(key=lambda item: item[0])
+    ordered_groups = [(label, values) for _, label, values in numeric_groups]
+    ordered_groups.extend(fallback_groups)
+    if not ordered_groups:
+        ordered_groups = [("All Data", lot_data.measurements)]
+    return ordered_groups, numeric_groups
+
+
+def _summarize_interval_shift(
+    lot_data: LotData, numeric_groups: Optional[List[Tuple[float, str, List[float]]]] = None
+) -> IntervalSummary:
+    if numeric_groups is None:
+        _, numeric_groups = _prepare_interval_groups(lot_data)
+
+    low_declared, high_declared = lot_data.representative_limits()
+    if not numeric_groups:
+        return IntervalSummary(
+            min_label=None,
+            max_label=None,
+            min_mean=None,
+            max_mean=None,
+            mean_shift=None,
+            low_limit_max=low_declared,
+            high_limit_max=high_declared,
+        )
+
+    _, min_label, min_values = numeric_groups[0]
+    _, max_label, max_values = numeric_groups[-1]
+    min_mean = float(np.mean(min_values)) if min_values else None
+    max_mean = float(np.mean(max_values)) if max_values else None
+    mean_shift = None
+    if min_mean is not None and max_mean is not None:
+        mean_shift = max_mean - min_mean
+
+    low_list = lot_data.interval_low_limits.get(max_label)
+    high_list = lot_data.interval_high_limits.get(max_label)
+    low_limit_max = _first_finite(low_list) if low_list else _first_finite(lot_data.low_limits)
+    high_limit_max = _first_finite(high_list) if high_list else _first_finite(lot_data.high_limits)
+
+    return IntervalSummary(
+        min_label=_format_interval_label(min_label),
+        max_label=_format_interval_label(max_label),
+        min_mean=min_mean,
+        max_mean=max_mean,
+        mean_shift=mean_shift,
+        low_limit_max=low_limit_max if low_limit_max is not None else low_declared,
+        high_limit_max=high_limit_max if high_limit_max is not None else high_declared,
+    )
+
+
+
 
 
 def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
@@ -298,43 +443,11 @@ def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
 
     fig, ax = plt.subplots(figsize=(CHART_WIDTH_IN, CHART_HEIGHT_IN))
 
-    interval_items = [(label, values) for label, values in lot_data.intervals.items() if values]
-    if not interval_items:
-        interval_items = [("All Data", lot_data.measurements)]
-
-    numeric_groups = []
-    fallback_groups = []
-    for label, values in interval_items:
-        numeric_value = lot_data.interval_numeric_values.get(label)
-        if numeric_value is None:
-            try:
-                numeric_value = float(label)
-            except (TypeError, ValueError):
-                numeric_value = None
-        if numeric_value is None:
-            fallback_groups.append((label, values))
-        else:
-            numeric_groups.append((numeric_value, label, values))
-    numeric_groups.sort(key=lambda item: item[0])
-    ordered_groups = [(label, values) for _, label, values in numeric_groups]
-    for item_label, item_values in fallback_groups:
-        ordered_groups.append((item_label, item_values))
-    if not ordered_groups:
-        ordered_groups = [("All Data", lot_data.measurements)]
-
+    ordered_groups, numeric_groups = _prepare_interval_groups(lot_data)
     group_arrays = [values for _, values in ordered_groups]
     cmap = plt.get_cmap("tab20")
     colors = [cmap(index % cmap.N) for index in range(len(group_arrays))]
-    group_labels = []
-    for label, _ in ordered_groups:
-        label_str = str(label)
-        if label_str in {"All Data", "INT Missing"}:
-            display_label = label_str
-        elif label_str.upper().startswith("INT "):
-            display_label = label_str
-        else:
-            display_label = f"INT {label_str}"
-        group_labels.append(display_label)
+    group_labels = [_format_interval_label(label) for label, _ in ordered_groups]
     ax.hist(group_arrays, bins=bin_edges, color=colors, edgecolor="#1F497D", alpha=0.7, label=group_labels)
 
     axis_label = "Measurement"
@@ -345,12 +458,9 @@ def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
     ax.set_xlim(axis_low, axis_high)
     ax.set_title(f"{lot_data.lot} - {test.title}")
 
-    mean_shift = None
-    if len(numeric_groups) >= 2:
-        first_mean = float(np.mean(numeric_groups[0][2]))
-        last_mean = float(np.mean(numeric_groups[-1][2]))
-        mean_shift = last_mean - first_mean
-        shift_text = f"Mean shift: {mean_shift:.3g}"
+    interval_summary = _summarize_interval_shift(lot_data, numeric_groups)
+    if interval_summary.mean_shift is not None:
+        shift_text = f"Mean shift: {interval_summary.mean_shift:.3g}"
         if test.unit:
             shift_text += f" {test.unit}"
         ax.text(0.98, 0.98, shift_text, transform=ax.transAxes, ha="right", va="top", fontsize=12, fontweight="bold", bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.7})
@@ -377,51 +487,87 @@ def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
 def add_charts_to_workbook(
     workbook_path: Path,
     output_path: Path,
-    tests: Dict[Tuple[str, Optional[str]], TestData],
+    events: "OrderedDict[str, EventData]",
     max_lots: int,
-) -> None:
+) -> int:
     wb = load_workbook(workbook_path)
-    sheet_name = _next_charts_sheet_name(wb.sheetnames)
-    charts_ws = wb.create_sheet(sheet_name)
-    charts_ws["A1"] = f"Charts generated by addCharts.py ({sheet_name})"
-    charts_ws.freeze_panes = "B4"
+    for sheet_name in list(wb.sheetnames):
+        if sheet_name.startswith(HISTOGRAM_SHEET_PREFIX) or sheet_name == SHIFT_SUMMARY_SHEET_NAME:
+            del wb[sheet_name]
 
-    sorted_tests = [tests[key] for key in tests]
+    measurement_indices = [idx for idx, name in enumerate(wb.sheetnames) if name.startswith(MEASUREMENTS_PREFIX)]
+    insert_index = max(measurement_indices) + 1 if measurement_indices else len(wb.sheetnames)
 
-    lot_order: "OrderedDict[str, None]" = OrderedDict()
-    for test in sorted_tests:
-        for lot_name in test.lots:
-            lot_order.setdefault(lot_name, None)
-    lot_names = list(lot_order.keys())
-    if max_lots > 0:
-        lot_names = lot_names[:max_lots]
+    summary_rows: List[List[object]] = []
 
-    # Header row that labels each lot column
-    for col_idx, lot_name in enumerate(lot_names):
-        header_column = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
-        charts_ws.cell(row=HEADER_ROW, column=header_column, value=lot_name)
+    for event_name, event_data in events.items():
+        sheet_name = _histogram_sheet_name(event_name, wb.sheetnames)
+        charts_ws = wb.create_sheet(sheet_name, index=insert_index)
+        insert_index = wb.sheetnames.index(sheet_name) + 1
+        charts_ws["A1"] = (
+            f"Histogram charts generated by {Path(__file__).name} for event '{event_name}' ({sheet_name})"
+        )
+        charts_ws.freeze_panes = "B4"
 
-    for test_idx, test in enumerate(sorted_tests):
-        anchor_row = HEADER_ROW + 1 + test_idx * ROW_STRIDE
-        charts_ws.cell(row=anchor_row, column=TEST_LABEL_COLUMN, value=test.title)
+        sorted_tests = [event_data.tests[key] for key in event_data.tests]
+
+        lot_order: "OrderedDict[str, None]" = OrderedDict()
+        for test in sorted_tests:
+            for lot_name in test.lots:
+                lot_order.setdefault(lot_name, None)
+        lot_names = list(lot_order.keys())
+        if max_lots > 0:
+            lot_names = lot_names[:max_lots]
 
         for col_idx, lot_name in enumerate(lot_names):
-            lot_data = test.lots.get(lot_name)
-            if lot_data is None or not lot_data.measurements:
-                continue
-            image_stream = build_chart_image(test, lot_data)
-            if image_stream is None:
-                continue
-            img = XLImage(image_stream)
-            img.width = CHART_WIDTH_PX
-            img.height = CHART_HEIGHT_PX
+            header_column = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
+            charts_ws.cell(row=HEADER_ROW, column=header_column, value=lot_name)
 
-            anchor_col = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
-            anchor_cell = f"{get_column_letter(anchor_col)}{anchor_row}"
-            charts_ws.add_image(img, anchor_cell)
+        for test_idx, test in enumerate(sorted_tests):
+            anchor_row = HEADER_ROW + 1 + test_idx * ROW_STRIDE
+            charts_ws.cell(row=anchor_row, column=TEST_LABEL_COLUMN, value=test.title)
+
+            for col_idx, lot_name in enumerate(lot_names):
+                lot_data = test.lots.get(lot_name)
+                if lot_data is None or not lot_data.measurements:
+                    continue
+                interval_summary = _summarize_interval_shift(lot_data)
+                summary_rows.append([
+                    event_name,
+                    test.name,
+                    test.number or "",
+                    test.unit or "",
+                    lot_name,
+                    interval_summary.min_label or "",
+                    interval_summary.max_label or "",
+                    interval_summary.min_mean,
+                    interval_summary.max_mean,
+                    interval_summary.mean_shift,
+                    interval_summary.low_limit_max,
+                    interval_summary.high_limit_max,
+                ])
+                image_stream = build_chart_image(test, lot_data)
+                if image_stream is None:
+                    continue
+                img = XLImage(image_stream)
+                img.width = CHART_WIDTH_PX
+                img.height = CHART_HEIGHT_PX
+
+                anchor_col = FIRST_CHART_COLUMN + col_idx * COL_STRIDE
+                anchor_cell = f"{get_column_letter(anchor_col)}{anchor_row}"
+                charts_ws.add_image(img, anchor_cell)
+
+    summary_index = insert_index
+    summary_ws = wb.create_sheet(SHIFT_SUMMARY_SHEET_NAME, index=summary_index)
+    summary_ws.append(SHIFT_SUMMARY_HEADER)
+    for row in summary_rows:
+        summary_ws.append(row)
+    summary_ws.freeze_panes = "A2"
 
     wb.save(output_path)
     wb.close()
+    return len(summary_rows)
+
 
 
 def main() -> None:
@@ -429,13 +575,16 @@ def main() -> None:
     workbook_path = args.workbook.expanduser().resolve()
     if not workbook_path.exists():
         raise SystemExit(f"Workbook not found: {workbook_path}")
-    tests = load_measurement_tests(workbook_path)
+    events = load_measurement_tests(workbook_path)
     output_path = (args.output or workbook_path).expanduser().resolve()
-    add_charts_to_workbook(workbook_path, output_path, tests, max_lots=max(args.max_lots, 0))
+    summary_count = add_charts_to_workbook(workbook_path, output_path, events, max_lots=max(args.max_lots, 0))
+    total_histograms = sum(len(test.lots) for event in events.values() for test in event.tests.values())
+    total_tests = sum(len(event.tests) for event in events.values())
     print(
-        f"Added Charts sheet with {sum(len(t.lots) for t in tests.values())} histogram(s) across "
-        f"{len(tests)} test(s) to {output_path}"
+        f"Added histogram sheets for {len(events)} event(s) with {total_histograms} histogram(s) across "
+        f"{total_tests} test(s) and recorded {summary_count} ShiftSummary row(s) in {output_path}"
     )
+
 
 
 if __name__ == "__main__":

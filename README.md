@@ -5,7 +5,7 @@ Python utility for merging worksheets from multiple Excel workbooks into a singl
 ## Requirements
 - Python 3.11+
 - openpyxl
-- matplotlib (for addCharts.py)
+- matplotlib (for addHistoCharts.py)
 
 ## Usage
 Run the script from the directory that holds the source workbooks.
@@ -24,14 +24,26 @@ python mergeXlsx.py -o F104547_Merge.xlsx
 - Skips any `.xlsx` file that matches the requested output filename or starts with Excel's `~$` temp prefix.
 
 ### Adding Histogram Charts
-Run `python addCharts.py` after the merge completes to append a **Charts** worksheet. The script groups rows in the Measurements tables by Test Name and Lot, rendering one histogram per Test/Lot pair (chart titles include both). Charts are laid out with Test Names on rows and Lots on columns; the X axis is padded slightly so low/high limit markers stay visible even when they coincide with the data extremes.
+Run `python addHistoCharts.py` after the merge completes to append histogram worksheets immediately after the **Measurements** sheets. The script creates one sheet per Event (named `Histogram_<EVENT>`), grouping rows in the Measurements tables by Test Name and Lot so each chart shows a single Test/Lot pair. Charts are laid out with Test Names on rows and Lots on columns; the X axis is padded slightly so low/high limit markers stay visible even when they coincide with the data extremes.
 
 When the Measurements data includes an `INT`/Interval column, each chart overlays color-coded histograms for every interval value and adds a legend showing the subgroup labels. Numeric intervals are ordered from smallest to largest so time-based stress steps read left to right. Rows without an interval entry are collected into an `INT Missing` series.
 
 A bold annotation in the upper-right corner reports the mean shift between the smallest and largest INT groups (mean of max INT minus mean of min INT). Units are appended when available.
 
-Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
+Each run also creates a **ShiftSummary** sheet that lists the Event, Test Name/Test Number/Lot combination, the smallest and largest INT labels, their means, the resulting mean shift, and the low/high limits derived from the largest INT dataset for that lot.
 
+ShiftSummary columns:
+- `Event` – copied from the Measurements table (fallback `Unknown Event` when no Event column or empty cell exists).
+- `Test Name` / `Test Number` / `Unit` – carried forward from the Measurements data.
+- `Lot` – the lot name hosting the histogram.
+- `Min INT` / `Max INT` – labels for the smallest and largest INT groups contributing data.
+- `Min INT Mean` / `Max INT Mean` – mean of the measurements inside those INT groups.
+- `Mean Shift` – `Max INT Mean` minus `Min INT Mean` (unit-aware when provided).
+- `Low Limit (Max INT)` / `High Limit (Max INT)` – limits associated with the largest INT data set (falls back to the lot-level limits when the INT-specific limits are missing).
+
+Event-specific histogram sheets are named `Histogram_<EVENT>` with invalid Excel characters replaced by underscores and truncated to Excel's 31-character limit.
+
+Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
 ### Helpful options
 - `--values-only` to skip formatting and speed up the merge.
 - `--directory <path>` to merge all `.xlsx` files found in another folder.
