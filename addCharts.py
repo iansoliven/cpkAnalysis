@@ -48,6 +48,8 @@ class LotData:
     measurements: List[float]
     low_limits: List[float]
     high_limits: List[float]
+    intervals: "OrderedDict[str, List[float]]"
+    interval_numeric_values: Dict[str, float]
 
     def representative_limits(self) -> Tuple[Optional[float], Optional[float]]:
         return _first_finite(self.low_limits), _first_finite(self.high_limits)
@@ -128,6 +130,16 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
             idx_unit = header_map.get("Test Unit")
             idx_low_limit = header_map.get("Low Limit")
             idx_high_limit = header_map.get("High Limit")
+            idx_interval = None
+            for candidate in ("INT", "Int", "int", "Interval", "interval"):
+                idx_interval = header_map.get(candidate)
+                if idx_interval is not None:
+                    break
+            if idx_interval is None:
+                for header_key, column_idx in header_map.items():
+                    if header_key and str(header_key).strip().lower() in {"int", "interval"}:
+                        idx_interval = column_idx
+                        break
 
             for row in rows:
                 test_name = _safe_string(row, idx_test_name)
@@ -141,6 +153,12 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
                 lot_label = _safe_string(row, idx_lot) or "Unknown Lot"
                 test_number = _safe_string(row, idx_test_number)
                 unit_text = _safe_string(row, idx_unit)
+                interval_label = _safe_string(row, idx_interval) if idx_interval is not None else None
+                interval_numeric = None
+                if idx_interval is not None and idx_interval < len(row):
+                    interval_numeric = _coerce_float(row[idx_interval])
+                if interval_numeric is None and interval_label:
+                    interval_numeric = _coerce_float(interval_label)
 
                 key = (test_name, test_number)
                 entry = tests.get(key)
@@ -157,10 +175,22 @@ def load_measurement_tests(workbook_path: Path) -> Dict[Tuple[str, Optional[str]
 
                 lot_entry = entry.lots.get(lot_label)
                 if lot_entry is None:
-                    lot_entry = LotData(lot=lot_label, measurements=[], low_limits=[], high_limits=[])
+                    lot_entry = LotData(
+                        lot=lot_label,
+                        measurements=[],
+                        low_limits=[],
+                        high_limits=[],
+                        intervals=OrderedDict(),
+                        interval_numeric_values={},
+                    )
                     entry.lots[lot_label] = lot_entry
 
                 lot_entry.measurements.append(measurement)
+                interval_key = interval_label if interval_label else ("INT Missing" if idx_interval is not None else "All Data")
+                interval_group = lot_entry.intervals.setdefault(interval_key, [])
+                interval_group.append(measurement)
+                if interval_numeric is not None and interval_key not in lot_entry.interval_numeric_values:
+                    lot_entry.interval_numeric_values[interval_key] = interval_numeric
                 if idx_low_limit is not None and idx_low_limit < len(row):
                     low_value = _coerce_float(row[idx_low_limit])
                     if low_value is not None:
@@ -267,24 +297,72 @@ def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
     bin_edges = np.linspace(axis_low, axis_high, bin_count + 1)
 
     fig, ax = plt.subplots(figsize=(CHART_WIDTH_IN, CHART_HEIGHT_IN))
-    ax.hist(lot_data.measurements, bins=bin_edges, color="#4F81BD", edgecolor="#1F497D", alpha=0.8)
-    ax.set_title(f"{lot_data.lot} – {test.title}")
+
+    interval_items = [(label, values) for label, values in lot_data.intervals.items() if values]
+    if not interval_items:
+        interval_items = [("All Data", lot_data.measurements)]
+
+    numeric_groups = []
+    fallback_groups = []
+    for label, values in interval_items:
+        numeric_value = lot_data.interval_numeric_values.get(label)
+        if numeric_value is None:
+            try:
+                numeric_value = float(label)
+            except (TypeError, ValueError):
+                numeric_value = None
+        if numeric_value is None:
+            fallback_groups.append((label, values))
+        else:
+            numeric_groups.append((numeric_value, label, values))
+    numeric_groups.sort(key=lambda item: item[0])
+    ordered_groups = [(label, values) for _, label, values in numeric_groups]
+    for item_label, item_values in fallback_groups:
+        ordered_groups.append((item_label, item_values))
+    if not ordered_groups:
+        ordered_groups = [("All Data", lot_data.measurements)]
+
+    group_arrays = [values for _, values in ordered_groups]
+    cmap = plt.get_cmap("tab20")
+    colors = [cmap(index % cmap.N) for index in range(len(group_arrays))]
+    group_labels = []
+    for label, _ in ordered_groups:
+        label_str = str(label)
+        if label_str in {"All Data", "INT Missing"}:
+            display_label = label_str
+        elif label_str.upper().startswith("INT "):
+            display_label = label_str
+        else:
+            display_label = f"INT {label_str}"
+        group_labels.append(display_label)
+    ax.hist(group_arrays, bins=bin_edges, color=colors, edgecolor="#1F497D", alpha=0.7, label=group_labels)
+
     axis_label = "Measurement"
     if test.unit:
         axis_label += f" ({test.unit})"
     ax.set_xlabel(axis_label)
     ax.set_ylabel("Count")
     ax.set_xlim(axis_low, axis_high)
+    ax.set_title(f"{lot_data.lot} - {test.title}")
 
-    legend_entries: List[str] = []
+    mean_shift = None
+    if len(numeric_groups) >= 2:
+        first_mean = float(np.mean(numeric_groups[0][2]))
+        last_mean = float(np.mean(numeric_groups[-1][2]))
+        mean_shift = last_mean - first_mean
+        shift_text = f"Mean shift: {mean_shift:.3g}"
+        if test.unit:
+            shift_text += f" {test.unit}"
+        ax.text(0.98, 0.98, shift_text, transform=ax.transAxes, ha="right", va="top", fontsize=12, fontweight="bold", bbox={"boxstyle": "round,pad=0.3", "facecolor": "white", "alpha": 0.7})
+
     if low_declared is not None:
-        ax.axvline(low_declared, color="#C0504D", linestyle="--", linewidth=2)
-        legend_entries.append("Low Limit")
+        ax.axvline(low_declared, color="#C0504D", linestyle="--", linewidth=2, label="Low Limit")
     if high_declared is not None:
-        ax.axvline(high_declared, color="#9BBB59", linestyle="--", linewidth=2)
-        legend_entries.append("High Limit")
-    if legend_entries:
-        ax.legend(legend_entries, loc="upper right")
+        ax.axvline(high_declared, color="#9BBB59", linestyle="--", linewidth=2, label="High Limit")
+
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, loc="upper left")
 
     ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
     fig.tight_layout()

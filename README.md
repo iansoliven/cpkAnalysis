@@ -24,7 +24,13 @@ python mergeXlsx.py -o F104547_Merge.xlsx
 - Skips any `.xlsx` file that matches the requested output filename or starts with Excel's `~$` temp prefix.
 
 ### Adding Histogram Charts
-Run `python addCharts.py` after the merge completes to append a **Charts** worksheet. The script groups rows in the Measurements tables by Test Name and Lot, rendering one histogram per Test/Lot pair (chart titles include both). Charts are laid out with Test Names on rows and Lots on columns; the X axis is padded slightly so low/high limit markers stay visible even when they coincide with the data extremes. Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
+Run `python addCharts.py` after the merge completes to append a **Charts** worksheet. The script groups rows in the Measurements tables by Test Name and Lot, rendering one histogram per Test/Lot pair (chart titles include both). Charts are laid out with Test Names on rows and Lots on columns; the X axis is padded slightly so low/high limit markers stay visible even when they coincide with the data extremes.
+
+When the Measurements data includes an `INT`/Interval column, each chart overlays color-coded histograms for every interval value and adds a legend showing the subgroup labels. Numeric intervals are ordered from smallest to largest so time-based stress steps read left to right. Rows without an interval entry are collected into an `INT Missing` series.
+
+A bold annotation in the upper-right corner reports the mean shift between the smallest and largest INT groups (mean of max INT minus mean of min INT). Units are appended when available.
+
+Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
 
 ### Helpful options
 - `--values-only` to skip formatting and speed up the merge.
