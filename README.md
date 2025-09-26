@@ -26,7 +26,7 @@ python mergeXlsx.py -o F104547_Merge.xlsx
 ### Adding Histogram Charts
 Run `python addHistoCharts.py` after the merge completes to append histogram worksheets immediately after the **Measurements** sheets. The script creates one sheet per Event (named `Histogram_<EVENT>`), grouping rows in the Measurements tables by Test Name and Lot so each chart shows a single Test/Lot pair. Charts are laid out with Test Names on rows and Lots on columns; the X axis is padded slightly so low/high limit markers stay visible even when they coincide with the data extremes.
 
-When the Measurements data includes an `INT`/Interval column, each chart overlays color-coded histograms for every interval value and adds a legend showing the subgroup labels. Numeric intervals are ordered from smallest to largest so time-based stress steps read left to right. Rows without an interval entry are collected into an `INT Missing` series.
+When the Measurements data includes an `INT`/Interval column, each chart overlays color-coded histograms for every interval value and adds a legend showing the subgroup labels. `INT Prescreen` is always displayed first, numeric INT labels follow from smallest to largest so time-based stress steps read left to right, and any remaining text labels (including `INT Missing`) are appended afterward. Rows without an interval entry are collected into an `INT Missing` series, and the combined legend is positioned outside the plot area on the right so the bins remain unobstructed.
 
 A bold annotation in the upper-right corner reports the mean shift between the smallest and largest INT groups (mean of max INT minus mean of min INT). Units are appended when available.
 
@@ -46,7 +46,7 @@ Event-specific histogram sheets are named `Histogram_<EVENT>` with invalid Excel
 Use `--output <file>` to save the charts to a separate workbook, or `--max-lots <N>` to limit the number of Lot columns rendered.
 
 ### Adding Boxplot Charts
-Run `python addBoxCharts.py` to produce the same Event/Test/Lot layout but with INT-grouped boxplots instead of histograms. Sheets are named `Boxplot_<EVENT>` and share the ShiftSummary sheet described above. Each box displays the INT subgroups for a lot, uses colour coding consistent with the histogram view, and carries the same mean-shift annotation and low/high limit markers (rendered as horizontal lines). Legends sit in the upper-left corner so the mean-shift callout remains readable.
+Run `python addBoxCharts.py` to produce the same Event/Test/Lot layout but with INT-grouped boxplots instead of histograms. Sheets are named `Boxplot_<EVENT>` and share the ShiftSummary sheet described above. Each box displays the INT subgroups for a lot, uses colour coding consistent with the histogram view, and carries the same mean-shift annotation and low/high limit markers (rendered as horizontal lines). The INT ordering mirrors the histogram view (`INT Prescreen`, then ascending numeric INT labels, followed by any remaining text labels), and the legend is rendered outside the plot area on the right so the callout and boxes stay clear.
 
 The command-line arguments mirror `addHistoCharts.py`; you can reuse `--output` and `--max-lots` in the same way.
 ### Helpful options

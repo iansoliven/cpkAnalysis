@@ -4,13 +4,16 @@
 The script scans every worksheet whose name starts with "Measurements" inside the
 combined workbook produced by mergeXlsx.py. For each Event/Test Name/Lot trio it
 builds histograms of the Measurement column, overlays them by INT/Interval subgroups,
-and annotates the mean shift between the smallest and largest INT buckets. Separate
-sheets named `Histogram_<EVENT>` are inserted immediately after the Measurements
+and annotates the mean shift between the smallest and largest INT buckets. INT series
+are ordered so "INT Prescreen" appears first, numeric INT labels follow from smallest to
+largest, and any remaining text labels (including "INT Missing") are appended afterward.
+Separate sheets named `Histogram_<EVENT>` are inserted immediately after the Measurements
 sheets, and a ShiftSummary sheet lists the per-lot limits (taken from the largest INT
 dataset) together with the computed mean shifts. Chart worksheet names are sanitised
 to satisfy Excel's 31-character limit (falling back to `Unknown Event` when no event
 label is present). Charts are arranged with one Test Name per row and one Lot per
-column, each sized approximately 10" x 5" (width x height).
+column, each sized approximately 10" x 5" (width x height). Legends are rendered just
+outside the chart area so the plot surface stays clear of labels.
 """
 
 from __future__ import annotations
@@ -351,6 +354,7 @@ def _prepare_interval_groups(lot_data: LotData) -> Tuple[List[Tuple[str, List[fl
         interval_items = [("All Data", lot_data.measurements)]
 
     numeric_groups: List[Tuple[float, str, List[float]]] = []
+    prescreen_group: Optional[Tuple[str, List[float]]] = None
     fallback_groups: List[Tuple[str, List[float]]] = []
     for label, values in interval_items:
         numeric_value = lot_data.interval_numeric_values.get(label)
@@ -360,16 +364,25 @@ def _prepare_interval_groups(lot_data: LotData) -> Tuple[List[Tuple[str, List[fl
             except (TypeError, ValueError):
                 numeric_value = None
         if numeric_value is None:
-            fallback_groups.append((label, values))
+            label_str = str(label).strip()
+            normalized = label_str.lower()
+            if normalized.startswith("int "):
+                normalized = normalized[4:].strip()
+            if normalized == "prescreen" and prescreen_group is None:
+                prescreen_group = (label, values)
+            else:
+                fallback_groups.append((label, values))
         else:
             numeric_groups.append((numeric_value, label, values))
     numeric_groups.sort(key=lambda item: item[0])
-    ordered_groups = [(label, values) for _, label, values in numeric_groups]
+    ordered_groups: List[Tuple[str, List[float]]] = []
+    if prescreen_group is not None:
+        ordered_groups.append(prescreen_group)
+    ordered_groups.extend((label, values) for _, label, values in numeric_groups)
     ordered_groups.extend(fallback_groups)
     if not ordered_groups:
         ordered_groups = [("All Data", lot_data.measurements)]
     return ordered_groups, numeric_groups
-
 
 def _summarize_interval_shift(
     lot_data: LotData, numeric_groups: Optional[List[Tuple[float, str, List[float]]]] = None
@@ -472,10 +485,10 @@ def build_chart_image(test: TestData, lot_data: LotData) -> Optional[BytesIO]:
 
     handles, labels = ax.get_legend_handles_labels()
     if handles:
-        ax.legend(handles, labels, loc="upper left")
+        ax.legend(handles, labels, loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0)
 
     ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
-    fig.tight_layout()
+    fig.tight_layout(rect=[0, 0, 0.78, 1])
 
     buffer = BytesIO()
     fig.savefig(buffer, format="png", dpi=150)
