@@ -1,3 +1,27 @@
+# ReadDirectory
+
+This utility scans a directory for files matching the pattern `XXX_LOT_EVENT_INTERVAL.xlsx` or `.stdf`, extracts LOT, EVENT, and INTERVAL from the filenames, and prompts the user for confirmation before proceeding. This is useful for preparing data for further analysis or merging.
+
+## Usage
+Run the script from the directory that holds the source workbooks, or specify a directory:
+
+```bash
+python read_directory.py <directory>
+```
+
+If no directory is provided, the current directory is used. The script will list all matching files and their extracted metadata, then prompt for confirmation.
+
+Example output:
+```
+Detected files:
+Filename                                                     LOT        EVENT      INTERVAL
+A104549HTA_A_HAST_Prescreen.xlsx                             A          HAST       Prescreen
+... (other files) ...
+Are these correct? (y/n):
+```
+
+If you confirm, the script will proceed; otherwise, it will abort.
+
 # mergeXlsx
 
 Python utility for merging worksheets from multiple Excel workbooks into a single file while preserving formatting.
@@ -33,13 +57,13 @@ A bold annotation in the upper-right corner reports the mean shift between the s
 Each run also creates a **ShiftSummary** sheet that lists the Event, Test Name/Test Number/Lot combination, the smallest and largest INT labels, their means, the resulting mean shift, and the low/high limits derived from the largest INT dataset for that lot.
 
 ShiftSummary columns:
-- `Event` – copied from the Measurements table (fallback `Unknown Event` when no Event column or empty cell exists).
-- `Test Name` / `Test Number` / `Unit` – carried forward from the Measurements data.
-- `Lot` – the lot name hosting the histogram.
-- `Min INT` / `Max INT` – labels for the smallest and largest INT groups contributing data.
-- `Min INT Mean` / `Max INT Mean` – mean of the measurements inside those INT groups.
-- `Mean Shift` – `Max INT Mean` minus `Min INT Mean` (unit-aware when provided).
-- `Low Limit (Max INT)` / `High Limit (Max INT)` – limits associated with the largest INT data set (falls back to the lot-level limits when the INT-specific limits are missing).
+- `Event` ï¿½ copied from the Measurements table (fallback `Unknown Event` when no Event column or empty cell exists).
+- `Test Name` / `Test Number` / `Unit` ï¿½ carried forward from the Measurements data.
+- `Lot` ï¿½ the lot name hosting the histogram.
+- `Min INT` / `Max INT` ï¿½ labels for the smallest and largest INT groups contributing data.
+- `Min INT Mean` / `Max INT Mean` ï¿½ mean of the measurements inside those INT groups.
+- `Mean Shift` ï¿½ `Max INT Mean` minus `Min INT Mean` (unit-aware when provided).
+- `Low Limit (Max INT)` / `High Limit (Max INT)` ï¿½ limits associated with the largest INT data set (falls back to the lot-level limits when the INT-specific limits are missing).
 
 Event-specific histogram sheets are named `Histogram_<EVENT>` with invalid Excel characters replaced by underscores and truncated to Excel's 31-character limit.
 
