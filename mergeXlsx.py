@@ -88,7 +88,7 @@ class SummaryEntry:
     sheet_title: str
     lot: str
     event: str
-    intensity: str
+    interval: str
     file_name: str
     file_link: str
     pass_count: int
@@ -99,7 +99,7 @@ class SummaryEntry:
 class MeasurementRecord:
     lot: str
     event: str
-    intensity: str
+    interval: str
     source_sheet: str
     sn: str
     status: str
@@ -116,10 +116,10 @@ def parse_filename_metadata(stem: str) -> Tuple[str, str, str]:
     parts = stem.split('_')
     lot = parts[1] if len(parts) >= 2 else ''
     event = parts[2] if len(parts) >= 3 else ''
-    intensity = '_'.join(parts[3:]) if len(parts) >= 4 else ''
+    interval = '_'.join(parts[3:]) if len(parts) >= 4 else ''
     if not lot and stem:
         lot = stem[0]
-    return lot, event, intensity
+    return lot, event, interval
 
 
 def build_file_link(source_file: Path, output_dir: Path) -> str:
@@ -378,7 +378,7 @@ def _build_test_columns(header_row: Sequence[Any], metadata: Dict[str, Sequence[
         )
     return columns
 
-def extract_measurements(sheet: Worksheet, lot: str, event: str, intensity: str, source_sheet: str) -> List[MeasurementRecord]:
+def extract_measurements(sheet: Worksheet, lot: str, event: str, interval: str, source_sheet: str) -> List[MeasurementRecord]:
     metadata_rows: Dict[str, Sequence[Any]] = {}
     header_row: Optional[Sequence[Any]] = None
     header_row_index: Optional[int] = None
@@ -479,7 +479,7 @@ def extract_measurements(sheet: Worksheet, lot: str, event: str, intensity: str,
                 MeasurementRecord(
                     lot=lot,
                     event=event,
-                    intensity=intensity,
+                    interval=interval,
                     source_sheet=source_sheet,
                     sn=sn_text,
                     status='PASS',
@@ -507,7 +507,7 @@ def extract_measurements(sheet: Worksheet, lot: str, event: str, intensity: str,
                 MeasurementRecord(
                     lot=lot,
                     event=event,
-                    intensity=intensity,
+                    interval=interval,
                     source_sheet=source_sheet,
                     sn=sn_text,
                     status=status,
@@ -777,6 +777,7 @@ def main() -> int:
     for source_file in sources:
         print(f"Processing {source_file}...")
         lot, event, intensity = parse_filename_metadata(source_file.stem)
+    lot, event, interval = parse_filename_metadata(source_file.stem)
         file_link = build_file_link(source_file, destination_dir)
         file_display_name = source_file.name
         try:
@@ -806,6 +807,13 @@ def main() -> int:
                 )
                 summary_entries.append(
                     SummaryEntry(
+                        interval=interval,
+    headers = ['Sheet Name', 'Lot', 'Event', 'Interval', 'File Name', 'Passing Units', 'Failing Units']
+            entry.interval,
+    key = (record.lot, record.event, record.interval, record.sn)
+    headers = ['Lot', 'Event', 'Interval', 'Source Worksheet', 'SN', 'PASS/FAIL', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
+                record.interval,
+                interval=interval,
                         sheet_title=title,
                         lot=lot,
                         event=event,
