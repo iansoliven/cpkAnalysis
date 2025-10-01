@@ -46,6 +46,26 @@ class _ExcelMeasurement:
     row_index: int
 
 
+@dataclass
+class _TestMetadata:
+    test_name: str = ''
+    unit: str = ''
+    res_scale: int = 0
+    low_limit_base: Optional[float] = None
+    high_limit_base: Optional[float] = None
+
+
+_PREFIX_BY_SCALE = {
+    -12: 'p',
+    -9: 'n',
+    -6: 'u',
+    -3: 'm',
+    0: '',
+    3: 'k',
+    6: 'M',
+    9: 'G',
+}
+
 def run(
     sources: Sequence[SourceFile],
     output_path: Path,
@@ -152,6 +172,7 @@ def _process_stdf_source(source: SourceFile) -> tuple[SummaryRow, list[Measureme
     current_measurements: list[dict[str, Any]] = []
     current_serial: Optional[str] = None
     current_site: Optional[int] = None
+    test_metadata: Dict[str, _TestMetadata] = {}
 
     def store_attempt(serial: Optional[str], status: str) -> None:
         nonlocal fallback_index
@@ -178,7 +199,7 @@ def _process_stdf_source(source: SourceFile) -> tuple[SummaryRow, list[Measureme
                 current_serial = data.get("PART_ID")
                 current_site = data.get("SITE_NUM")
             elif name == "PTR":
-                measurement = _extract_stdf_measurement(data)
+                measurement = _extract_stdf_measurement(data, test_metadata)
                 if measurement is not None:
                     current_measurements.append(measurement)
             elif name == "PRR":
@@ -230,25 +251,61 @@ def _process_stdf_source(source: SourceFile) -> tuple[SummaryRow, list[Measureme
     return summary, measurements
 
 
-def _extract_stdf_measurement(data: Dict[str, Any]) -> Optional[dict[str, Any]]:
+def _extract_stdf_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[dict[str, Any]]:
     test_num = data.get("TEST_NUM")
-    test_name = data.get("TEST_TXT") or ""
-    if test_num is None and not test_name:
+    test_name_raw = data.get("TEST_TXT")
+    if test_num is None and not test_name_raw:
         return None
-    res_scale = data.get("RES_SCAL")
-    lo_scale = data.get("LLM_SCAL")
-    hi_scale = data.get("HLM_SCAL")
-    raw_result = data.get("RESULT")
-    measurement = _apply_scale(raw_result, res_scale)
-    lo_limit = _apply_scale(data.get("LO_LIMIT"), lo_scale)
-    hi_limit = _apply_scale(data.get("HI_LIMIT"), hi_scale)
+
+    key = str(test_num) if test_num is not None else f"name:{test_name_raw or ''}"
+    entry = cache.get(key, _TestMetadata())
+
+    test_name = str(test_name_raw).strip() if test_name_raw else entry.test_name
+    if test_name_raw and test_name:
+        entry.test_name = test_name
+
+    unit_raw = data.get("UNITS")
+    unit_base = str(unit_raw).strip() if unit_raw else entry.unit
+    if unit_raw and unit_base:
+        entry.unit = unit_base
+
+    res_scale = _coerce_int(data.get("RES_SCAL"), entry.res_scale)
+    entry.res_scale = res_scale
+
+    measurement_value, unit_label, factor = _normalize_measurement_value(
+        data.get("RESULT"),
+        res_scale,
+        unit_base,
+    )
+
+    low_scale = _coerce_int(data.get("LLM_SCAL"), res_scale)
+    high_scale = _coerce_int(data.get("HLM_SCAL"), res_scale)
+
+    low_base = _apply_scale(data.get("LO_LIMIT"), low_scale)
+    high_base = _apply_scale(data.get("HI_LIMIT"), high_scale)
+
+    if low_base is not None:
+        entry.low_limit_base = low_base
+    else:
+        low_base = entry.low_limit_base
+
+    if high_base is not None:
+        entry.high_limit_base = high_base
+    else:
+        high_base = entry.high_limit_base
+
+    low_limit = _normalize_limit_value(low_base, factor)
+    high_limit = _normalize_limit_value(high_base, factor)
+
+    cache[key] = entry
+
     return {
         "test_number": str(test_num) if test_num is not None else "",
-        "test_name": str(test_name).strip(),
-        "test_unit": str(data.get("UNITS") or "").strip(),
-        "low_limit": lo_limit,
-        "high_limit": hi_limit,
-        "measurement": measurement,
+        "test_name": test_name,
+        "test_unit": unit_label,
+        "low_limit": low_limit,
+        "high_limit": high_limit,
+        "measurement": measurement_value,
     }
 
 
@@ -261,6 +318,42 @@ def _apply_scale(value: Optional[float], scale: Optional[int]) -> Optional[float
         return value * (10 ** scale)
     except Exception:
         return value
+
+
+def _coerce_int(value: Any, fallback: int) -> int:
+    if value is None:
+        return fallback
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _select_prefix(scale: int, unit: str) -> tuple[str, float]:
+    symbol = _PREFIX_BY_SCALE.get(scale)
+    if not unit or symbol is None or not symbol:
+        return '', 1.0
+    return symbol, 10.0 ** scale
+
+
+def _normalize_measurement_value(
+    result: Any,
+    scale: int,
+    unit: str,
+) -> tuple[Optional[float], str, float]:
+    base_value = _apply_scale(result, scale)
+    symbol, factor = _select_prefix(scale, unit)
+    unit_label = f"{symbol}{unit}" if symbol else unit
+    normalized = base_value / factor if base_value is not None else None
+    return normalized, unit_label, factor
+
+
+def _normalize_limit_value(base_value: Optional[float], factor: float) -> Optional[float]:
+    if base_value is None:
+        return None
+    if factor == 0:
+        return base_value
+    return base_value / factor
 
 
 def _is_part_fail(flag: Any) -> bool:
@@ -661,8 +754,21 @@ def _create_measurements_sheet(workbook: Workbook, records: Sequence[Measurement
     max_rows = 1048576
     data_capacity = max_rows - 1
     base_index = 1 if 'Summary' in workbook.sheetnames else 0
-    headers = ['Lot', 'Event', 'Interval', 'Source', 'PASS/FAIL', 'Test Number', 'Test Name', 'Test Unit', 'Low Limit', 'High Limit', 'Measurement']
-    widths = [16, 18, 12, 32, 12, 18, 42, 12, 14, 14, 16]
+    headers = [
+        'Lot',
+        'Event',
+        'Interval',
+        'Source',
+        'Serial Number',
+        'PASS/FAIL',
+        'Test Number',
+        'Test Name',
+        'Test Unit',
+        'Low Limit',
+        'High Limit',
+        'Measurement',
+    ]
+    widths = [16, 18, 12, 32, 18, 12, 18, 42, 12, 14, 14, 16]
     total = len(records)
     chunks = (total + data_capacity - 1) // data_capacity
     for chunk_idx in range(chunks):
@@ -682,6 +788,7 @@ def _create_measurements_sheet(workbook: Workbook, records: Sequence[Measurement
                 record.event,
                 record.interval,
                 record.source,
+                record.serial_number,
                 record.status,
                 record.test_number,
                 record.test_name,
@@ -704,5 +811,6 @@ def _create_measurements_sheet(workbook: Workbook, records: Sequence[Measurement
         for idx, width in enumerate(widths, start=1):
             detail_ws.column_dimensions[get_column_letter(idx)].width = width
         for row_idx in range(2, last_row + 1):
-            detail_ws.cell(row=row_idx, column=9).number_format = numbers.FORMAT_GENERAL
             detail_ws.cell(row=row_idx, column=10).number_format = numbers.FORMAT_GENERAL
+            detail_ws.cell(row=row_idx, column=11).number_format = numbers.FORMAT_GENERAL
+            detail_ws.cell(row=row_idx, column=12).number_format = numbers.FORMAT_GENERAL
