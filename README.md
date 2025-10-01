@@ -49,7 +49,6 @@ This command scans `Sample/`, skips the confirmation prompt, generates the workb
 - Excel sources reuse the legacy unit analysis to count pass/fail devices.
 - STDF sources stream through `istdf.STDFReader`, keep only the last attempt per serial number, and honour per-record limits.
 - The `Measurements` sheet includes a `Serial Number` column and retains per-test metadata (name, unit, limits) for every device row.
-- STDF measurements and limits are rescaled using the record scalers, and units gain the appropriate SI prefix (for example, `uA`, `mV`).
 - Interval ordering follows: `Prescreen` (case-insensitive), numeric values ascending, then remaining strings alphabetically.
 
 ## GUI Scaffolding

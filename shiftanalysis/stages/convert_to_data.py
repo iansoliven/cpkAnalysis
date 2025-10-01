@@ -50,21 +50,8 @@ class _ExcelMeasurement:
 class _TestMetadata:
     test_name: str = ''
     unit: str = ''
-    res_scale: int = 0
-    low_limit_base: Optional[float] = None
-    high_limit_base: Optional[float] = None
-
-
-_PREFIX_BY_SCALE = {
-    -12: 'p',
-    -9: 'n',
-    -6: 'u',
-    -3: 'm',
-    0: '',
-    3: 'k',
-    6: 'M',
-    9: 'G',
-}
+    low_limit: Optional[float] = None
+    high_limit: Optional[float] = None
 
 def run(
     sources: Sequence[SourceFile],
@@ -261,48 +248,34 @@ def _extract_stdf_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetada
     entry = cache.get(key, _TestMetadata())
 
     test_name = str(test_name_raw).strip() if test_name_raw else entry.test_name
-    if test_name_raw and test_name:
+    if test_name:
         entry.test_name = test_name
 
     unit_raw = data.get("UNITS")
-    unit_base = str(unit_raw).strip() if unit_raw else entry.unit
-    if unit_raw and unit_base:
-        entry.unit = unit_base
+    unit_value = str(unit_raw).strip() if unit_raw else entry.unit
+    if unit_value:
+        entry.unit = unit_value
 
-    res_scale = _coerce_int(data.get("RES_SCAL"), entry.res_scale)
-    entry.res_scale = res_scale
+    measurement_value = _apply_scale(data.get("RESULT"), data.get("RES_SCAL"))
 
-    measurement_value, unit_label, factor = _normalize_measurement_value(
-        data.get("RESULT"),
-        res_scale,
-        unit_base,
-    )
-
-    low_scale = _coerce_int(data.get("LLM_SCAL"), res_scale)
-    high_scale = _coerce_int(data.get("HLM_SCAL"), res_scale)
-
-    low_base = _apply_scale(data.get("LO_LIMIT"), low_scale)
-    high_base = _apply_scale(data.get("HI_LIMIT"), high_scale)
-
-    if low_base is not None:
-        entry.low_limit_base = low_base
+    low_limit = _apply_scale(data.get("LO_LIMIT"), data.get("LLM_SCAL"))
+    if low_limit is not None:
+        entry.low_limit = low_limit
     else:
-        low_base = entry.low_limit_base
+        low_limit = entry.low_limit
 
-    if high_base is not None:
-        entry.high_limit_base = high_base
+    high_limit = _apply_scale(data.get("HI_LIMIT"), data.get("HLM_SCAL"))
+    if high_limit is not None:
+        entry.high_limit = high_limit
     else:
-        high_base = entry.high_limit_base
-
-    low_limit = _normalize_limit_value(low_base, factor)
-    high_limit = _normalize_limit_value(high_base, factor)
+        high_limit = entry.high_limit
 
     cache[key] = entry
 
     return {
         "test_number": str(test_num) if test_num is not None else "",
-        "test_name": test_name,
-        "test_unit": unit_label,
+        "test_name": entry.test_name,
+        "test_unit": entry.unit,
         "low_limit": low_limit,
         "high_limit": high_limit,
         "measurement": measurement_value,
@@ -318,42 +291,6 @@ def _apply_scale(value: Optional[float], scale: Optional[int]) -> Optional[float
         return value * (10 ** scale)
     except Exception:
         return value
-
-
-def _coerce_int(value: Any, fallback: int) -> int:
-    if value is None:
-        return fallback
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return fallback
-
-
-def _select_prefix(scale: int, unit: str) -> tuple[str, float]:
-    symbol = _PREFIX_BY_SCALE.get(scale)
-    if not unit or symbol is None or not symbol:
-        return '', 1.0
-    return symbol, 10.0 ** scale
-
-
-def _normalize_measurement_value(
-    result: Any,
-    scale: int,
-    unit: str,
-) -> tuple[Optional[float], str, float]:
-    base_value = _apply_scale(result, scale)
-    symbol, factor = _select_prefix(scale, unit)
-    unit_label = f"{symbol}{unit}" if symbol else unit
-    normalized = base_value / factor if base_value is not None else None
-    return normalized, unit_label, factor
-
-
-def _normalize_limit_value(base_value: Optional[float], factor: float) -> Optional[float]:
-    if base_value is None:
-        return None
-    if factor == 0:
-        return base_value
-    return base_value / factor
 
 
 def _is_part_fail(flag: Any) -> bool:
