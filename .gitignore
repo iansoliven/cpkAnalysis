@@ -17,3 +17,6 @@ venv/
 # Misc
 .DS_Store
 Archive
+
+# Sample data
+Sample/*.stdf
