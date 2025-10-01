@@ -20,3 +20,4 @@ Archive
 
 # Sample data
 Sample/*.stdf
+shift_sources*.json

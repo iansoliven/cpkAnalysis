@@ -1,59 +1,32 @@
-I want to generalize the tools here. 
-I want to create an application, reusing much of the code that is here, to generate a shift analysis excel file from excel files and or STDFs. 
-Eventually I would like this to have a graphical user interface. Prepare only scaffolding for a GUI. 
-For now, we will access the application on the command line.
-This is how the application will function from the command line:
-	- ReadDirectory 
-		- This will scan the directory from which the script is run or from an optional provided directory. 
-	    - It will verify whether any files have names that match the required pattern of XXX_LOT_EVENT_INTERVAL.xlsx and or XXX_LOT_EVENT_INTERVAL.xlsx
-		- It will then list those files along with the detected LOT, EVENT, and INTERVAL, on the terminal output (or a GUI screen) and ask the user if correct (y/n)
-		- If No, ends execution or returns to default state.
-		- If Yes, keeps track of those files and prepares for next step.
-	- ConvertToData (rename, reuse and modify mergeXlsx.py)
-	    - Skip the merge of sheets for excel files.
-		- However, maintain the logic for determining pass/fail counts from excel file format. 
-			- for STDF with repeated serial numbers, drop the results of the initial records and keep only the result of the last record. Use the last record only.
-		- Takes the STDFs and/or XLSX files and extracts data to fill an output workbook that will be called DataWorkBook.
-		- The workbook will contain a summary sheet which lists the source files and their corresponding LOT, EVENT, INTERVAL, Count of Pass Units, Count of Fail Units
-		- The workbook will contain a measurement sheet called Measurements with a table called measurementTable.
-		- The table will have the following columns:
-			- LOT - extracted from the filename
-			- EVENT - extracted from the filename
-			- INTERVAL - extracted from the filename
-			- Source - filename of the source for the data point
-			- PASS/FAIL - extracted from the contents of the file
-			- Test Number - extracted from the contents of the file
-			- Test Name - extracted from the contents of the file
-			- Test Unit - extracted from the contents of the file
-			- Low Limit - extracted from the contents of the file
-			- High Limit - extracted from the contents of the file
-			- Measurement - the test data extracted from the contents of the file
-		- the workbook will only contain two sheets at this point which is the measurement sheet and the summary sheets
-	- Calculate Shift
-		- generates a new sheet with a table with the following columns
-			- EVENT
-			- Test Name
-			- Test Number
-			- Unit
-			- LOT
-			- Min Interval
-			- Max Interval
-			- Min Interval Mean
-			- Max Interval Mean
-			- Mean Shift
-			- Std Dev change
-			- Low limit (Max Int)
-			- High Limit (Max Int)
-		- This table calculates the overall mean shift across the lowest to the highest interval. 
-			- lowest interval is the numerical minimum of the interval values or the string "prescreen". The string "prescreen" should be recognizable as long as its spelled correctly without regards to capitalization.
-			- highest interval is the numerical maximum of the interval values.
-		- Leave scaffolding to prepare for potential use of median instead of mean
-	- GeneratePlot (based on addBoxCharts and addHistocharts which you can modify, refactor and rename)
-		- optional if HistogramOnly or BoxPlotOnly
-		- by default, it will do both and create on the DataWorkBook
-			- separate boxplot sheets for each EVENT. Follow formatting and logic already in addBoxCharts.
-			- separate histogram sheets for each EVENT. Follow formatting and logic already in addHistocharts.
-			
-			
-			
-			
+Shift Analysis Development Checklist
+-----------------------------------
+- [x] Generalize existing tooling into a reusable shift analysis application.
+- [x] Provide CLI subcommands for `readdir`, `convert`, `calc-shift`, `plot`, and an `auto` command that runs all stages sequentially.
+- [x] ReadDirectory stage
+    - [x] Scan the working directory or optional path for files matching `XXX_LOT_EVENT_INTERVAL.xlsx` or `.stdf`.
+    - [x] Extract LOT/EVENT/INTERVAL metadata and display for confirmation.
+    - [x] Abort when the user declines confirmation; proceed and persist metadata otherwise.
+- [x] ConvertToData stage
+    - [x] Reuse and refactor existing merge logic to build a `DataWorkBook` without copying raw worksheets.
+    - [x] Maintain summary pass/fail counts for Excel sources using `analyze_unit_results`.
+    - [x] Parse STDF files via `istdf`, keeping only the last record per serial number and using the pass/fail flag.
+    - [x] Populate Summary and Measurements sheets with required columns and no hyperlink references.
+- [x] CalculateShift stage
+    - [x] Create a sheet with the specified columns summarizing min/max interval statistics.
+    - [x] Order intervals as Prescreen (case-insensitive), then ascending numeric, then remaining strings alphabetically.
+    - [x] Compute mean, median (unused scaffolding), and standard deviation change from min to max interval.
+- [x] GeneratePlot stage
+    - [x] Default to generating both boxplot and histogram sheets into the DataWorkBook.
+    - [x] Support `--BoxChartOnly` and `--HistoChartOnly` options to limit output.
+    - [x] Produce per-event sheets following existing formatting conventions.
+- [x] GUI scaffolding
+    - [x] Provide a lightweight module/class marked `TBD` for future GUI integration.
+- [x] Validation
+    - [x] Use the smallest sample file to execute the pipeline and ensure no fatal errors.
+
+
+
+
+
+
+
