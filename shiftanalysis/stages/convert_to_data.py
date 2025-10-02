@@ -257,27 +257,24 @@ def _extract_stdf_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetada
     if unit_value:
         entry.unit = unit_value
 
-    res_scale = data.get("RES_SCAL")
+    res_scale = _select_scale(data.get("RES_SCAL"), entry.scale)
     measurement_value = _apply_scale(data.get("RESULT"), res_scale)
 
-    llm_scale = data.get("LLM_SCAL")
+    llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, entry.scale)
     low_limit = _apply_scale(data.get("LO_LIMIT"), llm_scale)
     if low_limit is not None:
         entry.low_limit = low_limit
     else:
         low_limit = entry.low_limit
 
-    hlm_scale = data.get("HLM_SCAL")
+    hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, entry.scale)
     high_limit = _apply_scale(data.get("HI_LIMIT"), hlm_scale)
     if high_limit is not None:
         entry.high_limit = high_limit
     else:
         high_limit = entry.high_limit
 
-    for scale_candidate in (res_scale, llm_scale, hlm_scale):
-        if scale_candidate is not None:
-            entry.scale = scale_candidate
-            break
+    entry.scale = res_scale
 
     cache[key] = entry
 
@@ -301,6 +298,13 @@ def _apply_scale(value: Optional[float], scale: Optional[int]) -> Optional[float
     except Exception:
         return value
 
+
+
+def _select_scale(*candidates: Optional[int]) -> Optional[int]:
+    for value in candidates:
+        if value is not None:
+            return value
+    return None
 
 
 _PREFIX_BY_EXPONENT = {
