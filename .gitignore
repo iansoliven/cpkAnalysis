@@ -11,13 +11,11 @@ venv/
 .vscode/
 .idea/
 
-# Excel outputs
+# Ignored outputs
+Sample/
 *.xlsx
+*.json
 
 # Misc
 .DS_Store
 Archive
-
-# Sample data
-Sample/*.stdf
-shift_sources*.json
