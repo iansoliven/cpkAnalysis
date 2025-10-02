@@ -52,6 +52,7 @@ class _TestMetadata:
     unit: str = ''
     low_limit: Optional[float] = None
     high_limit: Optional[float] = None
+    scale: Optional[int] = None
 
 def run(
     sources: Sequence[SourceFile],
@@ -256,26 +257,34 @@ def _extract_stdf_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetada
     if unit_value:
         entry.unit = unit_value
 
-    measurement_value = _apply_scale(data.get("RESULT"), data.get("RES_SCAL"))
+    res_scale = data.get("RES_SCAL")
+    measurement_value = _apply_scale(data.get("RESULT"), res_scale)
 
-    low_limit = _apply_scale(data.get("LO_LIMIT"), data.get("LLM_SCAL"))
+    llm_scale = data.get("LLM_SCAL")
+    low_limit = _apply_scale(data.get("LO_LIMIT"), llm_scale)
     if low_limit is not None:
         entry.low_limit = low_limit
     else:
         low_limit = entry.low_limit
 
-    high_limit = _apply_scale(data.get("HI_LIMIT"), data.get("HLM_SCAL"))
+    hlm_scale = data.get("HLM_SCAL")
+    high_limit = _apply_scale(data.get("HI_LIMIT"), hlm_scale)
     if high_limit is not None:
         entry.high_limit = high_limit
     else:
         high_limit = entry.high_limit
+
+    for scale_candidate in (res_scale, llm_scale, hlm_scale):
+        if scale_candidate is not None:
+            entry.scale = scale_candidate
+            break
 
     cache[key] = entry
 
     return {
         "test_number": str(test_num) if test_num is not None else "",
         "test_name": entry.test_name,
-        "test_unit": entry.unit,
+        "test_unit": _compose_unit(entry.unit, entry.scale),
         "low_limit": low_limit,
         "high_limit": high_limit,
         "measurement": measurement_value,
@@ -292,6 +301,41 @@ def _apply_scale(value: Optional[float], scale: Optional[int]) -> Optional[float
     except Exception:
         return value
 
+
+
+_PREFIX_BY_EXPONENT = {
+    -24: "y",
+    -21: "z",
+    -18: "a",
+    -15: "f",
+    -12: "p",
+    -9: "n",
+    -6: "u",
+    -3: "m",
+    0: "",
+    3: "k",
+    6: "M",
+    9: "G",
+    12: "T",
+    15: "P",
+    18: "E",
+    21: "Z",
+    24: "Y",
+}
+
+
+def _compose_unit(base_unit: str, scale: Optional[int]) -> str:
+    unit = (base_unit or "").strip()
+    if not unit:
+        if scale in (2, -2):
+            return "%"
+        return ""
+    if scale in (None, 0):
+        return unit
+    prefix = _PREFIX_BY_EXPONENT.get(-scale)
+    if prefix is None:
+        return unit
+    return f"{prefix}{unit}"
 
 def _is_part_fail(flag: Any) -> bool:
     if flag is None:
