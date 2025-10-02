@@ -14,7 +14,12 @@ venv/
 # Ignored outputs
 Sample/
 *.xlsx
+*.stdf
 *.json
+
+# Root folder test files
+/*.xlsx
+/*.stdf
 
 # Misc
 .DS_Store
