@@ -99,6 +99,8 @@ class CPKAnalysisGUI:
                 self.state.template_root = _select_template(root)
             else:
                 self.state.template_root = root
+            sheet = input("Template sheet (optional): ").strip()
+            self.state.template_sheet = sheet
 
     def _collect_outlier_settings(self) -> None:
         method = input("Outlier method [none/iqr/stdev] (default: none): ").strip().lower()

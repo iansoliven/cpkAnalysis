@@ -43,6 +43,7 @@ class AnalysisInputs:
     sources: list[SourceFile]
     output: Path
     template: Path | None = None
+    template_sheet: str | None = None
     outliers: OutlierOptions = field(default_factory=OutlierOptions)
     generate_histogram: bool = True
     generate_cdf: bool = True
@@ -52,6 +53,10 @@ class AnalysisInputs:
         self.output = self.output.expanduser().resolve()
         if self.template is not None:
             self.template = self.template.expanduser().resolve()
+        if self.template_sheet:
+            self.template_sheet = self.template_sheet.strip()
+            if not self.template_sheet:
+                self.template_sheet = None
 
 
 @dataclass

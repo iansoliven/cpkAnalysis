@@ -55,6 +55,7 @@ To quickly build a metadata manifest of STDF files in a directory:
 python -m cpkanalysis.cli scan ./Sample --metadata stdf_sources.json
 python -m cpkanalysis.cli run --metadata stdf_sources.json
 ```
+Supplying `--template` (and optionally `--template-sheet`) causes the pipeline to refresh the matching template sheet automatically after chart generation.
 
 ### Move Template
 

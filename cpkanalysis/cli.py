@@ -56,6 +56,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to the Excel template directory or file (default: ./cpkTemplate).",
     )
     run_parser.add_argument(
+        "--template-sheet",
+        type=str,
+        help="Optional template sheet name to receive CPK data.",
+    )
+    run_parser.add_argument(
         "--outlier-method",
         choices=("none", "iqr", "stdev"),
         default="none",
@@ -148,6 +153,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
               f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})")
         print(f"Metadata captured at {result['metadata']}")
+        if result.get('template_sheet'):
+            print(f"Template sheet updated: {result['template_sheet']}")
         return 0
 
     if args.command == "move-template":

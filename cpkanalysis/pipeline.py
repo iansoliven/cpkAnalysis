@@ -19,6 +19,7 @@ from .models import AnalysisInputs, IngestResult
 def run_analysis(config: AnalysisInputs) -> dict[str, Any]:
     """Execute the end-to-end analysis pipeline."""
     session_dir = _create_session_dir()
+    template_sheet_used: str | None = None
     try:
         with _spinner("Ingesting STDF sources"):
             ingest_result = ingest.ingest_sources(config.sources, session_dir)
@@ -49,6 +50,10 @@ def run_analysis(config: AnalysisInputs) -> dict[str, Any]:
                 temp_dir=session_dir,
             )
 
+        if config.template or config.template_sheet:
+            with _spinner("Updating template sheet"):
+                template_sheet_used = move_to_template(config.output, config.template_sheet)
+
         with _spinner("Writing metadata sidecar"):
             metadata = _build_metadata(
                 config=config,
@@ -56,6 +61,7 @@ def run_analysis(config: AnalysisInputs) -> dict[str, Any]:
                 outlier_summary=outlier_summary,
                 limit_sources=limit_sources,
                 summary=summary_df,
+                template_sheet=template_sheet_used,
             )
             metadata_path = config.output.with_suffix(".json")
             metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -83,6 +89,7 @@ def _build_metadata(
         "template": str(config.template) if config.template else None,
         "sources": ingest_result.per_file_stats,
         "outlier_filter": outlier_summary,
+        "template_sheet": template_sheet_used,
         "limit_sources": {
             f"{file}|{test}|{number}": sources
             for (file, test, number), sources in limit_sources.items()
