@@ -41,6 +41,9 @@ CPK_COLUMNS = [
     "File",
     "Test Name",
     "Test Number",
+    "UNITS",
+    "LL_ATE",
+    "UL_ATE",
     "COUNT",
     "MEAN",
     "MEDIAN",
@@ -103,7 +106,7 @@ def build_workbook(
             include_cdf=include_cdf,
             include_time_series=include_time_series,
         )
-    _populate_cpk_report(workbook, summary, plot_links)
+    _populate_cpk_report(workbook, summary, test_limits, plot_links)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(output_path)
@@ -317,6 +320,7 @@ def _create_plot_sheets(
 def _populate_cpk_report(
     workbook: Workbook,
     summary: pd.DataFrame,
+    test_limits: pd.DataFrame,
     plot_links: dict[tuple[str, str, str], str],
 ) -> None:
     sheet_name = "CPK Report"
@@ -337,12 +341,23 @@ def _populate_cpk_report(
             column_map[column] = len(header)
             ws.cell(row=1, column=column_map[column], value=column)
 
+    # Create a lookup for test limits data (test_name, test_number) -> limits_row
+    limits_lookup = {}
+    for _, limits_row in test_limits.iterrows():
+        key = (limits_row.get("test_name", ""), str(limits_row.get("test_number", "")))
+        limits_lookup[key] = limits_row
+
     if ws.max_row > 1:
         ws.delete_rows(2, ws.max_row - 1)
 
     for _, row in summary.iterrows():
         excel_row_index = ws.max_row + 1
         ws.append([None] * len(header))
+        
+        # Get corresponding limits data for this test
+        limits_key = (row.get("Test Name", ""), str(row.get("Test Number", "")))
+        limits_data = limits_lookup.get(limits_key, {})
+        
         for column in CPK_COLUMNS:
             cell_index = column_map[column]
             cell = ws.cell(row=excel_row_index, column=cell_index)
@@ -357,6 +372,15 @@ def _populate_cpk_report(
                     cell.value = ""
             elif column == "Proposal" or column == "Lot Qual":
                 cell.value = ""
+            elif column == "UNITS":
+                # Map "Unit" from summary to "UNITS" for template compatibility
+                cell.value = row.get("Unit", "")
+            elif column == "LL_ATE":
+                # Map "stdf_lower" from test_limits to "LL_ATE"
+                cell.value = limits_data.get("stdf_lower", "")
+            elif column == "UL_ATE":
+                # Map "stdf_upper" from test_limits to "UL_ATE"
+                cell.value = limits_data.get("stdf_upper", "")
             else:
                 cell.value = row.get(column, "")
 
