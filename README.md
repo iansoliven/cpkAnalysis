@@ -8,6 +8,7 @@ This repository provides a high-throughput analysis pipeline for transforming la
 - **Columnar Storage** &mdash; Streams measurements into Parquet using pandas + pyarrow for fast spill-to-disk without losing vectorized performance.
 - **Outlier Filtering** &mdash; Optional IQR or standard-deviation guards with configurable multipliers; undo by re-running with `--outlier-method none`.
 - **Comprehensive Statistics** &mdash; Generates per-file/per-test metrics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR targets).
+- **Enhanced Template Integration** &mdash; Intelligent header matching that searches multiple rows to find template headers; properly populates test names, test numbers, STDF limits, and units data into template sheets.
 - **Workbook Authoring** &mdash; Produces Summary, Measurements, and Test List & Limits sheets; embeds Matplotlib-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
 - **Metadata Logging** &mdash; Captures processing parameters, limit sources, and per-source counts in a JSON sidecar for audit trails.
 
@@ -65,7 +66,7 @@ Copy the latest CPK Report contents into the corresponding columns on the templa
 python -m cpkanalysis.cli move-template --workbook temp/CPK_Workbook.xlsx --sheet J95323
 ```
 
-If `--sheet` is omitted, the first sheet other than CPK Report is used. Headers are matched by name and hyperlinks/number formats are preserved.\n\n## Minimal Console GUI
+If `--sheet` is omitted, the first sheet other than CPK Report is used. The template integration features intelligent header detection that searches multiple rows to locate template headers, ensuring compatibility with various template formats. Headers are matched by name (TEST NAME, TEST NUM, UNITS, etc.) and data including hyperlinks and number formats are preserved during the copy process.\n\n## Minimal Console GUI
 
 A lightweight text-driven harness mirrors the planned GUI flow and walks through file selection and option entry:
 
@@ -81,7 +82,7 @@ python -m cpkanalysis.gui
 | **Measurements** (`Measurements`, `Measurements_2`, ...) | Flattened measurement table (`File`, `DeviceID`, `Test Name`, `Test Number`, `Value`, `Units`, `Timestamp/Index`) with Excel tables and frozen headers. |
 | **Test List and Limits** | One row per test with STDF limits, Spec overrides, and User What-If limits; active limits respect the priority What-If > Spec > STDF. |
 | **Histogram_* / CDF_* / TimeSeries_*`** | Matplotlib charts rendered to PNG for each file, arranged by test with consistent axes. |
-| **CPK Report** | Template-driven report populated with computed statistics and hyperlinks that jump directly to the histogram chart for each test. |
+| **CPK Report** | Template-driven report populated with computed statistics, test names, test numbers, STDF limits, units data, and hyperlinks that jump directly to the histogram chart for each test. |
 
 The workbook is saved to the path supplied via `--output`, and a companion JSON metadata file is written alongside it (same stem, `.json` extension).
 
@@ -95,6 +96,18 @@ The workbook is saved to the path supplied via `--output`, and a companion JSON 
 6. **Metadata:** Pipeline settings, per-source counts, and limit provenance are captured in `<output>.json` for downstream automation.
 
 Temporary artifacts are isolated under `temp/session_*` and removed automatically after a successful run.
+
+## Recent Improvements
+
+### Template Integration Enhancements
+- **Fixed Template Header Alignment**: Resolved issues where test names and test numbers weren't populating in template sheets by aligning CPK Report column headers with template expectations (TEST NAME, TEST NUM).
+- **Enhanced Header Detection**: Template processing now searches multiple rows instead of just the first row to locate headers, improving compatibility with various template formats.
+- **STDF Limits Integration**: Added STDF limit values and units data to the CPK Report sheet for complete template population.
+- **Statistical Data Enhancement**: Extended CPK Report with comprehensive statistical columns including all Cpk variants, yield loss calculations, and limit proposals.
+
+### Bug Fixes
+- **GUI Configuration**: Fixed missing template sheet parameter in the GUI interface to ensure proper template sheet selection.
+- **Pipeline Imports**: Resolved import errors in the analysis pipeline for seamless execution.
 
 ## Developing & Extending
 
