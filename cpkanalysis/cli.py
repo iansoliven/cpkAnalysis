@@ -51,7 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--template",
         type=Path,
-        help="Path to the Excel template directory or file.",
+        default=Path("cpkTemplate"),
+        help="Path to the Excel template directory or file (default: ./cpkTemplate).",
     )
     run_parser.add_argument(
         "--outlier-method",
@@ -100,11 +101,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             paths.extend(_read_metadata(args.metadata))
         paths.extend(args.inputs or [])
         if not paths:
-            parser.error("No STDF inputs supplied. Provide files or metadata JSON.")
-        sources = [SourceFile(path=path) for path in paths]
-        template_path = args.template
-        if template_path and template_path.is_dir():
-            template_path = _select_template(template_path)
+            discovered = _scan_directory(Path.cwd(), recursive=True)
+            if not discovered:
+                parser.error("No STDF inputs supplied and no STDF files found in the current directory.")
+            print(f"Auto-discovered {len(discovered)} STDF file(s) under {Path.cwd()}.")
+            paths.extend(discovered)
+
+        unique_paths = list(dict.fromkeys(Path(path).expanduser().resolve() for path in paths))
+        sources = [SourceFile(path=path) for path in unique_paths]
+
+        template_path: Path | None = args.template
+        if template_path is not None:
+            template_path = template_path.expanduser().resolve()
+            if template_path.is_dir():
+                template_path = _select_template(template_path)
+            elif not template_path.exists():
+                raise SystemExit(f"Template path not found: {template_path}")
 
         config = AnalysisInputs(
             sources=sources,
@@ -129,8 +141,15 @@ def _scan_directory(directory: Path, *, recursive: bool) -> list[Path]:
     directory = directory.expanduser().resolve()
     if not directory.exists() or not directory.is_dir():
         raise SystemExit(f"Directory not found: {directory}")
-    pattern = "**/*.stdf" if recursive else "*.stdf"
-    return sorted(path for path in directory.glob(pattern) if path.is_file())
+    if recursive:
+        results: list[Path] = []
+        for path in directory.rglob("*.stdf"):
+            if any(part.lower() == "submodules" for part in path.parts):
+                continue
+            if path.is_file():
+                results.append(path.resolve())
+        return sorted(results)
+    return sorted(path.resolve() for path in directory.glob("*.stdf") if path.is_file())
 
 
 def _write_metadata(path: Path, sources: Iterable[Path]) -> None:

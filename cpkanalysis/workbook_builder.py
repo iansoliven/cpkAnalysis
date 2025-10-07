@@ -12,7 +12,7 @@ from openpyxl.drawing.image import Image as XLImage
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from .plotly_charts import render_cdf, render_histogram, render_time_series
+from .mpl_charts import render_cdf, render_histogram, render_time_series
 from .stats import SUMMARY_COLUMNS
 
 MEAS_COLUMNS = [
@@ -58,10 +58,14 @@ CPK_COLUMNS = [
     "Lot Qual",
 ]
 
-ROW_STRIDE = 28
+DEFAULT_ROW_HEIGHT_PX = 18  # Approximate Excel default
+IMAGE_WIDTH = 640
+IMAGE_HEIGHT = 360
 IMAGE_ANCHOR_COLUMN = 2
-IMAGE_WIDTH = 960
-IMAGE_HEIGHT = 540
+ROW_STRIDE = max(int(IMAGE_HEIGHT / DEFAULT_ROW_HEIGHT_PX) + 4, 32)
+COL_STRIDE = 18
+AXIS_META_SHEET = "_PlotAxisRanges"
+ROW_HEIGHT_POINTS = IMAGE_HEIGHT * 0.75
 
 
 def build_workbook(
@@ -203,11 +207,13 @@ def _create_plot_sheets(
 ) -> dict[tuple[str, str, str], str]:
     limit_map = _limit_lookup(test_limits)
     plot_links: dict[tuple[str, str, str], str] = {}
+    axis_ranges: dict[tuple[str, str, str], dict[str, float | None]] = {}
     grouped = measurements.groupby(["file", "test_name", "test_number"], sort=False)
 
     hist_sheets: dict[str, Any] = {}
     cdf_sheets: dict[str, Any] = {}
     time_sheets: dict[str, Any] = {}
+    _remove_axis_tracking_sheet(workbook)
 
     for (file_name, test_name, test_number), group in grouped:
         limit_info = limit_map.get((test_name, test_number), {})
@@ -215,30 +221,44 @@ def _create_plot_sheets(
         if values.size == 0:
             continue
         timestamp = pd.to_numeric(group["timestamp"], errors="coerce").to_numpy()
-        x_range = (_finite_min(values), _finite_max(values))
+        lower_limit = limit_info.get("active_lower")
+        upper_limit = limit_info.get("active_upper")
+
+        axis_min, axis_max, data_min, data_max = _compute_axis_bounds(values, lower_limit, upper_limit)
+        x_range = (axis_min, axis_max)
+        axis_ranges[(file_name, test_name, test_number)] = {
+            "data_min": data_min,
+            "data_max": data_max,
+            "lower_limit": lower_limit,
+            "upper_limit": upper_limit,
+            "axis_min": axis_min,
+            "axis_max": axis_max,
+        }
 
         if include_histogram:
             anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
             row, sheet = anchor["row"], anchor["sheet"]
             image_bytes = render_histogram(
                 values,
-                lower_limit=limit_info.get("active_lower"),
-                upper_limit=limit_info.get("active_upper"),
+                lower_limit=lower_limit,
+                upper_limit=upper_limit,
                 x_range=x_range,
             )
             cell = _place_image(sheet, image_bytes, row, label=f"{test_name} (Test {test_number})")
             plot_links[(file_name, test_name, test_number)] = f"'{sheet.title}'!{cell}"
+            _ensure_row_height(sheet, row)
             hist_sheets[file_name]["row"] += ROW_STRIDE
 
         if include_cdf:
             anchor_cdf = _ensure_plot_anchor(cdf_sheets, workbook, file_name, "CDF")
             image_bytes = render_cdf(
                 values,
-                lower_limit=limit_info.get("active_lower"),
-                upper_limit=limit_info.get("active_upper"),
+                lower_limit=lower_limit,
+                upper_limit=upper_limit,
                 x_range=x_range,
             )
             _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=f"{test_name} (Test {test_number})")
+            _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
             cdf_sheets[file_name]["row"] += ROW_STRIDE
 
         if include_time_series:
@@ -246,12 +266,15 @@ def _create_plot_sheets(
             image_bytes = render_time_series(
                 x=timestamp,
                 y=values,
-                lower_limit=limit_info.get("active_lower"),
-                upper_limit=limit_info.get("active_upper"),
+                lower_limit=lower_limit,
+                upper_limit=upper_limit,
+                y_range=x_range,
             )
             _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=f"{test_name} (Test {test_number})")
+            _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
             time_sheets[file_name]["row"] += ROW_STRIDE
 
+    _write_axis_ranges(workbook, axis_ranges)
     return plot_links
 
 
@@ -314,6 +337,12 @@ def _ensure_plot_anchor(cache: dict[str, Any], workbook: Workbook, file_name: st
     sheet.sheet_view.showGridLines = False
     cache[file_name] = {"sheet": sheet, "row": 2}
     sheet.cell(row=1, column=1, value=f"{prefix} plots for {file_name}")
+    label_col = get_column_letter(1)
+    image_col = get_column_letter(IMAGE_ANCHOR_COLUMN)
+    if sheet.column_dimensions[label_col].width is None or sheet.column_dimensions[label_col].width < 28:
+        sheet.column_dimensions[label_col].width = 28
+    if sheet.column_dimensions[image_col].width is None or sheet.column_dimensions[image_col].width < 60:
+        sheet.column_dimensions[image_col].width = 60
     return cache[file_name]
 
 
@@ -335,6 +364,50 @@ def _safe_sheet_name(name: str) -> str:
     if len(sanitized) > 31:
         sanitized = sanitized[:28] + "..."
     return sanitized or "Sheet"
+
+
+def _ensure_row_height(sheet, anchor_row: int) -> None:
+    row_dim = sheet.row_dimensions[anchor_row]
+    if row_dim.height is None or row_dim.height < ROW_HEIGHT_POINTS:
+        row_dim.height = ROW_HEIGHT_POINTS
+
+
+def _remove_axis_tracking_sheet(workbook: Workbook) -> None:
+    if AXIS_META_SHEET in workbook.sheetnames:
+        del workbook[AXIS_META_SHEET]
+
+
+def _write_axis_ranges(
+    workbook: Workbook,
+    axis_ranges: dict[tuple[str, str, str], dict[str, float | None]],
+) -> None:
+    if not axis_ranges:
+        return
+    ws = workbook.create_sheet(AXIS_META_SHEET)
+    ws.sheet_state = "hidden"
+    ws.append([
+        "File",
+        "Test Name",
+        "Test Number",
+        "Data Min",
+        "Data Max",
+        "Lower Limit",
+        "Upper Limit",
+        "Axis Min",
+        "Axis Max",
+    ])
+    for (file_name, test_name, test_number), values in sorted(axis_ranges.items()):
+        ws.append([
+            file_name,
+            test_name,
+            test_number,
+            _maybe_float(values.get("data_min")),
+            _maybe_float(values.get("data_max")),
+            _maybe_float(values.get("lower_limit")),
+            _maybe_float(values.get("upper_limit")),
+            _maybe_float(values.get("axis_min")),
+            _maybe_float(values.get("axis_max")),
+        ])
 
 
 def _limit_lookup(test_limits: pd.DataFrame) -> dict[tuple[str, str], dict[str, float]]:
@@ -369,15 +442,36 @@ def _coerce_float(value: Any) -> Optional[float]:
         return None
 
 
-def _finite_min(values: np.ndarray) -> Optional[float]:
-    finite = values[np.isfinite(values)]
-    if finite.size == 0:
+def _maybe_float(value: Optional[float]) -> Optional[float]:
+    if value is None:
         return None
-    return float(finite.min())
+    if isinstance(value, (int, float)) and math.isfinite(value):
+        return float(value)
+    return None
 
 
-def _finite_max(values: np.ndarray) -> Optional[float]:
+def _compute_axis_bounds(
+    values: np.ndarray,
+    lower_limit: Optional[float],
+    upper_limit: Optional[float],
+) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
     finite = values[np.isfinite(values)]
-    if finite.size == 0:
-        return None
-    return float(finite.max())
+    data_min = float(finite.min()) if finite.size else None
+    data_max = float(finite.max()) if finite.size else None
+
+    min_candidates = [val for val in (data_min, lower_limit) if val is not None and math.isfinite(val)]
+    max_candidates = [val for val in (data_max, upper_limit) if val is not None and math.isfinite(val)]
+
+    axis_min = min(min_candidates) if min_candidates else data_min
+    axis_max = max(max_candidates) if max_candidates else data_max
+
+    if axis_min is not None and axis_max is not None and axis_min == axis_max:
+        delta = abs(axis_min) * 0.05 or 1.0
+        axis_min -= delta
+        axis_max += delta
+    if axis_min is None and axis_max is not None:
+        axis_min = axis_max - 1.0
+    if axis_max is None and axis_min is not None:
+        axis_max = axis_min + 1.0
+
+    return axis_min, axis_max, data_min, data_max

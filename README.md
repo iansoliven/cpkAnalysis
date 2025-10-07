@@ -8,7 +8,7 @@ This repository provides a high-throughput analysis pipeline for transforming la
 - **Columnar Storage** &mdash; Streams measurements into Parquet using pandas + pyarrow for fast spill-to-disk without losing vectorized performance.
 - **Outlier Filtering** &mdash; Optional IQR or standard-deviation guards with configurable multipliers; undo by re-running with `--outlier-method none`.
 - **Comprehensive Statistics** &mdash; Generates per-file/per-test metrics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR targets).
-- **Workbook Authoring** &mdash; Produces Summary, Measurements, and Test List & Limits sheets; embeds Plotly-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
+- **Workbook Authoring** &mdash; Produces Summary, Measurements, and Test List & Limits sheets; embeds Matplotlib-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
 - **Metadata Logging** &mdash; Captures processing parameters, limit sources, and per-source counts in a JSON sidecar for audit trails.
 
 ## Requirements
@@ -18,7 +18,7 @@ This repository provides a high-throughput analysis pipeline for transforming la
 - **Python Packages** (installed by `pip install -r requirements.txt`):
   - `openpyxl` &mdash; Excel workbook authoring
   - `pandas`, `numpy`, `pyarrow` &mdash; columnar data processing
-  - `plotly`, `kaleido` &mdash; WebGL chart rendering and static image export
+- `matplotlib` &mdash; Static chart rendering in PNG form
 
 ## Installation
 
@@ -71,7 +71,7 @@ python -m cpkanalysis.gui
 | **Summary** | Per-file/per-test statistics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR projections). |
 | **Measurements** (`Measurements`, `Measurements_2`, ...) | Flattened measurement table (`File`, `DeviceID`, `Test Name`, `Test Number`, `Value`, `Units`, `Timestamp/Index`) with Excel tables and frozen headers. |
 | **Test List and Limits** | One row per test with STDF limits, Spec overrides, and User What-If limits; active limits respect the priority What-If > Spec > STDF. |
-| **Histogram_* / CDF_* / TimeSeries_*`** | Plotly WebGL charts exported via Kaleido for each file, arranged by test with consistent axes. |
+| **Histogram_* / CDF_* / TimeSeries_*`** | Matplotlib charts rendered to PNG for each file, arranged by test with consistent axes. |
 | **CPK Report** | Template-driven report populated with computed statistics and hyperlinks that jump directly to the histogram chart for each test. |
 
 The workbook is saved to the path supplied via `--output`, and a companion JSON metadata file is written alongside it (same stem, `.json` extension).
@@ -81,7 +81,7 @@ The workbook is saved to the path supplied via `--output`, and a companion JSON 
 1. **Ingestion:** `cpkanalysis.ingest` streams STDF records with `iSTDF.STDFReader`, collating measurement values, STDF limits, device identifiers, and execution timestamps. Measurements are stored both in-memory (pandas DataFrame) and on disk (`temp/session_*/raw_measurements.parquet`) for reproducibility.
 2. **Outlier Filtering:** `cpkanalysis.outliers` optionally trims extreme values per file/test using configurable IQR or sigma bounds.
 3. **Statistics:** `cpkanalysis.stats` computes all requested metrics, including robust 3xIQR variants, yielding source tracking (What-If vs Spec vs STDF) for metadata logging.
-4. **Workbook Authoring:** `cpkanalysis.workbook_builder` lays out the Summary, Measurements, and Limits sheets, renders Plotly charts (histogram via WebGL step plot, CDF via `Scattergl`, time-series via `Scattergl`), and maps chart anchors back to the CPK template.
+4. **Workbook Authoring:** `cpkanalysis.workbook_builder` lays out the Summary, Measurements, and Limits sheets, renders Matplotlib charts (histogram, CDF, time-series), and maps chart anchors back to the CPK template.
 5. **Template Filling:** The existing `cpk_template` workbook is loaded and updated in place so Proposal/Lot Qual columns remain blank but PLOTS hyperlinks resolve into the histogram sheets.
 6. **Metadata:** Pipeline settings, per-source counts, and limit provenance are captured in `<output>.json` for downstream automation.
 
@@ -92,7 +92,7 @@ Temporary artifacts are isolated under `temp/session_*` and removed automaticall
 - Keep `requirements.txt` synchronized when introducing new dependencies.
 - Large edits are best made through the modular pipeline (`ingest`, `outliers`, `stats`, `workbook_builder`) to preserve testability.
 - When modifying the workbook layout, ensure the column names on `Summary`, `Measurements`, and `Test List and Limits` stay consistent with the acceptance criteria.
-- Plot exports rely on Kaleido; if exporting alternative formats, adjust `_figure_to_png` in `plotly_charts.py`.
+- Plot exports rely on Matplotlib; adjust `_figure_to_png` in `mpl_charts.py` if you need different formats.
 
 ---
 

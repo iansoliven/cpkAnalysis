@@ -1,0 +1,140 @@
+from __future__ import annotations
+
+from io import BytesIO
+from typing import Optional, Tuple
+
+import matplotlib
+
+matplotlib.use("Agg", force=True)
+import matplotlib.pyplot as plt  # type: ignore  # noqa: E402
+import numpy as np
+
+DEFAULT_FIGSIZE = (10, 5)
+DEFAULT_DPI = 150
+HIST_COLOR = "#1f77b4"
+CDF_COLOR = "#ff7f0e"
+TIME_SERIES_COLOR = "#2ca02c"
+LIMIT_LOW_COLOR = "#C0504D"
+LIMIT_HIGH_COLOR = "#9BBB59"
+
+
+def render_histogram(
+    values: np.ndarray,
+    *,
+    lower_limit: Optional[float] = None,
+    upper_limit: Optional[float] = None,
+    x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
+) -> bytes:
+    clean = values[np.isfinite(values)]
+    if clean.size == 0:
+        clean = np.array([0.0])
+
+    bins = _freedman_diaconis_bins(clean)
+
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=0.75, edgecolor="white")
+    ax.set_xlabel("Measurement Value")
+    ax.set_ylabel("Count")
+    ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
+
+    _add_limits(ax, lower_limit, upper_limit)
+
+    if x_range:
+        xmin, xmax = x_range
+        if xmin is not None or xmax is not None:
+            ax.set_xlim(left=xmin, right=xmax)
+    fig.tight_layout()
+    return _figure_to_png(fig)
+
+
+def render_cdf(
+    values: np.ndarray,
+    *,
+    lower_limit: Optional[float] = None,
+    upper_limit: Optional[float] = None,
+    x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
+) -> bytes:
+    clean = np.sort(values[np.isfinite(values)])
+    if clean.size == 0:
+        clean = np.array([0.0])
+    cumulative = np.linspace(0, 1, clean.size, endpoint=True)
+
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    ax.plot(clean, cumulative, color=CDF_COLOR, linewidth=2.0)
+    ax.set_xlabel("Measurement Value")
+    ax.set_ylabel("Cumulative Probability")
+    ax.set_ylim(0, 1)
+    ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
+
+    _add_limits(ax, lower_limit, upper_limit)
+
+    if x_range:
+        xmin, xmax = x_range
+        if xmin is not None or xmax is not None:
+            ax.set_xlim(left=xmin, right=xmax)
+    fig.tight_layout()
+    return _figure_to_png(fig)
+
+
+def render_time_series(
+    x: np.ndarray,
+    y: np.ndarray,
+    *,
+    lower_limit: Optional[float] = None,
+    upper_limit: Optional[float] = None,
+) -> bytes:
+    mask = np.isfinite(x) & np.isfinite(y)
+    if not np.any(mask):
+        x = np.arange(len(y))
+        y = np.zeros_like(x, dtype=float)
+    else:
+        x = x[mask]
+        y = y[mask]
+
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    ax.plot(x, y, color=TIME_SERIES_COLOR, linewidth=1.6, marker="o", markersize=4)
+    ax.set_xlabel("Timestamp / Index")
+    ax.set_ylabel("Measurement Value")
+    ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
+
+    _add_limits(ax, lower_limit, upper_limit)
+    fig.tight_layout()
+    return _figure_to_png(fig)
+
+
+def _freedman_diaconis_bins(values: np.ndarray) -> int:
+    clean = values[np.isfinite(values)]
+    n = clean.size
+    if n <= 1:
+        return 1
+    q1 = np.percentile(clean, 25)
+    q3 = np.percentile(clean, 75)
+    iqr = q3 - q1
+    if iqr <= 0 or not np.isfinite(iqr):
+        return max(int(np.ceil(np.sqrt(n))), 1)
+    bin_width = 2 * iqr / np.cbrt(n)
+    if bin_width <= 0 or not np.isfinite(bin_width):
+        return max(int(np.ceil(np.sqrt(n))), 1)
+    data_range = clean.max() - clean.min()
+    if data_range <= 0 or not np.isfinite(data_range):
+        return 1
+    bins = int(np.ceil(data_range / bin_width))
+    return max(bins, 1)
+
+
+def _add_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
+    if lower is not None and np.isfinite(lower):
+        ax.axvline(lower, color=LIMIT_LOW_COLOR, linestyle="--", linewidth=1.5, label="Lower Limit")
+    if upper is not None and np.isfinite(upper):
+        ax.axvline(upper, color=LIMIT_HIGH_COLOR, linestyle="--", linewidth=1.5, label="Upper Limit")
+    handles, labels = ax.get_legend_handles_labels()
+    if handles:
+        ax.legend(handles, labels, loc="upper left")
+
+
+def _figure_to_png(fig) -> bytes:
+    buffer = BytesIO()
+    fig.savefig(buffer, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
+    plt.close(fig)
+    buffer.seek(0)
+    return buffer.getvalue()
