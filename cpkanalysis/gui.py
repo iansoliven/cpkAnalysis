@@ -18,6 +18,7 @@ class ApplicationState:
     workspace_path: Path = Path.cwd()
     sources: list[Path] = field(default_factory=list)
     template_root: Path | None = None
+    template_sheet: str | None = None
     output_path: Path = Path("CPK_Workbook.xlsx")
     outlier_method: str = "none"
     outlier_k: float = 1.5
@@ -49,6 +50,7 @@ class CPKAnalysisGUI:
             sources=[SourceFile(path=path) for path in self.state.sources],
             output=self.state.output_path,
             template=self.state.template_root,
+            template_sheet=self.state.template_sheet,
             outliers=OutlierOptions(method=self.state.outlier_method, k=self.state.outlier_k),
             generate_histogram=self.state.include_histogram,
             generate_cdf=self.state.include_cdf,
