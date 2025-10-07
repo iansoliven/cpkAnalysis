@@ -14,6 +14,7 @@ import pandas as pd
 
 from . import ingest, outliers, stats, workbook_builder
 from .models import AnalysisInputs, IngestResult
+from .move_to_template import run as move_to_template
 
 
 def run_analysis(config: AnalysisInputs) -> dict[str, Any]:
@@ -83,13 +84,14 @@ def _build_metadata(
     outlier_summary: dict[str, Any],
     limit_sources: dict[tuple[str, str, str], dict[str, str]],
     summary: pd.DataFrame,
+    template_sheet: str | None = None,
 ) -> dict[str, Any]:
     return {
         "output": str(config.output),
         "template": str(config.template) if config.template else None,
         "sources": ingest_result.per_file_stats,
         "outlier_filter": outlier_summary,
-        "template_sheet": template_sheet_used,
+        "template_sheet": template_sheet,
         "limit_sources": {
             f"{file}|{test}|{number}": sources
             for (file, test, number), sources in limit_sources.items()
