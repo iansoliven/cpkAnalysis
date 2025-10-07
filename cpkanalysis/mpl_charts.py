@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from io import BytesIO
 from typing import Optional, Tuple
 
@@ -9,8 +10,8 @@ matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt  # type: ignore  # noqa: E402
 import numpy as np
 
-DEFAULT_FIGSIZE = (10, 5)
-DEFAULT_DPI = 150
+DEFAULT_FIGSIZE = (9, 4.5)
+DEFAULT_DPI = 140
 HIST_COLOR = "#1f77b4"
 CDF_COLOR = "#ff7f0e"
 TIME_SERIES_COLOR = "#2ca02c"
@@ -24,6 +25,9 @@ def render_histogram(
     lower_limit: Optional[float] = None,
     upper_limit: Optional[float] = None,
     x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
+    test_label: str = "",
+    cpk: Optional[float] = None,
+    unit_label: str = "",
 ) -> bytes:
     clean = values[np.isfinite(values)]
     if clean.size == 0:
@@ -37,13 +41,15 @@ def render_histogram(
     ax.set_ylabel("Count")
     ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_limits(ax, lower_limit, upper_limit)
+    _add_vertical_limits(ax, lower_limit, upper_limit)
 
     if x_range:
         xmin, xmax = x_range
         if xmin is not None or xmax is not None:
             ax.set_xlim(left=xmin, right=xmax)
-    fig.tight_layout()
+
+    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
 
@@ -53,6 +59,9 @@ def render_cdf(
     lower_limit: Optional[float] = None,
     upper_limit: Optional[float] = None,
     x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
+    test_label: str = "",
+    cpk: Optional[float] = None,
+    unit_label: str = "",
 ) -> bytes:
     clean = np.sort(values[np.isfinite(values)])
     if clean.size == 0:
@@ -66,13 +75,15 @@ def render_cdf(
     ax.set_ylim(0, 1)
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_limits(ax, lower_limit, upper_limit)
+    _add_vertical_limits(ax, lower_limit, upper_limit)
 
     if x_range:
         xmin, xmax = x_range
         if xmin is not None or xmax is not None:
             ax.set_xlim(left=xmin, right=xmax)
-    fig.tight_layout()
+
+    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
 
@@ -82,6 +93,10 @@ def render_time_series(
     *,
     lower_limit: Optional[float] = None,
     upper_limit: Optional[float] = None,
+    y_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
+    test_label: str = "",
+    cpk: Optional[float] = None,
+    unit_label: str = "",
 ) -> bytes:
     mask = np.isfinite(x) & np.isfinite(y)
     if not np.any(mask):
@@ -97,8 +112,14 @@ def render_time_series(
     ax.set_ylabel("Measurement Value")
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_limits(ax, lower_limit, upper_limit)
-    fig.tight_layout()
+    _add_horizontal_limits(ax, lower_limit, upper_limit)
+    if y_range:
+        ymin, ymax = y_range
+        if ymin is not None or ymax is not None:
+            ax.set_ylim(bottom=ymin, top=ymax)
+
+    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
 
@@ -122,14 +143,54 @@ def _freedman_diaconis_bins(values: np.ndarray) -> int:
     return max(bins, 1)
 
 
-def _add_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
+def _add_vertical_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
     if lower is not None and np.isfinite(lower):
         ax.axvline(lower, color=LIMIT_LOW_COLOR, linestyle="--", linewidth=1.5, label="Lower Limit")
     if upper is not None and np.isfinite(upper):
         ax.axvline(upper, color=LIMIT_HIGH_COLOR, linestyle="--", linewidth=1.5, label="Upper Limit")
+
+
+def _add_horizontal_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
+    if lower is not None and np.isfinite(lower):
+        ax.axhline(lower, color=LIMIT_LOW_COLOR, linestyle="--", linewidth=1.5, label="Lower Limit")
+    if upper is not None and np.isfinite(upper):
+        ax.axhline(upper, color=LIMIT_HIGH_COLOR, linestyle="--", linewidth=1.5, label="Upper Limit")
+
+
+def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: str) -> None:
     handles, labels = ax.get_legend_handles_labels()
     if handles:
-        ax.legend(handles, labels, loc="upper left")
+        ax.legend(
+            handles,
+            labels,
+            loc="upper left",
+            bbox_to_anchor=(1.02, 1.0),
+            borderaxespad=0.0,
+            frameon=False,
+        )
+    if test_label:
+        ax.set_title(test_label, fontsize=13, fontweight="bold")
+    if cpk is not None and math.isfinite(cpk):
+        ax.text(
+            1.02,
+            0.80,
+            f"CPK: {cpk:.3f}",
+            transform=ax.transAxes,
+            ha="left",
+            va="top",
+            fontsize=11,
+        )
+    if unit_label:
+        ax.text(
+            0.5,
+            -0.22,
+            f"Unit: {unit_label}",
+            transform=ax.transAxes,
+            ha="center",
+            va="top",
+            fontsize=10,
+        )
+    fig.subplots_adjust(right=0.78, bottom=0.28)
 
 
 def _figure_to_png(fig) -> bytes:

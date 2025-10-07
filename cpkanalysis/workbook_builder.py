@@ -93,6 +93,7 @@ def build_workbook(
             workbook,
             measurements,
             test_limits,
+            summary,
             include_histogram=include_histogram,
             include_cdf=include_cdf,
             include_time_series=include_time_series,
@@ -200,12 +201,17 @@ def _create_plot_sheets(
     workbook: Workbook,
     measurements: pd.DataFrame,
     test_limits: pd.DataFrame,
+    summary: pd.DataFrame,
     *,
     include_histogram: bool,
     include_cdf: bool,
     include_time_series: bool,
 ) -> dict[tuple[str, str, str], str]:
     limit_map = _limit_lookup(test_limits)
+    summary_map = {
+        (str(row.get("File")), str(row.get("Test Name")), str(row.get("Test Number"))): _maybe_float(row.get("CPK"))
+        for _, row in summary.iterrows()
+    }
     plot_links: dict[tuple[str, str, str], str] = {}
     axis_ranges: dict[tuple[str, str, str], dict[str, float | None]] = {}
     grouped = measurements.groupby(["file", "test_name", "test_number"], sort=False)
@@ -223,6 +229,15 @@ def _create_plot_sheets(
         timestamp = pd.to_numeric(group["timestamp"], errors="coerce").to_numpy()
         lower_limit = limit_info.get("active_lower")
         upper_limit = limit_info.get("active_upper")
+        unit_label = _sanitize_label(str(limit_info.get("unit") or ""))
+        if not unit_label:
+            units_series = (
+                group["units"].dropna().astype(str).str.strip()
+                if "units" in group.columns or hasattr(group, "units")  # safe guard
+                else pd.Series(dtype=str)
+            )
+            if not units_series.empty:
+                unit_label = _sanitize_label(units_series.iloc[0])
 
         axis_min, axis_max, data_min, data_max = _compute_axis_bounds(
             values,
@@ -238,7 +253,12 @@ def _create_plot_sheets(
             "upper_limit": upper_limit,
             "axis_min": axis_min,
             "axis_max": axis_max,
+            "unit": unit_label,
         }
+
+        test_label = test_name if not test_number else f"{test_name} (Test {test_number})"
+        test_label = _sanitize_label(test_label)
+        cpk_value = summary_map.get((str(file_name), str(test_name), str(test_number)))
 
         if include_histogram:
             anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
@@ -248,8 +268,11 @@ def _create_plot_sheets(
                 lower_limit=lower_limit,
                 upper_limit=upper_limit,
                 x_range=x_range,
+                test_label=test_label,
+                cpk=cpk_value,
+                unit_label=unit_label,
             )
-            cell = _place_image(sheet, image_bytes, row, label=f"{test_name} (Test {test_number})")
+            cell = _place_image(sheet, image_bytes, row, label=test_label)
             sheet_ref = sheet.title.replace("'", "''")
             plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
             _ensure_row_height(sheet, row)
@@ -262,8 +285,11 @@ def _create_plot_sheets(
                 lower_limit=lower_limit,
                 upper_limit=upper_limit,
                 x_range=x_range,
+                test_label=test_label,
+                cpk=cpk_value,
+                unit_label=unit_label,
             )
-            _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=f"{test_name} (Test {test_number})")
+            _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
             _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
             cdf_sheets[file_name]["row"] += ROW_STRIDE
 
@@ -275,8 +301,11 @@ def _create_plot_sheets(
                 lower_limit=lower_limit,
                 upper_limit=upper_limit,
                 y_range=x_range,
+                test_label=test_label,
+                cpk=cpk_value,
+                unit_label=unit_label,
             )
-            _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=f"{test_name} (Test {test_number})")
+            _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=test_label)
             _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
             time_sheets[file_name]["row"] += ROW_STRIDE
 
@@ -416,8 +445,21 @@ def _write_axis_ranges(
         ])
 
 
-def _limit_lookup(test_limits: pd.DataFrame) -> dict[tuple[str, str], dict[str, float]]:
-    mapping: dict[tuple[str, str], dict[str, float]] = {}
+def _sanitize_label(label: str) -> str:
+    if not label:
+        return ""
+    cleaned = []
+    for ch in label:
+        code = ord(ch)
+        if code < 32 or ch in {"\t", "\r", "\n"}:
+            cleaned.append(" ")
+        else:
+            cleaned.append(ch)
+    return "".join(cleaned).strip()
+
+
+def _limit_lookup(test_limits: pd.DataFrame) -> dict[tuple[str, str], dict[str, Any]]:
+    mapping: dict[tuple[str, str], dict[str, Any]] = {}
     for _, row in test_limits.iterrows():
         key = (str(row.get("test_name", "")), str(row.get("test_number", "")))
         lsl = _coerce_float(row.get("what_if_lower"))
@@ -523,3 +565,4 @@ def _nice_tick(value: float) -> float:
     else:
         nice_fraction = 10.0
     return nice_fraction * (10 ** exponent)
+
