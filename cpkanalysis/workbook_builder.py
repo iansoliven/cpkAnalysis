@@ -230,12 +230,8 @@ def _create_plot_sheets(
         lower_limit = limit_info.get("active_lower")
         upper_limit = limit_info.get("active_upper")
         unit_label = _sanitize_label(str(limit_info.get("unit") or ""))
-        if not unit_label:
-            units_series = (
-                group["units"].dropna().astype(str).str.strip()
-                if "units" in group.columns or hasattr(group, "units")  # safe guard
-                else pd.Series(dtype=str)
-            )
+        if not unit_label and "units" in group.columns:
+            units_series = group["units"].dropna().astype(str).str.strip()
             if not units_series.empty:
                 unit_label = _sanitize_label(units_series.iloc[0])
 

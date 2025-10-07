@@ -1,3 +1,9 @@
+"""Matplotlib-based chart renderers used when building the CPK workbook.
+
+All helpers here return raw PNG bytes that can be embedded into Excel via
+openpyxl.  The module assumes Matplotlib's Agg backend is available.
+"""
+
 from __future__ import annotations
 
 import math
@@ -29,6 +35,7 @@ def render_histogram(
     cpk: Optional[float] = None,
     unit_label: str = "",
 ) -> bytes:
+    """Render a histogram PNG for the supplied measurements."""
     clean = values[np.isfinite(values)]
     if clean.size == 0:
         clean = np.array([0.0])
@@ -63,6 +70,7 @@ def render_cdf(
     cpk: Optional[float] = None,
     unit_label: str = "",
 ) -> bytes:
+    """Render a cumulative distribution plot as PNG bytes."""
     clean = np.sort(values[np.isfinite(values)])
     if clean.size == 0:
         clean = np.array([0.0])
@@ -98,6 +106,7 @@ def render_time_series(
     cpk: Optional[float] = None,
     unit_label: str = "",
 ) -> bytes:
+    """Render a time-series trend chart for the given measurements."""
     mask = np.isfinite(x) & np.isfinite(y)
     if not np.any(mask):
         x = np.arange(len(y))
@@ -124,6 +133,7 @@ def render_time_series(
 
 
 def _freedman_diaconis_bins(values: np.ndarray) -> int:
+    """Return a bin count using the Freedman–Diaconis rule with safe fallbacks."""
     clean = values[np.isfinite(values)]
     n = clean.size
     if n <= 1:
