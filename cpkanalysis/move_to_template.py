@@ -32,8 +32,8 @@ def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
     target_ws = _select_target_sheet(workbook, sheet_name)
     target_sheetname = target_ws.title
 
-    source_headers = _header_map(source_ws)
-    target_headers = _header_map(target_ws)
+    source_headers, source_header_row = _header_map(source_ws)
+    target_headers, target_header_row = _header_map(target_ws)
     shared_headers = [header for header in source_headers if header in target_headers]
 
     if not shared_headers:
@@ -43,7 +43,7 @@ def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
     for header in shared_headers:
         src_col = source_headers[header]
         tgt_col = target_headers[header]
-        _copy_column(source_ws, target_ws, src_col, tgt_col, max_row)
+        _copy_column(source_ws, target_ws, src_col, tgt_col, max_row, source_header_row, target_header_row)
 
     workbook.save(resolved)
     workbook.close()
@@ -62,13 +62,30 @@ def _select_target_sheet(workbook, sheet_name: Optional[str]) -> Worksheet:
     raise ValueError("No suitable target sheet found (workbook only contains CPK Report).")
 
 
-def _header_map(sheet: Worksheet) -> Dict[str, int]:
-    headers: Dict[str, int] = {}
-    for cell in sheet[1]:
-        value = str(cell.value).strip() if cell.value is not None else ""
-        if value:
-            headers[value] = cell.column
-    return headers
+def _header_map(sheet: Worksheet) -> tuple[Dict[str, int], int]:
+    """Find headers in the sheet by searching the first several rows.
+    
+    Returns:
+        tuple: (headers_dict, header_row_number)
+    """
+    best_headers: Dict[str, int] = {}
+    header_row = 1
+    
+    # Search the first 20 rows for headers
+    for row_num in range(1, min(21, sheet.max_row + 1)):
+        row_headers = {}
+        for cell in sheet[row_num]:
+            value = str(cell.value).strip() if cell.value is not None else ""
+            if value:
+                row_headers[value] = cell.column
+        
+        # If this row has more potential headers than our current best, use it
+        # This heuristic assumes the header row will have the most filled cells
+        if len(row_headers) > len(best_headers):
+            best_headers = row_headers
+            header_row = row_num
+    
+    return best_headers, header_row
 
 
 def _copy_column(
@@ -76,18 +93,24 @@ def _copy_column(
     target: Worksheet,
     source_column: int,
     target_column: int,
-    max_row: int,
+    source_max_row: int,
+    source_header_row: int,
+    target_header_row: int,
 ) -> None:
-    for row in range(2, max_row + 1):
-        src_cell = source.cell(row=row, column=source_column)
-        tgt_cell = target.cell(row=row, column=target_column)
-
+    # Copy data starting from the row after headers
+    for source_row in range(source_header_row + 1, source_max_row + 1):
+        target_row = target_header_row + (source_row - source_header_row)
+        
+        src_cell = source.cell(row=source_row, column=source_column)
+        tgt_cell = target.cell(row=target_row, column=target_column)
+        
+        # Copy value
         tgt_cell.value = src_cell.value
-        tgt_cell.number_format = src_cell.number_format
-        tgt_cell.font = copy(src_cell.font)
-        tgt_cell.fill = copy(src_cell.fill)
-        tgt_cell.border = copy(src_cell.border)
-        tgt_cell.alignment = copy(src_cell.alignment)
-        tgt_cell.protection = copy(src_cell.protection)
-        tgt_cell.hyperlink = src_cell.hyperlink if src_cell.hyperlink else None
-        tgt_cell.style = src_cell.style
+        
+        # Copy number format if it exists
+        if src_cell.number_format:
+            tgt_cell.number_format = src_cell.number_format
+        
+        # Copy hyperlink if it exists
+        if src_cell.hyperlink:
+            tgt_cell.hyperlink = src_cell.hyperlink
