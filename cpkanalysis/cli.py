@@ -7,6 +7,7 @@ from typing import Iterable, Sequence
 
 from .models import AnalysisInputs, OutlierOptions, SourceFile
 from .pipeline import run_analysis
+from .move_to_template import run as run_move_to_template
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -82,6 +83,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip time-series chart generation.",
     )
 
+    move_template_parser = subparsers.add_parser(
+        "move-template",
+        help="Copy CPK Report contents into the template sheet.",
+    )
+    move_template_parser.add_argument(
+        "--workbook",
+        type=Path,
+        default=Path("CPK_Workbook.xlsx"),
+        help="Workbook path whose CPK Report should be copied (default: CPK_Workbook.xlsx).",
+    )
+    move_template_parser.add_argument(
+        "--sheet",
+        type=str,
+        help="Target sheet within the workbook; defaults to the first non-CPK Report sheet.",
+    )
+
     return parser
 
 
@@ -131,6 +148,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
               f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})")
         print(f"Metadata captured at {result['metadata']}")
+        return 0
+
+    if args.command == "move-template":
+        target_sheet = run_move_to_template(
+            workbook_path=args.workbook,
+            sheet_name=args.sheet,
+        )
+        print(f"Copied CPK Report data into sheet '{target_sheet}' in {args.workbook.resolve()}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")

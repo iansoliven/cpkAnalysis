@@ -56,7 +56,15 @@ python -m cpkanalysis.cli scan ./Sample --metadata stdf_sources.json
 python -m cpkanalysis.cli run --metadata stdf_sources.json
 ```
 
-## Minimal Console GUI
+### Move Template
+
+Copy the latest CPK Report contents into the corresponding columns on the template sheet:
+
+```bash
+python -m cpkanalysis.cli move-template --workbook temp/CPK_Workbook.xlsx --sheet J95323
+```
+
+If `--sheet` is omitted, the first sheet other than CPK Report is used. Headers are matched by name and hyperlinks/number formats are preserved.\n\n## Minimal Console GUI
 
 A lightweight text-driven harness mirrors the planned GUI flow and walks through file selection and option entry:
 
@@ -97,3 +105,5 @@ Temporary artifacts are isolated under `temp/session_*` and removed automaticall
 ---
 
 For questions, enhancement ideas, or integration guidance, open an issue or start a discussion referencing the relevant module (`cpkanalysis.ingest`, `cpkanalysis.stats`, etc.).
+
+
