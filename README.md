@@ -4,8 +4,9 @@ This repository provides a high-throughput analysis pipeline for transforming la
 
 ## Key Capabilities
 
-- **STDF Ingestion** &mdash; Parses Standard Test Data Format files via the `iSTDF` submodule, preserving per-device context, STDF limits, and timestamps or measurement indices.
+- **STDF Ingestion** &mdash; Parses Standard Test Data Format files via the `iSTDF` submodule, preserving per-device context, STDF limits, and timestamps or measurement indices. Implements comprehensive STDF flag filtering to ensure only valid measurements contribute to statistical calculations.
 - **Columnar Storage** &mdash; Streams measurements into Parquet using pandas + pyarrow for fast spill-to-disk without losing vectorized performance.
+- **Data Quality Assurance** &mdash; Filters invalid measurements based on PARM_FLG and TEST_FLG specifications while preserving complete test visibility and catalog integrity.
 - **Outlier Filtering** &mdash; Optional IQR or standard-deviation guards with configurable multipliers; undo by re-running with `--outlier-method none`.
 - **Comprehensive Statistics** &mdash; Generates per-file/per-test metrics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR targets).
 - **Enhanced Template Integration** &mdash; Intelligent header matching that searches multiple rows to find template headers; properly populates test names, test numbers, STDF limits, and units data into template sheets.
@@ -97,7 +98,64 @@ The workbook is saved to the path supplied via `--output`, and a companion JSON 
 
 Temporary artifacts are isolated under `temp/session_*` and removed automatically after a successful run.
 
+## STDF Flag Filtering Technical Details
+
+The system implements STDF specification-compliant flag filtering at the measurement ingestion level:
+
+### Flag Processing Architecture
+1. **Test Catalog Population**: All PTR records populate the test catalog regardless of flag status (ensures complete test visibility)
+2. **Measurement Filtering**: Individual measurements are validated against flag criteria before inclusion in statistical calculations
+3. **Dual-Layer Approach**: Maintains complete test coverage while ensuring data quality
+
+### Flag Validation Logic
+```python
+# PARM_FLG validation
+if parm_flg & 0x04:  # Bit 2: Result invalid
+    return None      # Reject measurement
+
+# TEST_FLG validation  
+if test_flg & 0x7E:  # Bits 1,2,3,4,5,6: Multiple validity issues
+    return None      # Reject measurement
+```
+
+### Measurement Exclusion Criteria
+- **Equipment Issues**: Sensor calibration errors, test hardware malfunctions
+- **Execution Problems**: Test timeouts, aborted tests, tests not executed
+- **Data Quality**: Unreliable results, measurements without P/F indication
+- **Invalid Results**: Flagged parameter and test result invalidity
+
+### Benefits
+- **Data Integrity**: Only reliable measurements contribute to CPK statistics
+- **Quality Monitoring**: Track invalid measurement rates for equipment health
+- **Complete Visibility**: All tests appear in reports regardless of measurement validity
+- **Robust Statistics**: Accurate CPK calculations uncontaminated by invalid data
+
 ## Recent Improvements
+
+### STDF Flag Filtering Enhancement (Major Update)
+The system now implements comprehensive STDF flag filtering to ensure only valid, reliable measurements are included in CPK calculations while preserving complete test visibility:
+
+#### Enhanced Data Quality
+- **PARM_FLG Filtering**: Rejects measurements with bit 2 (0x04) set - indicating invalid parameter results
+- **TEST_FLG Filtering**: Rejects measurements with bits 1,2,3,4,5,6 (0x7E mask) set:
+  - Bit 1 (0x02): Result is not valid
+  - Bit 2 (0x04): Test result is unreliable  
+  - Bit 3 (0x08): Timeout occurred
+  - Bit 4 (0x10): Test not executed
+  - Bit 5 (0x20): Test aborted
+  - Bit 6 (0x40): Test completed without P/F indication
+
+#### Test Catalog Preservation Fix
+**Critical Bug Fixed**: Tests with all invalid measurements no longer disappear from analysis
+- **Problem**: Test catalog was only populated from valid measurements, causing tests with 100% invalid flags to vanish entirely
+- **Solution**: Decoupled test catalog population from measurement filtering - all tests now appear in catalog regardless of measurement validity
+- **Result**: Complete test visibility maintained, no silent data loss, but only valid measurements used for CPK calculations
+
+#### Impact on Analysis
+- **Improved Accuracy**: CPK calculations based only on reliable measurements
+- **Complete Coverage**: All tests visible in reports even if they have no valid measurements
+- **Equipment Monitoring**: Invalid measurement tracking enables quality monitoring and equipment health assessment
+- **Data Integrity**: Proper filtering prevents contamination from sensor errors, timeouts, and execution failures
 
 ### Template Integration Enhancements
 - **Fixed Template Header Alignment**: Resolved issues where test names and test numbers weren't populating in template sheets by aligning CPK Report column headers with template expectations (TEST NAME, TEST NUM).
@@ -108,6 +166,7 @@ Temporary artifacts are isolated under `temp/session_*` and removed automaticall
 ### Bug Fixes
 - **GUI Configuration**: Fixed missing template sheet parameter in the GUI interface to ensure proper template sheet selection.
 - **Pipeline Imports**: Resolved import errors in the analysis pipeline for seamless execution.
+- **Measurement Validation**: Enhanced STDF specification compliance with proper flag handling for measurement validity.
 
 ## Developing & Extending
 

@@ -48,6 +48,20 @@ EXPECTED_COLUMNS = [
     "part_status",
 ]
 
+# STDF flag constants
+RESULT_INVALID = 0x04  # PARM_FLG bit 2: measurement result is invalid
+
+# TEST_FLG constants - reject measurements with these flags (corrected per STDF spec)
+TEST_RESULT_NOT_VALID = 0x02       # Bit 1 (2): Result is not valid
+TEST_RESULT_UNRELIABLE = 0x04      # Bit 2 (4): Test result is unreliable  
+TEST_TIMEOUT_OCCURRED = 0x08       # Bit 3 (8): Timeout occurred
+TEST_NOT_EXECUTED = 0x10           # Bit 4 (16): Test not executed
+TEST_ABORTED = 0x20                # Bit 5 (32): Test aborted
+TEST_COMPLETED_NO_PF = 0x40        # Bit 6 (64): Test completed without P/F indication
+
+# Combined mask for TEST_FLG rejection criteria
+TEST_FLG_REJECT_MASK = TEST_RESULT_NOT_VALID | TEST_RESULT_UNRELIABLE | TEST_TIMEOUT_OCCURRED | TEST_NOT_EXECUTED | TEST_ABORTED | TEST_COMPLETED_NO_PF
+
 
 def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResult:
     """Load STDF measurements into a columnar store and return metadata."""
@@ -127,6 +141,7 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
     test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
     device_test_counters: Dict[Tuple[str, str, str], int] = defaultdict(int)
     rows: list[dict[str, Any]] = []
+    invalid_measurements_count = 0  # Track invalid measurements
 
     with STDFReader(source.path, ignore_unknown=True) as reader:
         for record in reader:
@@ -138,9 +153,24 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
                 current_site = _coerce_int(data.get("SITE_NUM"))
                 device_sequence += 1
             elif name == "PTR":
+                # First, always try to populate test catalog regardless of measurement validity
+                # This ensures all tests appear in the catalog even if all measurements are invalid
+                _populate_test_catalog_from_ptr(data, test_metadata, test_catalog)
+                
+                # Then process measurement for data collection (with filtering)
                 measurement = _extract_measurement(data, test_metadata)
                 if measurement is not None:
                     current_measurements.append(measurement)
+                else:
+                    # Check if this was due to invalid flag
+                    parm_flg = data.get("PARM_FLG", 0)
+                    test_flg = data.get("TEST_FLG", 0)
+                    if isinstance(parm_flg, bytes):
+                        parm_flg = parm_flg[0] if parm_flg else 0
+                    if isinstance(test_flg, bytes):
+                        test_flg = test_flg[0] if test_flg else 0
+                    if (parm_flg & RESULT_INVALID) or (test_flg & TEST_FLG_REJECT_MASK):
+                        invalid_measurements_count += 1
             elif name == "PRR":
                 status = "FAIL" if _is_part_fail(data.get("PART_FLG")) else "PASS"
                 part_id = _coerce_str(data.get("PART_ID")) or current_serial
@@ -169,21 +199,8 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
                             "part_status": status,
                         }
                     )
-                    catalog_key = (measurement["test_name"], measurement["test_number"])
-                    catalog_entry = test_catalog.setdefault(
-                        catalog_key,
-                        {
-                            "unit": measurement["test_unit"],
-                            "stdf_lower": measurement["low_limit"],
-                            "stdf_upper": measurement["high_limit"],
-                        },
-                    )
-                    if catalog_entry.get("unit") in ("", None) and measurement["test_unit"]:
-                        catalog_entry["unit"] = measurement["test_unit"]
-                    if catalog_entry.get("stdf_lower") is None and measurement["low_limit"] is not None:
-                        catalog_entry["stdf_lower"] = measurement["low_limit"]
-                    if catalog_entry.get("stdf_upper") is None and measurement["high_limit"] is not None:
-                        catalog_entry["stdf_upper"] = measurement["high_limit"]
+                    # Note: Test catalog is now populated separately in _populate_test_catalog_from_ptr()
+                    # This ensures all tests appear in catalog regardless of measurement validity
                 current_measurements.clear()
                 current_serial = None
                 current_site = None
@@ -194,14 +211,92 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
         "path": str(source.path),
         "measurement_count": int(len(rows)),
         "device_count": int(device_sequence),
+        "invalid_measurements_filtered": invalid_measurements_count,
     }
     return frame, test_catalog, stats
+
+
+def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _TestMetadata], test_catalog: Dict[Tuple[str, str], Dict[str, Any]]) -> None:
+    """Populate test catalog from PTR record regardless of measurement validity."""
+    test_num = data.get("TEST_NUM")
+    test_name_raw = data.get("TEST_TXT")
+    if test_num is None and not test_name_raw:
+        return
+    
+    # Extract test metadata (similar to _extract_measurement but without flag checks)
+    key = str(test_num) if test_num is not None else f"name:{test_name_raw or ''}"
+    metadata = cache.get(key, _TestMetadata())
+    
+    test_name = _coerce_str(test_name_raw) or metadata.test_name
+    if test_name:
+        metadata.test_name = test_name
+    
+    unit_raw = data.get("UNITS")
+    unit_value = _coerce_str(unit_raw) or metadata.unit
+    if unit_value:
+        metadata.unit = unit_value
+    
+    res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
+    
+    llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
+    low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
+    if low_limit is not None:
+        metadata.low_limit = low_limit
+    
+    hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
+    high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
+    if high_limit is not None:
+        metadata.high_limit = high_limit
+    
+    metadata.scale = res_scale
+    cache[key] = metadata
+    
+    # Add to test catalog
+    catalog_name = metadata.test_name or test_name or ""
+    catalog_number = str(test_num) if test_num is not None else ""
+    catalog_key = (catalog_name, catalog_number)
+    
+    if catalog_key not in test_catalog:
+        test_catalog[catalog_key] = {
+            "unit": _compose_unit(metadata.unit, metadata.scale),
+            "stdf_lower": metadata.low_limit,
+            "stdf_upper": metadata.high_limit,
+        }
+    else:
+        # Update existing entry if we have better information
+        existing = test_catalog[catalog_key]
+        if existing.get("unit") in ("", None) and metadata.unit:
+            existing["unit"] = _compose_unit(metadata.unit, metadata.scale)
+        if existing.get("stdf_lower") is None and metadata.low_limit is not None:
+            existing["stdf_lower"] = metadata.low_limit
+        if existing.get("stdf_upper") is None and metadata.high_limit is not None:
+            existing["stdf_upper"] = metadata.high_limit
 
 
 def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[dict[str, Any]]:
     test_num = data.get("TEST_NUM")
     test_name_raw = data.get("TEST_TXT")
     if test_num is None and not test_name_raw:
+        return None
+
+    # Check if measurement is invalid due to test or parameter flags
+    test_flg = data.get("TEST_FLG", 0)
+    parm_flg = data.get("PARM_FLG", 0)
+    
+    # Convert bytes to int if needed
+    if isinstance(test_flg, bytes):
+        test_flg = test_flg[0] if test_flg else 0
+    if isinstance(parm_flg, bytes):
+        parm_flg = parm_flg[0] if parm_flg else 0
+    
+    # STDF specification: PARM_FLG bit 2 (0x04) indicates RESULT_INVALID
+    # Skip measurements where the result is flagged as invalid
+    if parm_flg & RESULT_INVALID:  # RESULT_INVALID bit
+        return None
+    
+    # STDF specification: TEST_FLG bits indicate test execution problems
+    # Skip measurements with invalid, unreliable, not executed, or aborted tests
+    if test_flg & TEST_FLG_REJECT_MASK:
         return None
 
     key = str(test_num) if test_num is not None else f"name:{test_name_raw or ''}"
