@@ -39,8 +39,8 @@ TEST_LIMIT_COLUMNS = [
 
 CPK_COLUMNS = [
     "File",
-    "Test Name",
-    "Test Number",
+    "TEST NAME",
+    "TEST NUM",
     "UNITS",
     "LL_ATE",
     "UL_ATE",
@@ -375,6 +375,12 @@ def _populate_cpk_report(
             elif column == "UNITS":
                 # Map "Unit" from summary to "UNITS" for template compatibility
                 cell.value = row.get("Unit", "")
+            elif column == "TEST NAME":
+                # Map "Test Name" from summary to "TEST NAME" for template compatibility
+                cell.value = row.get("Test Name", "")
+            elif column == "TEST NUM":
+                # Map "Test Number" from summary to "TEST NUM" for template compatibility
+                cell.value = row.get("Test Number", "")
             elif column == "LL_ATE":
                 # Map "stdf_lower" from test_limits to "LL_ATE"
                 cell.value = limits_data.get("stdf_lower", "")
