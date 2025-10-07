@@ -1,0 +1,18 @@
+CPK Analysis Development Checklist
+----------------------------------
+- [x] Establish the `cpkanalysis` package with dedicated ingestion, statistics, charting, and workbook modules.
+- [x] Build a pyarrow-backed ingestion stage that streams STDF measurements and preserves metadata required for Cp/Cpk reporting.
+- [x] Implement outlier filtering options (IQR and standard-deviation) with undo-friendly defaults.
+- [x] Compute Cp/Cpk statistics, robust 3×IQR variants, and yield metrics keyed by test and file.
+- [x] Author Excel workbooks with Summary, Measurements, and Test List & Limits sheets plus Plotly-generated charts and template integration.
+- [x] Provide a streamlined CLI with `scan` and `run` commands that operate on STDF metadata or explicit file lists.
+- [x] Offer a minimal text-driven GUI (`CPKAnalysisGUI`) that mirrors the CLI options.
+- [x] Capture reproducibility metadata (inputs, filters, limits) alongside workbook outputs.
+- [x] Validate the end-to-end pipeline with sample STDF files to ensure successful workbook creation and metadata logging.
+
+
+
+
+
+
+

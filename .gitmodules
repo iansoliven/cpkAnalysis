@@ -1,3 +1,3 @@
 [submodule "Submodules/istdf"]
 	path = Submodules/istdf
-	url = https://code.onsemi.com/scm/mcps-pe/istdf.git
+	url = https://github.com/iansoliven/iSTDF.git

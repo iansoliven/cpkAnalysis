@@ -1,0 +1,158 @@
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Iterable, Sequence
+
+from .models import AnalysisInputs, OutlierOptions, SourceFile
+from .pipeline import run_analysis
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="cpkanalysis",
+        description="CPK analysis workflow for STDF sources.",
+    )
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    scan_parser = subparsers.add_parser("scan", help="Discover STDF files in a directory and write metadata JSON.")
+    scan_parser.add_argument("directory", nargs="?", type=Path, default=Path.cwd())
+    scan_parser.add_argument(
+        "--metadata",
+        type=Path,
+        default=Path("stdf_sources.json"),
+        help="Destination metadata JSON path (default: stdf_sources.json).",
+    )
+    scan_parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Search directories recursively for STDF files.",
+    )
+
+    run_parser = subparsers.add_parser("run", help="Execute the full CPK workflow.")
+    run_parser.add_argument(
+        "inputs",
+        nargs="*",
+        type=Path,
+        help="STDF file paths to process.",
+    )
+    run_parser.add_argument(
+        "--metadata",
+        type=Path,
+        help="Optional metadata JSON listing STDF files to process.",
+    )
+    run_parser.add_argument(
+        "--output",
+        type=Path,
+        default=Path("CPK_Workbook.xlsx"),
+        help="Output Excel workbook path.",
+    )
+    run_parser.add_argument(
+        "--template",
+        type=Path,
+        help="Path to the Excel template directory or file.",
+    )
+    run_parser.add_argument(
+        "--outlier-method",
+        choices=("none", "iqr", "stdev"),
+        default="none",
+        help="Outlier filtering strategy.",
+    )
+    run_parser.add_argument(
+        "--outlier-k",
+        type=float,
+        default=1.5,
+        help="Multiplier for outlier filtering heuristics.",
+    )
+    run_parser.add_argument(
+        "--no-histogram",
+        action="store_true",
+        help="Skip histogram chart generation.",
+    )
+    run_parser.add_argument(
+        "--no-cdf",
+        action="store_true",
+        help="Skip CDF chart generation.",
+    )
+    run_parser.add_argument(
+        "--no-time-series",
+        action="store_true",
+        help="Skip time-series chart generation.",
+    )
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command == "scan":
+        sources = _scan_directory(args.directory, recursive=args.recursive)
+        _write_metadata(args.metadata, sources)
+        print(f"Recorded {len(sources)} STDF file(s) to {args.metadata}")
+        return 0
+
+    if args.command == "run":
+        paths: list[Path] = []
+        if args.metadata:
+            paths.extend(_read_metadata(args.metadata))
+        paths.extend(args.inputs or [])
+        if not paths:
+            parser.error("No STDF inputs supplied. Provide files or metadata JSON.")
+        sources = [SourceFile(path=path) for path in paths]
+        template_path = args.template
+        if template_path and template_path.is_dir():
+            template_path = _select_template(template_path)
+
+        config = AnalysisInputs(
+            sources=sources,
+            output=args.output,
+            template=template_path,
+            outliers=OutlierOptions(method=args.outlier_method, k=args.outlier_k),
+            generate_histogram=not args.no_histogram,
+            generate_cdf=not args.no_cdf,
+            generate_time_series=not args.no_time_series,
+        )
+        result = run_analysis(config)
+        print(f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
+              f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})")
+        print(f"Metadata captured at {result['metadata']}")
+        return 0
+
+    parser.error(f"Unsupported command: {args.command}")
+    return 1
+
+
+def _scan_directory(directory: Path, *, recursive: bool) -> list[Path]:
+    directory = directory.expanduser().resolve()
+    if not directory.exists() or not directory.is_dir():
+        raise SystemExit(f"Directory not found: {directory}")
+    pattern = "**/*.stdf" if recursive else "*.stdf"
+    return sorted(path for path in directory.glob(pattern) if path.is_file())
+
+
+def _write_metadata(path: Path, sources: Iterable[Path]) -> None:
+    payload = [{"path": str(Path(src).expanduser().resolve())} for src in sources]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+
+def _read_metadata(path: Path) -> list[Path]:
+    path = path.expanduser().resolve()
+    if not path.exists():
+        raise SystemExit(f"Metadata file not found: {path}")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return [Path(entry["path"]).expanduser().resolve() for entry in data]
+
+
+def _select_template(template_root: Path) -> Path:
+    candidates = sorted(template_root.glob("*.xlsx"))
+    if not candidates:
+        raise SystemExit(f"No .xlsx template found under {template_root}")
+    return candidates[0]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
