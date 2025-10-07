@@ -73,7 +73,15 @@ class CPKAnalysisGUI:
             if not entry:
                 break
             path = Path(entry).expanduser().resolve()
-            if not path.exists():
+            if path.is_dir():
+                discovered = sorted(p for p in path.glob("*.stdf") if p.is_file())
+                if not discovered:
+                    print(f"  ! No .stdf files found in directory: {path}")
+                    continue
+                print(f"  > Added {len(discovered)} file(s) from {path}")
+                sources.extend(discovered)
+                continue
+            if not path.exists() or not path.is_file():
                 print(f"  ! File not found: {path}")
                 continue
             sources.append(path)

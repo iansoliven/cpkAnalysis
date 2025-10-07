@@ -224,7 +224,12 @@ def _create_plot_sheets(
         lower_limit = limit_info.get("active_lower")
         upper_limit = limit_info.get("active_upper")
 
-        axis_min, axis_max, data_min, data_max = _compute_axis_bounds(values, lower_limit, upper_limit)
+        axis_min, axis_max, data_min, data_max = _compute_axis_bounds(
+            values,
+            lower_limit,
+            upper_limit,
+            desired_ticks=10,
+        )
         x_range = (axis_min, axis_max)
         axis_ranges[(file_name, test_name, test_number)] = {
             "data_min": data_min,
@@ -245,7 +250,8 @@ def _create_plot_sheets(
                 x_range=x_range,
             )
             cell = _place_image(sheet, image_bytes, row, label=f"{test_name} (Test {test_number})")
-            plot_links[(file_name, test_name, test_number)] = f"'{sheet.title}'!{cell}"
+            sheet_ref = sheet.title.replace("'", "''")
+            plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
             _ensure_row_height(sheet, row)
             hist_sheets[file_name]["row"] += ROW_STRIDE
 
@@ -454,6 +460,7 @@ def _compute_axis_bounds(
     values: np.ndarray,
     lower_limit: Optional[float],
     upper_limit: Optional[float],
+    desired_ticks: int = 10,
 ) -> tuple[Optional[float], Optional[float], Optional[float], Optional[float]]:
     finite = values[np.isfinite(values)]
     data_min = float(finite.min()) if finite.size else None
@@ -465,13 +472,54 @@ def _compute_axis_bounds(
     axis_min = min(min_candidates) if min_candidates else data_min
     axis_max = max(max_candidates) if max_candidates else data_max
 
-    if axis_min is not None and axis_max is not None and axis_min == axis_max:
+    if axis_min is None and axis_max is None:
+        axis_min, axis_max = -1.0, 1.0
+    elif axis_min is None:
+        axis_min = axis_max - 1.0  # type: ignore[operator]
+    elif axis_max is None:
+        axis_max = axis_min + 1.0
+
+    axis_min = float(axis_min)
+    axis_max = float(axis_max)
+
+    if axis_min == axis_max:
         delta = abs(axis_min) * 0.05 or 1.0
         axis_min -= delta
         axis_max += delta
-    if axis_min is None and axis_max is not None:
-        axis_min = axis_max - 1.0
-    if axis_max is None and axis_min is not None:
-        axis_max = axis_min + 1.0
+
+    span = axis_max - axis_min
+    tick_spacing = _nice_tick(span / max(desired_ticks, 1)) if span > 0 else 1.0
+    if tick_spacing <= 0:
+        tick_spacing = max(span * 0.1, 1.0)
+
+    target_min_candidates = [val for val in (data_min, lower_limit) if val is not None and math.isfinite(val)]
+    if target_min_candidates:
+        target_min = min(target_min_candidates)
+        axis_min = min(axis_min, target_min - tick_spacing)
+
+    target_max_candidates = [val for val in (data_max, upper_limit) if val is not None and math.isfinite(val)]
+    if target_max_candidates:
+        target_max = max(target_max_candidates)
+        axis_max = max(axis_max, target_max + tick_spacing)
+
+    if axis_min >= axis_max:
+        axis_min -= tick_spacing
+        axis_max += tick_spacing
 
     return axis_min, axis_max, data_min, data_max
+
+
+def _nice_tick(value: float) -> float:
+    if value <= 0 or not math.isfinite(value):
+        return 1.0
+    exponent = math.floor(math.log10(value))
+    fraction = value / (10 ** exponent)
+    if fraction < 1.5:
+        nice_fraction = 1.0
+    elif fraction < 3.0:
+        nice_fraction = 2.0
+    elif fraction < 7.0:
+        nice_fraction = 5.0
+    else:
+        nice_fraction = 10.0
+    return nice_fraction * (10 ** exponent)
