@@ -43,7 +43,36 @@ def render_histogram(
     bins = _freedman_diaconis_bins(clean)
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=0.75, edgecolor="white")
+    
+    # Adaptive styling based on data size and bin count to improve visibility
+    if clean.size <= 10:
+        # Very small dataset - use step histogram for better visibility
+        counts, bin_edges = np.histogram(clean, bins=bins)
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        ax.step(bin_centers, counts, where='mid', color=HIST_COLOR, linewidth=2.5, alpha=0.9)
+        ax.fill_between(bin_centers, counts, step='mid', color=HIST_COLOR, alpha=0.3)
+    elif bins <= 10:
+        # For few bins (thin bars), use higher opacity and thicker edges
+        alpha = 0.9
+        edgecolor = "darkblue"
+        linewidth = 1.2
+        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha, 
+                edgecolor=edgecolor, linewidth=linewidth)
+    elif bins <= 20:
+        # Medium number of bins
+        alpha = 0.8
+        edgecolor = "white" 
+        linewidth = 0.8
+        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
+                edgecolor=edgecolor, linewidth=linewidth)
+    else:
+        # Many bins (normal case)
+        alpha = 0.75
+        edgecolor = "white"
+        linewidth = 0.5
+        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
+                edgecolor=edgecolor, linewidth=linewidth)
+    
     ax.set_xlabel("Measurement Value", fontsize=9)  # Smaller font for smaller chart
     ax.set_ylabel("Count", fontsize=9)  # Smaller font for smaller chart
     ax.tick_params(labelsize=8)  # Smaller tick labels
@@ -154,7 +183,12 @@ def _freedman_diaconis_bins(values: np.ndarray) -> int:
     if data_range <= 0 or not np.isfinite(data_range):
         return 1
     bins = int(np.ceil(data_range / bin_width))
-    return max(bins, 1)
+    
+    # Ensure reasonable bin count for visibility (avoid too few or too many bins)
+    bins = max(bins, 5)   # Minimum 5 bins for better visualization
+    bins = min(bins, 50)  # Maximum 50 bins to avoid overcrowding
+    
+    return bins
 
 
 def _add_vertical_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
