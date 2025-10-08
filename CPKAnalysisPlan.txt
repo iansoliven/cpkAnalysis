@@ -47,6 +47,7 @@ Architecture Overview
    - Create `WorkbookSession` wrapping the openpyxl workbook produced during `workbook_builder.build_workbook`.
    - Provide helper operations (update chart ranges, refresh tables, add sheets) and ensure a single `commit()` persists all changes after listeners finish.
    - Maintain access to precomputed axis metadata so listeners can regenerate plots without recomputation.
+   - Reserve extension points for future features: synchronized chart/table updates when spec/what-if limits change, and reusable helpers to apply user-defined axis bounds across one or multiple charts.
 
 5. Plugin Discovery & Configuration
    - Build `PluginRegistry` to load listeners from:
@@ -70,14 +71,15 @@ Architecture Overview
    - Echo plugin execution summaries (success, skipped, failure) in the command output; provide hints for disabling failed plugins.
 
 8. Performance & Telemetry
-   - Track per-stage and per-plugin timing; log results and include in metadata JSON.
-   - Ensure listeners can opt into parallel processing via a shared executor when safe, while keeping console feedback responsive.
-   - Provide configuration knobs for progress update throttling to avoid overwhelming the console.
+    - Track per-stage and per-plugin timing; log results and include in metadata JSON.
+    - Ensure listeners can opt into parallel processing via a shared executor when safe, while keeping console feedback responsive; require plugins to declare whether they are thread-safe so the scheduler can enforce serial execution when needed.
+    - Provide configuration knobs for progress update throttling to avoid overwhelming the console.
+    - Capture telemetry hooks for future bulk chart updates so we can measure the cost of applying synchronized axis/spec-limit changes when those features arrive.
 
 9. Error Handling & Recovery
    - Implement policies configurable via CLI/console UI: `fail_fast`, `continue_on_error`, `skip_and_warn`.
    - Record failures in metadata; include plugin id, exception, duration, and resolution policy.
-   - Offer a validation mode (`--validate-plugins`) executing plugins against a cached sample dataset to detect incompatibilities ahead of production runs.
+    - Offer a validation mode (`--validate-plugins`) that replays cached pipeline outputs through the event bus (without regenerating workbooks) so plugins can be verified quickly before production runs.
 
 10. Documentation & Samples
     - Update README and console help text with architecture diagrams, plugin authoring guide, and UX walkthroughs.
@@ -105,11 +107,12 @@ Phase 4: Console UI Enhancements
 
 Phase 5: CLI Enhancements
   - Add new flags, profile loading, and textual progress summaries.
-  - Ensure CLI respects console profiles when both specified (CLI overrides profile defaults).
+  - Ensure CLI respects console profiles when both specified (CLI overrides profile defaults) and emits a clear warning whenever a command-line override conflicts with persisted preferences.
 
 Phase 6: Sample Plugins & Documentation
   - Ship two reference plugins demonstrating data and chart regeneration.
   - Update README, add architecture diagrams, and document plugin authoring/testing workflow.
+  - Document placeholders for upcoming capabilities: chart/test data synchronization (including spec & what-if limit propagation) and user-controlled axis bounds so downstream teams know where to integrate when requirements solidify.
 
 Phase 7: Testing & Hardening
   - Add integration tests covering successful runs, plugin timeouts, failure policies, and CLI/console parity.
@@ -121,15 +124,20 @@ Acceptance Criteria
 - Users can enable/disable plugins via the console UI and CLI; selections persist between runs.
 - Post-processing can modify datasets and regenerate charts; resulting workbook reflects changes, and metadata logs applied plugins with timings.
 - Progress indicators show stage completion and plugin activity in both interfaces.
+- Timeout enforcement and failure-policy selection are documented and verified by automated tests (unit + integration).
 - Plugin failures are surfaced with actionable recovery options; pipeline completes according to configured policy.
 - Documentation and sample plugins provide clear guidance for new implementations.
 
 Implementation Notes for Contributors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-- Maintain Levi’s existing coding standards: type annotations, minimal ASCII, concise comments explaining non-obvious logic.
+- Maintain Levi's existing coding standards: type annotations, minimal ASCII, concise comments explaining non-obvious logic.
 - Prefer dependency injection for registry and event bus to ease testing; provide fixtures/mocks for AI agents.
 - Ensure new modules include unit tests and integrate with `python -m compileall` checks.
+- When implementing parallel listener execution, respect each plugin's declared thread-safety flag; default to serial execution unless metadata explicitly allows concurrency.
 - Coordinate with tooling to avoid blocking console feedback loops; long-running tasks should use executors or threads while reporting progress.
+- Leave TODO hooks (guarded by feature flags or well-documented stubs) for future functionality:
+  * Synchronizing chart visuals and worksheet data when spec/what-if limits are edited post-run.
+  * Applying user-specified x-axis bounds—via data-driven or manual inputs—across one or multiple charts.
 
 
 

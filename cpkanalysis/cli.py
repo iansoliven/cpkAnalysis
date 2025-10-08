@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Set
 
-from .models import AnalysisInputs, OutlierOptions, SourceFile
+from .models import AnalysisInputs, OutlierOptions, SourceFile, PluginConfig
 from .pipeline import run_analysis
 from .move_to_template import run as run_move_to_template
+from .plugins import PluginRegistry, PluginRegistryError, PluginDescriptor
+from .plugin_profiles import load_plugin_profile, PROFILE_FILENAME
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -87,6 +90,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip time-series chart generation.",
     )
+    run_parser.add_argument(
+        "--plugin",
+        action="append",
+        default=[],
+        help=(
+            "Plugin override directive. "
+            "Formats: enable:<id>, disable:<id>, priority:<id>:value, param:<id>:key=value. "
+            "May be specified multiple times."
+        ),
+    )
+    run_parser.add_argument(
+        "--plugin-profile",
+        type=Path,
+        help=f"Optional plugin profile file (default: ./{PROFILE_FILENAME}).",
+    )
+    run_parser.add_argument(
+        "--validate-plugins",
+        action="store_true",
+        help="Run plugins against newly generated data without persisting the workbook.",
+    )
 
     move_template_parser = subparsers.add_parser(
         "move-template",
@@ -140,22 +163,59 @@ def main(argv: Sequence[str] | None = None) -> int:
             elif not template_path.exists():
                 raise SystemExit(f"Template path not found: {template_path}")
 
+        workspace_root = Path.cwd()
+        profile_path = (
+            args.plugin_profile.expanduser().resolve()
+            if args.plugin_profile
+            else workspace_root / PROFILE_FILENAME
+        )
+        if args.plugin_profile and not profile_path.exists():
+            print(f"Warning: plugin profile {profile_path} not found; using defaults.")
+
+        registry = PluginRegistry(workspace_dir=workspace_root / "cpk_plugins")
+        plugins, override_conflicts, missing_plugins = _prepare_plugin_configs(
+            registry=registry,
+            profile_path=profile_path,
+            overrides=args.plugin,
+            parser=parser,
+        )
+        for plugin_id in missing_plugins:
+            print(f"Warning: plugin '{plugin_id}' referenced in profile is unavailable and will be ignored.")
+        for plugin_id in override_conflicts:
+            print(f"Warning: command-line overrides applied to plugin '{plugin_id}' (profile preference superseded).")
+
+        output_path: Path = args.output
+        if args.validate_plugins:
+            temp_dir = workspace_root / "temp"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            output_path = temp_dir / f"validation_{int(time.time() * 1000)}.xlsx"
+
         config = AnalysisInputs(
             sources=sources,
-            output=args.output,
+            output=output_path,
             template=template_path,
             template_sheet=args.template_sheet,
             outliers=OutlierOptions(method=args.outlier_method, k=args.outlier_k),
             generate_histogram=not args.no_histogram,
             generate_cdf=not args.no_cdf,
             generate_time_series=not args.no_time_series,
+            plugins=plugins,
         )
-        result = run_analysis(config)
-        print(f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
-              f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})")
-        print(f"Metadata captured at {result['metadata']}")
-        if result.get('template_sheet'):
-            print(f"Template sheet updated: {result['template_sheet']}")
+        result = run_analysis(config, registry=registry)
+        if args.validate_plugins:
+            print(f"Plugin validation completed using temporary workbook {result['output']}.")
+            _cleanup_file(result.get("metadata", ""))
+            _cleanup_file(result.get("output", ""))
+        else:
+            print(
+                f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
+                f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})"
+            )
+            print(f"Metadata captured at {result['metadata']}")
+            if result.get('template_sheet'):
+                print(f"Template sheet updated: {result['template_sheet']}")
+        if result.get("plugins"):
+            print(f"Post-processing plugins: {', '.join(result['plugins'])}")
         return 0
 
     if args.command == "move-template":
@@ -204,6 +264,159 @@ def _select_template(template_root: Path) -> Path:
     if not candidates:
         raise SystemExit(f"No .xlsx template found under {template_root}")
     return candidates[0]
+
+
+def _cleanup_file(path_str: str) -> None:
+    if not path_str:
+        return
+    path = Path(path_str)
+    try:
+        if path.exists():
+            path.unlink()
+    except Exception:
+        pass
+
+
+def _prepare_plugin_configs(
+    *,
+    registry: PluginRegistry,
+    profile_path: Path,
+    overrides: Sequence[str],
+    parser: argparse.ArgumentParser,
+) -> tuple[List[PluginConfig], List[str], List[str]]:
+    try:
+        descriptors = registry.descriptors()
+    except PluginRegistryError as exc:
+        parser.error(f"Plugin discovery failed: {exc}")
+
+    profile_map = load_plugin_profile(profile_path)
+    plugin_configs: Dict[str, PluginConfig] = {}
+
+    for plugin_id, descriptor in descriptors.items():
+        base = profile_map.get(plugin_id)
+        if base is not None:
+            priority = base.priority if base.priority is not None else descriptor.default_priority
+            plugin_configs[plugin_id] = PluginConfig(
+                plugin_id=plugin_id,
+                enabled=base.enabled,
+                priority=priority,
+                parameters=dict(base.parameters),
+            )
+        else:
+            plugin_configs[plugin_id] = PluginConfig(
+                plugin_id=plugin_id,
+                enabled=descriptor.default_enabled,
+                priority=descriptor.default_priority,
+                parameters={},
+            )
+
+    conflicts: Set[str] = set()
+
+    for token in overrides or []:
+        kind, sep, remainder = token.partition(":")
+        if not sep or not remainder:
+            parser.error(f"Invalid --plugin directive '{token}'.")
+        kind = kind.lower()
+        current_id: Optional[str] = None
+
+        if kind in {"enable", "disable"}:
+            plugin_id = remainder.strip()
+            descriptor = descriptors.get(plugin_id)
+            if descriptor is None:
+                parser.error(_unknown_plugin_message(plugin_id, descriptors))
+            cfg = plugin_configs.get(plugin_id)
+            if cfg is None:
+                cfg = PluginConfig(
+                    plugin_id=plugin_id,
+                    enabled=descriptor.default_enabled,
+                    priority=descriptor.default_priority,
+                    parameters={},
+                )
+            plugin_configs[plugin_id] = PluginConfig(
+                plugin_id=plugin_id,
+                enabled=(kind == "enable"),
+                priority=cfg.priority,
+                parameters=dict(cfg.parameters),
+            )
+            current_id = plugin_id
+        elif kind == "priority":
+            plugin_id, sep2, value_text = remainder.partition(":")
+            if not sep2 or not value_text:
+                parser.error(f"Invalid priority directive '{token}'. Expected priority:<id>:value.")
+            descriptor = descriptors.get(plugin_id)
+            if descriptor is None:
+                parser.error(_unknown_plugin_message(plugin_id, descriptors))
+            cfg = plugin_configs.get(plugin_id)
+            if cfg is None:
+                cfg = PluginConfig(
+                    plugin_id=plugin_id,
+                    enabled=descriptor.default_enabled,
+                    priority=descriptor.default_priority,
+                    parameters={},
+                )
+            try:
+                priority_value = int(value_text.strip())
+            except ValueError:
+                parser.error(f"Invalid priority value in '{token}'.")
+            plugin_configs[plugin_id] = PluginConfig(
+                plugin_id=plugin_id,
+                enabled=cfg.enabled,
+                priority=priority_value,
+                parameters=dict(cfg.parameters),
+            )
+            current_id = plugin_id
+        elif kind == "param":
+            plugin_id, sep2, assignment = remainder.partition(":")
+            if not sep2 or "=" not in assignment:
+                parser.error(f"Invalid parameter directive '{token}'. Expected param:<id>:key=value.")
+            key, value = assignment.split("=", 1)
+            key = key.strip()
+            if not key:
+                parser.error("Plugin parameter key cannot be empty.")
+            descriptor = descriptors.get(plugin_id)
+            if descriptor is None:
+                parser.error(_unknown_plugin_message(plugin_id, descriptors))
+            cfg = plugin_configs.get(plugin_id)
+            if cfg is None:
+                cfg = PluginConfig(
+                    plugin_id=plugin_id,
+                    enabled=descriptor.default_enabled,
+                    priority=descriptor.default_priority,
+                    parameters={},
+                )
+            params = dict(cfg.parameters)
+            value = value.strip()
+            if value:
+                params[key] = value
+            else:
+                params.pop(key, None)
+            plugin_configs[plugin_id] = PluginConfig(
+                plugin_id=plugin_id,
+                enabled=cfg.enabled,
+                priority=cfg.priority,
+                parameters=params,
+            )
+            current_id = plugin_id
+        else:
+            parser.error(f"Unsupported --plugin directive '{token}'.")
+
+        if current_id:
+            base_cfg = profile_map.get(current_id)
+            if base_cfg and plugin_configs[current_id] != base_cfg:
+                conflicts.add(current_id)
+
+    missing_from_registry = sorted(set(profile_map.keys()) - set(descriptors.keys()))
+    ordered = [
+        plugin_configs[plugin_id]
+        for plugin_id in sorted(descriptors.keys(), key=lambda pid: descriptors[pid].name.lower())
+    ]
+    return ordered, sorted(conflicts), missing_from_registry
+
+
+def _unknown_plugin_message(plugin_id: str, descriptors: Dict[str, PluginDescriptor]) -> str:
+    available = ", ".join(sorted(descriptors.keys()))
+    suffix = available if available else "none available"
+    return f"Unknown plugin id '{plugin_id}'. Available plugins: {suffix}."
 
 
 if __name__ == "__main__":

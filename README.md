@@ -12,6 +12,7 @@ This repository provides a high-throughput analysis pipeline for transforming la
 - **Enhanced Template Integration** &mdash; Intelligent header matching that searches multiple rows to find template headers; properly populates test names, test numbers, STDF limits, and units data into template sheets.
 - **Workbook Authoring** &mdash; Produces Summary, Measurements, and Test List & Limits sheets; embeds Matplotlib-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
 - **Metadata Logging** &mdash; Captures processing parameters, limit sources, and per-source counts in a JSON sidecar for audit trails.
+- **Post-Processing Hooks** &mdash; Event-driven pipeline emits lifecycle events to an extensible plugin registry, enabling data or chart regeneration and metadata enrichment without modifying core stages.
 
 ## Requirements
 
@@ -50,6 +51,34 @@ Key options:
 | `--outlier-method {none,iqr,stdev}` | Selects the outlier filter (default `none`). |
 | `--outlier-k value` | Multiplier `k` for IQR or standard deviation filtering (default `1.5`). |
 | `--no-histogram`, `--no-cdf`, `--no-time-series` | Skip generating the corresponding chart families. |
+| `--plugin <directive>` | Apply plugin overrides such as `enable:builtin.summary_logger`, `disable:plugin_id`, `priority:plugin_id:10`, or `param:plugin_id:key=value`. May be repeated. |
+| `--plugin-profile path.toml` | Load plugin defaults from a TOML profile (defaults to `./post_processing_profile.toml`). |
+| `--validate-plugins` | Run plugins against freshly generated data without persisting the workbook (output is written to a temporary file and removed). |
+
+#### Post-Processing Plugins
+
+The event bus exposes lifecycle events that plugins can subscribe to for post-processing data or regenerating charts. Plugins are discovered from Python entry points (`cpkanalysis.pipeline_plugins`) and optional manifests under `cpk_plugins/` inside the current workspace. Selections made in the console UI are stored in `post_processing_profile.toml`; the CLI loads the same profile automatically or an alternate path via `--plugin-profile`.
+
+Example overrides:
+
+```bash
+# Enable the built-in summary logger plugin and raise its priority
+python -m cpkanalysis.cli run lot1.stdf --plugin enable:builtin.summary_logger --plugin priority:builtin.summary_logger:5
+
+# Override a plugin parameter without enabling it permanently in the profile
+python -m cpkanalysis.cli run --plugin param:builtin.summary_logger:message="Summary rows => {rows}"
+
+# Disable a plugin just for this run
+python -m cpkanalysis.cli run --plugin disable:builtin.summary_logger
+```
+
+Whenever a command-line override disagrees with the stored profile, the CLI prints a warning so you know the run is using transient settings.
+
+A quick validation pass is available via `--validate-plugins`, which runs the pipeline and plugin listeners using a temporary workbook that is discarded once the run finishes.
+
+A demonstration plugin `builtin.summary_logger` ships with the registry; when enabled it logs the number of summary rows after the statistics stage, making it easy to verify that plugins are executing.
+
+For a manifest-driven example, see `examples/plugins/sample_summary.toml`; copy it into your workspace's `cpk_plugins/` directory to load the demo plugin via the registry.
 
 To quickly build a metadata manifest of STDF files in a directory:
 
@@ -74,6 +103,8 @@ A lightweight text-driven harness mirrors the planned GUI flow and walks through
 ```bash
 python -m cpkanalysis.gui
 ```
+
+The console enumerates all discovered post-processing plugins, allows you to toggle them run-by-run, tweak parameters interactively, and persists the selections to `post_processing_profile.toml` for reuse in future console sessions or CLI runs.
 
 ## Output Workbook Structure
 

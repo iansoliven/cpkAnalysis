@@ -36,6 +36,19 @@ class OutlierOptions:
         return self.method != "none" and self.k > 0
 
 
+@dataclass(frozen=True)
+class PluginConfig:
+    """Configuration block describing an enabled pipeline plugin."""
+
+    plugin_id: str
+    enabled: bool = True
+    priority: int | None = None
+    parameters: dict[str, Any] = field(default_factory=dict)
+
+    def normalized_parameters(self) -> dict[str, Any]:
+        return dict(self.parameters)
+
+
 @dataclass
 class AnalysisInputs:
     """Aggregated configuration for an analysis run."""
@@ -48,6 +61,7 @@ class AnalysisInputs:
     generate_histogram: bool = True
     generate_cdf: bool = True
     generate_time_series: bool = True
+    plugins: list[PluginConfig] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
