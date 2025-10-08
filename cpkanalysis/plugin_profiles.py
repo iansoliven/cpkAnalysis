@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Dict, Sequence
 
@@ -20,7 +21,11 @@ def load_plugin_profile(path: Path) -> Dict[str, PluginConfig]:
         return configs
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as exc:
+        print(
+            f"Warning: failed to parse plugin profile {path}: {exc}. Using defaults.",
+            file=sys.stderr,
+        )
         return configs
     for entry in data.get("plugins", []):
         plugin_id = entry.get("id")

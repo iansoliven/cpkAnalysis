@@ -7,12 +7,12 @@ This repository provides a high-throughput analysis pipeline for transforming la
 - **STDF Ingestion** &mdash; Parses Standard Test Data Format files via the `iSTDF` submodule, preserving per-device context, STDF limits, and timestamps or measurement indices. Implements comprehensive STDF flag filtering to ensure only valid measurements contribute to statistical calculations.
 - **Columnar Storage** &mdash; Streams measurements into Parquet using pandas + pyarrow for fast spill-to-disk without losing vectorized performance.
 - **Data Quality Assurance** &mdash; Filters invalid measurements based on PARM_FLG and TEST_FLG specifications while preserving complete test visibility and catalog integrity.
-- **Outlier Filtering** &mdash; Optional IQR or standard-deviation guards with configurable multipliers; undo by re-running with `--outlier-method none`.
-- **Comprehensive Statistics** &mdash; Generates per-file/per-test metrics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR targets).
-- **Enhanced Template Integration** &mdash; Intelligent header matching that searches multiple rows to find template headers; properly populates test names, test numbers, STDF limits, and units data into template sheets.
-- **Workbook Authoring** &mdash; Produces Summary, Measurements, and Test List & Limits sheets; embeds Matplotlib-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
-- **Metadata Logging** &mdash; Captures processing parameters, limit sources, and per-source counts in a JSON sidecar for audit trails.
-- **Post-Processing Hooks** &mdash; Event-driven pipeline emits lifecycle events to an extensible plugin registry, enabling data or chart regeneration and metadata enrichment without modifying core stages.
+- **Outlier Filtering** — Optional IQR or standard-deviation guards with configurable multipliers; undo by re-running with `--outlier-method none`.
+- **Comprehensive Statistics** — Generates per-file/per-test metrics (COUNT, MEAN, MEDIAN, STDEV, IQR, CpL, CpU, Cpk, yield loss variants, 2.0 and 3xIQR targets).
+- **Enhanced Template Integration** — Intelligent header matching that searches multiple rows to find template headers; properly populates test names, test numbers, STDF limits, and units data into template sheets.
+- **Workbook Authoring** — Produces Summary, Measurements, and Test List & Limits sheets; embeds Matplotlib-rendered histogram/CDF/time-series charts; fills the required CPK template with hyperlinks into the histogram sheets.
+- **Metadata Logging** — Captures processing parameters, limit sources, and per-source counts in a JSON sidecar for audit trails.
+- **Post-Processing Hooks** — Event-driven pipeline emits lifecycle events to an extensible plugin registry, enabling data or chart regeneration and metadata enrichment without modifying core stages.
 
 ## Requirements
 
@@ -209,5 +209,6 @@ The system now implements comprehensive STDF flag filtering to ensure only valid
 ---
 
 For questions, enhancement ideas, or integration guidance, open an issue or start a discussion referencing the relevant module (`cpkanalysis.ingest`, `cpkanalysis.stats`, etc.).
+
 
 
