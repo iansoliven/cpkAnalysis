@@ -16,8 +16,8 @@ matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt  # type: ignore  # noqa: E402
 import numpy as np
 
-DEFAULT_FIGSIZE = (9, 4.5)
-DEFAULT_DPI = 140
+DEFAULT_FIGSIZE = (8, 4)  # Reduced from (9, 4.5) for faster rendering
+DEFAULT_DPI = 100  # Reduced from 140 for faster generation
 HIST_COLOR = "#1f77b4"
 CDF_COLOR = "#ff7f0e"
 TIME_SERIES_COLOR = "#2ca02c"
@@ -206,7 +206,9 @@ def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: 
 
 def _figure_to_png(fig) -> bytes:
     buffer = BytesIO()
-    fig.savefig(buffer, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
+    # Optimize PNG generation for speed
+    fig.savefig(buffer, format="png", dpi=DEFAULT_DPI, bbox_inches="tight", 
+                optimize=False, compress_level=1)  # Faster compression
     plt.close(fig)
     buffer.seek(0)
     return buffer.getvalue()
