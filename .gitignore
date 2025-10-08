@@ -12,7 +12,7 @@ venv/
 .idea/
 
 # Ignored outputs
-Sample/
+/Sample/
 *.xlsx
 *.stdf
 *.json

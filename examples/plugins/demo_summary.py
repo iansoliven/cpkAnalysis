@@ -16,7 +16,7 @@ def descriptor() -> PluginDescriptor:
         default_enabled=False,
         default_priority=0,
         thread_safe=True,
-        source="Sample/plugins/demo_summary.py",
+        source="examples/plugins/demo_summary.py",
     )
 
 

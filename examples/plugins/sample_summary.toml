@@ -1,6 +1,6 @@
 [plugin]
 id = "sample.summary_logger"
-factory = "Sample.plugins.demo_summary:descriptor"
+factory = "examples.plugins.demo_summary:descriptor"
 name = "Sample Summary Logger"
 description = "Demo plugin that prints the summary row count after statistics."
 events = ["SummaryReadyEvent"]

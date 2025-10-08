@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import time
+import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
@@ -185,10 +186,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Warning: command-line overrides applied to plugin '{plugin_id}' (profile preference superseded).")
 
         output_path: Path = args.output
+        temp_template_path: Optional[Path] = None
         if args.validate_plugins:
             temp_dir = workspace_root / "temp"
             temp_dir.mkdir(parents=True, exist_ok=True)
-            output_path = temp_dir / f"validation_{int(time.time() * 1000)}.xlsx"
+            timestamp = int(time.time() * 1000)
+            output_path = temp_dir / f"validation_{timestamp}.xlsx"
+            if template_path is not None and template_path.exists():
+                temp_template_path = temp_dir / f"template_{timestamp}.xlsx"
+                shutil.copy2(template_path, temp_template_path)
+                template_path = temp_template_path
 
         config = AnalysisInputs(
             sources=sources,
@@ -206,6 +213,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Plugin validation completed using temporary workbook {result['output']}.")
             _cleanup_file(result.get("metadata", ""))
             _cleanup_file(result.get("output", ""))
+            if temp_template_path is not None:
+                _cleanup_file(str(temp_template_path))
         else:
             print(
                 f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "

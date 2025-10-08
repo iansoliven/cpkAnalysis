@@ -83,7 +83,7 @@ Architecture Overview
 
 10. Documentation & Samples
     - Update README and console help text with architecture diagrams, plugin authoring guide, and UX walkthroughs.
-    - Provide sample plugins (e.g., “Golden Limit Adjuster”, “Chart Enhancer”) with source in `Sample/plugins/`.
+    - Provide sample plugins (e.g., “Golden Limit Adjuster”, “Chart Enhancer”) with source in `examples/plugins/`.
 
 Implementation Phases
 ~~~~~~~~~~~~~~~~~~~~~
