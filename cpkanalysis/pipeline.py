@@ -73,6 +73,7 @@ def run_analysis(config: AnalysisInputs) -> dict[str, Any]:
             "summary_rows": int(len(summary_df)),
             "measurement_rows": int(len(filtered_frame)),
             "outlier_removed": outlier_summary.get("removed", 0),
+            "template_sheet": template_sheet_used,
         }
     finally:
         _cleanup_session_dir(session_dir)

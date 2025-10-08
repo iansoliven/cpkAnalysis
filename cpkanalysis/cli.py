@@ -144,6 +144,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             sources=sources,
             output=args.output,
             template=template_path,
+            template_sheet=args.template_sheet,
             outliers=OutlierOptions(method=args.outlier_method, k=args.outlier_k),
             generate_histogram=not args.no_histogram,
             generate_cdf=not args.no_cdf,

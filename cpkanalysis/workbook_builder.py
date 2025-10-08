@@ -231,15 +231,31 @@ def _create_plot_sheets(
 
     for (file_name, test_name, test_number), group in grouped:
         limit_info = limit_map.get((test_name, test_number), {})
-        values = pd.to_numeric(group["value"], errors="coerce").dropna().to_numpy()
-        if values.size == 0:
+        numeric_values = pd.to_numeric(group["value"], errors="coerce")
+        valid_mask = numeric_values.notna() & np.isfinite(numeric_values)
+        if not bool(valid_mask.any()):
             continue
-        timestamp = pd.to_numeric(group["timestamp"], errors="coerce").to_numpy()
+        filtered_group = group.loc[valid_mask].copy()
+        if "device_sequence" in filtered_group.columns:
+            serial_series = pd.to_numeric(filtered_group["device_sequence"], errors="coerce")
+            serial_numbers = serial_series.to_numpy(dtype=float, na_value=np.nan)
+        else:
+            serial_numbers = np.full(len(filtered_group), np.nan, dtype=float)
+        fallback_serials = np.arange(1, len(filtered_group) + 1, dtype=float)
+        serial_numbers = np.where(np.isfinite(serial_numbers), serial_numbers, fallback_serials)
+        filtered_group["_serial_number"] = serial_numbers
+        sort_keys = ["_serial_number"]
+        if "measurement_index" in filtered_group.columns:
+            sort_keys.append("measurement_index")
+        filtered_group.sort_values(by=sort_keys, kind="mergesort", inplace=True)
+        serial_numbers = filtered_group["_serial_number"].to_numpy()
+        values = pd.to_numeric(filtered_group["value"], errors="coerce").to_numpy()
+        filtered_group.drop(columns="_serial_number", inplace=True)
         lower_limit = limit_info.get("active_lower")
         upper_limit = limit_info.get("active_upper")
         unit_label = _sanitize_label(str(limit_info.get("unit") or ""))
-        if not unit_label and "units" in group.columns:
-            units_series = group["units"].dropna().astype(str).str.strip()
+        if not unit_label and "units" in filtered_group.columns:
+            units_series = filtered_group["units"].dropna().astype(str).str.strip()
             if not units_series.empty:
                 unit_label = _sanitize_label(units_series.iloc[0])
 
@@ -300,14 +316,15 @@ def _create_plot_sheets(
         if include_time_series:
             anchor_ts = _ensure_plot_anchor(time_sheets, workbook, file_name, "TimeSeries")
             image_bytes = render_time_series(
-                x=timestamp,
+                x=serial_numbers,
                 y=values,
                 lower_limit=lower_limit,
                 upper_limit=upper_limit,
-                y_range=x_range,
+                y_range=(axis_min, axis_max),
                 test_label=test_label,
                 cpk=cpk_value,
                 unit_label=unit_label,
+                x_label="Device Sequence",
             )
             _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=test_label)
             _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])

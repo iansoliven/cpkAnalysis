@@ -105,6 +105,7 @@ def render_time_series(
     test_label: str = "",
     cpk: Optional[float] = None,
     unit_label: str = "",
+    x_label: str = "Timestamp / Index",
 ) -> bytes:
     """Render a time-series trend chart for the given measurements."""
     mask = np.isfinite(x) & np.isfinite(y)
@@ -117,7 +118,7 @@ def render_time_series(
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     ax.plot(x, y, color=TIME_SERIES_COLOR, linewidth=1.6, marker="o", markersize=4)
-    ax.set_xlabel("Timestamp / Index")
+    ax.set_xlabel(x_label)
     ax.set_ylabel("Measurement Value")
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
