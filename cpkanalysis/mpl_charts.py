@@ -49,18 +49,18 @@ def render_histogram(
         # Very small dataset - use step histogram for better visibility
         counts, bin_edges = np.histogram(clean, bins=bins)
         bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        ax.step(bin_centers, counts, where='mid', color=HIST_COLOR, linewidth=2.5, alpha=0.9)
-        ax.fill_between(bin_centers, counts, step='mid', color=HIST_COLOR, alpha=0.3)
+        ax.step(bin_centers, counts, where='mid', color=HIST_COLOR, linewidth=2.5, alpha=1.0)  # Max intensity
+        ax.fill_between(bin_centers, counts, step='mid', color=HIST_COLOR, alpha=0.4)  # Slightly higher fill
     elif bins <= 10:
-        # For few bins (thin bars), use higher opacity and thicker edges
-        alpha = 0.9
+        # For few bins (thin bars), use maximum opacity and thicker edges
+        alpha = 1.0  # Maximum intensity for best visibility
         edgecolor = "darkblue"
         linewidth = 1.2
         ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha, 
                 edgecolor=edgecolor, linewidth=linewidth)
     elif bins <= 20:
         # Medium number of bins
-        alpha = 0.8
+        alpha = 0.85  # Slightly higher than before for better visibility
         edgecolor = "white" 
         linewidth = 0.8
         ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
