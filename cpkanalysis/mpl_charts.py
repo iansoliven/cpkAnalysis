@@ -206,9 +206,8 @@ def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: 
 
 def _figure_to_png(fig) -> bytes:
     buffer = BytesIO()
-    # Optimize PNG generation for speed
-    fig.savefig(buffer, format="png", dpi=DEFAULT_DPI, bbox_inches="tight", 
-                optimize=False, compress_level=1)  # Faster compression
+    # Use only supported matplotlib savefig parameters
+    fig.savefig(buffer, format="png", dpi=DEFAULT_DPI, bbox_inches="tight")
     plt.close(fig)
     buffer.seek(0)
     return buffer.getvalue()
