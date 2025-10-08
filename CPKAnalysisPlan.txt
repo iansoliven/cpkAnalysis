@@ -10,6 +10,127 @@ CPK Analysis Development Checklist
 - [x] Capture reproducibility metadata (inputs, filters, limits) alongside workbook outputs.
 - [x] Validate the end-to-end pipeline with sample STDF files to ensure successful workbook creation and metadata logging.
 
+Post-Processing Enablement Plan
+-------------------------------
+
+Objective
+~~~~~~~~~
+- Add first-class support for data/chart regeneration and other post-processing steps while keeping the pipeline deterministic, responsive, and observable from both the console UI and CLI entry points.
+
+Scope & Requirements
+~~~~~~~~~~~~~~~~~~~~
+- Must support multiple post-processing actions executed after core stages without breaking existing behaviour when no plugins are configured.
+- Text-driven console UI (current lightweight GUI) remains the primary interface: users should be able to enable/disable post processors quickly, see progress, and understand results without a graphical environment.
+- CLI must expose equivalent capabilities for advanced users, including scripted execution.
+- Post-processing can adjust computed data frames, regenerate plots, and mutate the workbook prior to final save; all changes must be captured in metadata.
+- Runtime impact should be minimal: long-running tasks must surface progress and respect timeouts.
+- System must tolerate plugin failure with clear recovery options.
+
+Architecture Overview
+~~~~~~~~~~~~~~~~~~~~~
+1. Pipeline Refactor
+   - Introduce `PipelineContext` (immutable dataclass) capturing outputs of each core stage (ingest, filtered frame, summary stats, workbook path, metadata).
+   - Wrap existing functions inside a `Pipeline` class that advances the context sequentially through named stages.
+   - Each stage returns a new context instance using `.with_updates(...)`, facilitating deterministic state transitions and selective re-entry for post-processing.
+
+2. Event Bus & Lifecycle Events
+   - Emit typed events immediately after each stage (`IngestReady`, `FilteredReady`, `SummaryReady`, `WorkbookReady`, `TemplateApplied`, `MetadataWritten`).
+   - Implement an `EventBus` that dispatches events to registered listeners; listeners may declare ordering via priority tags and specify whether failures are fatal or ignorable.
+   - Events include timing metadata and expose a `ProgressReporter` so listeners can surface granular updates.
+
+3. Listener Interface
+   - Define `PipelineListener` protocol with `handle(event, context, reporter) -> Optional[PipelineContext]`.
+   - Allow listeners to mutate event envelopes (e.g., workbook session) and optionally return an updated context for downstream stages.
+   - Enforce per-listener timeout (configurable, default 10s); on timeout or exception, emit `ListenerFailed` event and apply policy (continue or abort).
+
+4. Workbook Session Abstraction
+   - Create `WorkbookSession` wrapping the openpyxl workbook produced during `workbook_builder.build_workbook`.
+   - Provide helper operations (update chart ranges, refresh tables, add sheets) and ensure a single `commit()` persists all changes after listeners finish.
+   - Maintain access to precomputed axis metadata so listeners can regenerate plots without recomputation.
+
+5. Plugin Discovery & Configuration
+   - Build `PluginRegistry` to load listeners from:
+     * Python entry points (group: `cpkanalysis.pipeline_plugins`).
+     * Workspace directory `cpk_plugins/` containing manifest files (`plugin.toml`).
+   - Persist plugin metadata (id, name, description, default enabled state, expected runtime, configurable parameters).
+   - Extend `AnalysisInputs` to carry active plugin configurations resolved at runtime.
+
+6. Console UI Integration
+   - Extend the text-driven `CPKAnalysisGUI` prompts with a "Post-Processing" section:
+     * List available plugins with toggle prompts, runtime estimates, and follow-up questions for parameter overrides.
+     * Persist selections and parameter overrides to a workspace profile (e.g., `post_processing_profile.toml`) for reuse in later console sessions.
+     * During runs, update the console status lines with stage progress and nested plugin progress supplied by the reporter; offer keyboard shortcuts to abort or skip stalled plugins.
+   - On completion, print a summary of applied plugins and any failures, along with quick actions (single-key responses) to rerun without specific plugins.
+
+7. CLI Integration
+   - Extend `cpkanalysis run` with flags:
+     * `--plugin enable:<id>` / `--plugin disable:<id>`
+     * `--plugin param:<id>:key=value`
+     * `--plugin-profile <path>` to reuse console profile selections.
+   - Echo plugin execution summaries (success, skipped, failure) in the command output; provide hints for disabling failed plugins.
+
+8. Performance & Telemetry
+   - Track per-stage and per-plugin timing; log results and include in metadata JSON.
+   - Ensure listeners can opt into parallel processing via a shared executor when safe, while keeping console feedback responsive.
+   - Provide configuration knobs for progress update throttling to avoid overwhelming the console.
+
+9. Error Handling & Recovery
+   - Implement policies configurable via CLI/console UI: `fail_fast`, `continue_on_error`, `skip_and_warn`.
+   - Record failures in metadata; include plugin id, exception, duration, and resolution policy.
+   - Offer a validation mode (`--validate-plugins`) executing plugins against a cached sample dataset to detect incompatibilities ahead of production runs.
+
+10. Documentation & Samples
+    - Update README and console help text with architecture diagrams, plugin authoring guide, and UX walkthroughs.
+    - Provide sample plugins (e.g., “Golden Limit Adjuster”, “Chart Enhancer”) with source in `Sample/plugins/`.
+
+Implementation Phases
+~~~~~~~~~~~~~~~~~~~~~
+Phase 1: Foundations
+  - Create `PipelineContext` and `Pipeline` wrapper around existing stages.
+  - Emit lifecycle events (no listeners yet); ensure current behaviour unchanged.
+
+Phase 2: Event Bus & Listener API
+  - Implement `EventBus`, `PipelineListener` protocol, timeout handling, and `ProgressReporter`.
+  - Add `WorkbookSession` abstraction and integrate into `WorkbookReady` event.
+  - Write unit tests for context immutability, event ordering, and timeout enforcement.
+
+Phase 3: Plugin Registry & Configuration
+  - Implement `PluginRegistry`, manifest parsing, and entry-point discovery.
+  - Extend `AnalysisInputs` and pipeline configuration to include active plugins.
+  - Create sample listener that logs summary stats to validate end-to-end flow.
+
+Phase 4: Console UI Enhancements
+  - Add plugin selection prompts, profile persistence, and progress display updates within the console workflow.
+  - Handle plugin failures with user prompts and rerun shortcuts.
+
+Phase 5: CLI Enhancements
+  - Add new flags, profile loading, and textual progress summaries.
+  - Ensure CLI respects console profiles when both specified (CLI overrides profile defaults).
+
+Phase 6: Sample Plugins & Documentation
+  - Ship two reference plugins demonstrating data and chart regeneration.
+  - Update README, add architecture diagrams, and document plugin authoring/testing workflow.
+
+Phase 7: Testing & Hardening
+  - Add integration tests covering successful runs, plugin timeouts, failure policies, and CLI/console parity.
+  - Benchmark typical runs with and without plugins to confirm responsiveness targets.
+
+Acceptance Criteria
+~~~~~~~~~~~~~~~~~~~
+- Core pipeline runs unchanged when no plugins enabled.
+- Users can enable/disable plugins via the console UI and CLI; selections persist between runs.
+- Post-processing can modify datasets and regenerate charts; resulting workbook reflects changes, and metadata logs applied plugins with timings.
+- Progress indicators show stage completion and plugin activity in both interfaces.
+- Plugin failures are surfaced with actionable recovery options; pipeline completes according to configured policy.
+- Documentation and sample plugins provide clear guidance for new implementations.
+
+Implementation Notes for Contributors
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+- Maintain Levi’s existing coding standards: type annotations, minimal ASCII, concise comments explaining non-obvious logic.
+- Prefer dependency injection for registry and event bus to ease testing; provide fixtures/mocks for AI agents.
+- Ensure new modules include unit tests and integrate with `python -m compileall` checks.
+- Coordinate with tooling to avoid blocking console feedback loops; long-running tasks should use executors or threads while reporting progress.
+
 
 
 
