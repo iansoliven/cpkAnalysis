@@ -44,8 +44,9 @@ def render_histogram(
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=0.75, edgecolor="white")
-    ax.set_xlabel("Measurement Value")
-    ax.set_ylabel("Count")
+    ax.set_xlabel("Measurement Value", fontsize=9)  # Smaller font for smaller chart
+    ax.set_ylabel("Count", fontsize=9)  # Smaller font for smaller chart
+    ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
 
     _add_vertical_limits(ax, lower_limit, upper_limit)
@@ -78,9 +79,10 @@ def render_cdf(
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
     ax.plot(clean, cumulative, color=CDF_COLOR, linewidth=2.0)
-    ax.set_xlabel("Measurement Value")
-    ax.set_ylabel("Cumulative Probability")
+    ax.set_xlabel("Measurement Value", fontsize=9)  # Smaller font for smaller chart
+    ax.set_ylabel("Cumulative Probability", fontsize=9)  # Smaller font for smaller chart
     ax.set_ylim(0, 1)
+    ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
     _add_vertical_limits(ax, lower_limit, upper_limit)
@@ -117,9 +119,10 @@ def render_time_series(
         y = y[mask]
 
     fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    ax.plot(x, y, color=TIME_SERIES_COLOR, linewidth=1.6, marker="o", markersize=4)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel("Measurement Value")
+    ax.plot(x, y, color=TIME_SERIES_COLOR, linewidth=1.6, marker="o", markersize=3)  # Smaller markers
+    ax.set_xlabel(x_label, fontsize=9)  # Smaller font for smaller chart
+    ax.set_ylabel("Measurement Value", fontsize=9)  # Smaller font for smaller chart
+    ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
     _add_horizontal_limits(ax, lower_limit, upper_limit)
@@ -178,18 +181,19 @@ def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: 
             bbox_to_anchor=(1.02, 1.0),
             borderaxespad=0.0,
             frameon=False,
+            fontsize=9,  # Smaller font for smaller chart
         )
     if test_label:
-        ax.set_title(test_label, fontsize=13, fontweight="bold")
+        ax.set_title(test_label, fontsize=11, fontweight="bold")  # Reduced from 13
     if cpk is not None and math.isfinite(cpk):
         ax.text(
             1.02,
-            0.80,
+            0.65,  # Moved lower from 0.80 to avoid legend overlap
             f"CPK: {cpk:.3f}",
             transform=ax.transAxes,
             ha="left",
             va="top",
-            fontsize=11,
+            fontsize=9,  # Reduced from 11
         )
     if unit_label:
         ax.text(
@@ -199,7 +203,7 @@ def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: 
             transform=ax.transAxes,
             ha="center",
             va="top",
-            fontsize=10,
+            fontsize=9,  # Reduced from 10
         )
     fig.subplots_adjust(right=0.78, bottom=0.28)
 
