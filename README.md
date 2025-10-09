@@ -54,7 +54,23 @@ Key options:
 | `--plugin <directive>` | Apply plugin overrides such as `enable:builtin.summary_logger`, `disable:plugin_id`, `priority:plugin_id:10`, or `param:plugin_id:key=value`. May be repeated. |
 | `--plugin-profile path.toml` | Load plugin defaults from a TOML profile (defaults to `./post_processing_profile.toml`). |
 | `--validate-plugins` | Run plugins against freshly generated data without persisting the workbook (output is written to a temporary file and removed). |
+| `--postprocess` | Launch the interactive post-processing menu immediately after the workbook is written. |
 
+#### Post-Pipeline Menu
+
+Once a workbook has been created you can open an interactive post-processing loop that applies limit changes and regenerates charts:
+
+- python -m cpkanalysis.cli run lot1.stdf --postprocess prompts for post-processing actions immediately after the pipeline completes.
+- python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx launches the same menu for an existing workbook/metadata pair.
+
+The menu supports the following capabilities:
+
+1. Update STDF limits and push the changes into the template and Test List & Limits sheets while re-rendering plots.
+2. Apply Spec / What-If limits captured on the template sheet (or derived from a target CPK) and add the new markers to charts.
+3. Calculate proposed limits for a user-specified CPK target, updating workbook columns and associated charts.
+4. Re-run the previous selection, reload the workbook, or review the audit log before exiting.
+
+Within the console GUI (python -m cpkanalysis.gui), the tool now offers the same menu after a successful run. Accept the immediate prompt or type post at the post> command loop to reopen the menu later in the session.
 #### Post-Processing Plugins
 
 The event bus exposes lifecycle events that plugins can subscribe to for post-processing data or regenerating charts. Plugins are discovered from Python entry points (`cpkanalysis.pipeline_plugins`) and optional manifests under `cpk_plugins/` inside the current workspace. Selections made in the console UI are stored in `post_processing_profile.toml`; the CLI loads the same profile automatically or an alternate path via `--plugin-profile`.
@@ -209,6 +225,5 @@ The system now implements comprehensive STDF flag filtering to ensure only valid
 ---
 
 For questions, enhancement ideas, or integration guidance, open an issue or start a discussion referencing the relevant module (`cpkanalysis.ingest`, `cpkanalysis.stats`, etc.).
-
 
 

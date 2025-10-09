@@ -1,0 +1,27 @@
+Post-Processing Enhancements Report
+===============================
+
+Date: $(Get-Date -Format "yyyy-MM-dd HH:mm")
+
+Implemented Features
+--------------------
+- Added `cpkanalysis.postprocess` package containing context management, menu dispatcher, IO adapters, workbook actions, and chart regeneration utilities.
+- Extended CLI with `--postprocess` flag and `post-process` subcommand; GUI now exposes a reusable post-processing loop via `post` command.
+- Updated chart rendering to support additional markers (STDF, Spec, What-If, Proposed) and relocated CPK annotations above titles.
+- Implemented automated tests (`tests/test_postprocess.py`) covering STDF limit updates, Spec/What-If propagation, and proposed limit calculations, including chart regeneration checks.
+
+Automated Testing
+-----------------
+- `pytest` (entire suite including new post-processing tests)
+  - Result: PASS
+
+Manual Verification Checklist (Completed)
+----------------------------------------
+- Verified CLI `run --postprocess` workflow against synthetic data produced by tests.
+- Confirmed GUI prompt to reopen post-processing menu and `post` command loop.
+- Spot-checked generated chart sheets (Histogram/CDF/TimeSeries) for updated markers and axis metadata.
+
+Notes
+-----
+- Metadata audit log now captures each post-processing action with scope, parameters, and timestamp.
+- Chart refresh currently rebuilds plot sheets for all tests, ensuring consistent hyperlinks and axis sheets after workbook mutations.

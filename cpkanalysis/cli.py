@@ -12,6 +12,7 @@ from .pipeline import run_analysis
 from .move_to_template import run as run_move_to_template
 from .plugins import PluginRegistry, PluginRegistryError, PluginDescriptor
 from .plugin_profiles import load_plugin_profile, PROFILE_FILENAME
+from . import postprocess
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -111,6 +112,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run plugins against newly generated data without persisting the workbook.",
     )
+    run_parser.add_argument(
+        "--postprocess",
+        action="store_true",
+        help="Launch the post-processing menu after the workbook is generated.",
+    )
 
     move_template_parser = subparsers.add_parser(
         "move-template",
@@ -128,6 +134,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Target sheet within the workbook; defaults to the first non-CPK Report sheet.",
     )
 
+    post_parser = subparsers.add_parser(
+        "post-process",
+        help="Open the post-processing menu for an existing workbook.",
+    )
+    post_parser.add_argument(
+        "--workbook",
+        type=Path,
+        default=Path("CPK_Workbook.xlsx"),
+        help="Workbook path to process (default: CPK_Workbook.xlsx).",
+    )
+    post_parser.add_argument(
+        "--metadata",
+        type=Path,
+        help="Optional metadata JSON path (defaults to <workbook>.json).",
+    )
+
     return parser
 
 
@@ -139,6 +161,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         sources = _scan_directory(args.directory, recursive=args.recursive)
         _write_metadata(args.metadata, sources)
         print(f"Recorded {len(sources)} STDF file(s) to {args.metadata}")
+        return 0
+
+    if args.command == "post-process":
+        context = postprocess.create_context(
+            workbook_path=args.workbook,
+            metadata_path=args.metadata,
+        )
+        postprocess.open_cli_menu(context)
         return 0
 
     if args.command == "run":
@@ -225,6 +255,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"Template sheet updated: {result['template_sheet']}")
         if result.get("plugins"):
             print(f"Post-processing plugins: {', '.join(result['plugins'])}")
+        if args.postprocess:
+            metadata_path = Path(result["metadata"]).expanduser().resolve() if result.get("metadata") else None
+            context_obj = postprocess.create_context(
+                workbook_path=Path(result["output"]).expanduser().resolve(),
+                metadata_path=metadata_path,
+                analysis_inputs=config,
+            )
+            postprocess.open_cli_menu(context_obj)
         return 0
 
     if args.command == "move-template":

@@ -4,13 +4,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from .cli import _select_template
 from .models import AnalysisInputs, OutlierOptions, SourceFile, PluginConfig
 from .pipeline import run_analysis
 from .plugins import PluginRegistry, PluginRegistryError
 from .plugin_profiles import load_plugin_profile, save_plugin_profile, PROFILE_FILENAME
+from . import postprocess
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from .postprocess.context import PostProcessContext
 
 
 @dataclass
@@ -37,6 +41,7 @@ class CPKAnalysisGUI:
         self.state = state or ApplicationState()
         self.state.workspace_path = self.state.workspace_path.expanduser().resolve()
         self.registry = PluginRegistry(workspace_dir=self.state.workspace_path / "cpk_plugins")
+        self._post_context: Optional["PostProcessContext"] = None
 
     def launch(self) -> None:
         """Launch the interactive console session."""
@@ -71,6 +76,25 @@ class CPKAnalysisGUI:
         print(f"Summary rows: {result['summary_rows']} | Measurements: {result['measurement_rows']}")
         if result.get("plugins"):
             print(f"Post-processing plugins: {', '.join(result['plugins'])}")
+
+        try:
+            metadata_path = Path(result["metadata"]).expanduser().resolve() if result.get("metadata") else None
+        except Exception:
+            metadata_path = None
+        try:
+            self._post_context = postprocess.create_context(
+                workbook_path=Path(result["output"]).expanduser().resolve(),
+                metadata_path=metadata_path,
+                analysis_inputs=config,
+            )
+        except Exception as exc:
+            print(f"Unable to initialise post-processing context: {exc}")
+            self._post_context = None
+
+        if self._post_context is not None:
+            if _yes_no("Open post-processing menu now? [Y/n]: ", default=True):
+                self._open_postprocess_menu()
+            self._postprocess_command_prompt()
 
     def shutdown(self) -> None:
         """Placeholder to mirror expected GUI lifecycle."""
@@ -197,6 +221,28 @@ class CPKAnalysisGUI:
         entry = input(f"Output workbook path (default: {self.state.output_path}): ").strip()
         if entry:
             self.state.output_path = Path(entry).expanduser().resolve()
+
+    def _open_postprocess_menu(self) -> None:
+        if self._post_context is None:
+            print("Post-processing context unavailable.")
+            return
+        postprocess.open_gui_menu(self._post_context, input_fn=input, output_fn=print)
+
+    def _postprocess_command_prompt(self) -> None:
+        if self._post_context is None:
+            return
+        print("\nEnter 'post' to reopen the post-processing menu or 'quit' to exit this session.")
+        while True:
+            command = input("post> ").strip().lower()
+            if command in {"", "quit", "exit"}:
+                break
+            if command in {"post", "p"}:
+                self._open_postprocess_menu()
+                continue
+            if command in {"help", "?"}:
+                print("Commands: 'post' to open the menu, 'quit' to exit this prompt.")
+                continue
+            print("Unknown command. Type 'help' for options.")
 
     def _profile_path(self) -> Path:
         return self.state.workspace_path / PROFILE_FILENAME

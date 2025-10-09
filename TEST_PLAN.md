@@ -62,12 +62,15 @@ This document outlines the verification strategy for the post-processing pipelin
 - Integration tests:
   - Mock plugin observing event dispatch and context updates.
   - Validation mode ensuring temp resources removed post-run.
+  - `pytest tests/test_postprocess.py` validates STDF/spec/proposed limit workflows and chart regeneration logic.
 
 ### 2.2 Human-Assisted Scenarios
 
 #### 2.2.1 Console Workflow
 
 - Run `python -m cpkanalysis.gui` and walk through prompts manually (STDF paths, chart toggles, plugin selections).
+- After the analysis completes, accept the post-processing prompt or type `post` at the `post>` command loop to exercise each menu action (STDF limits, Spec/What-If, Proposed Limits) and verify workbook/chart updates.
+- From the CLI execute `python -m cpkanalysis.cli post-process --workbook <path>` and iterate through the menu options, confirming workbook cells, charts, and metadata audit entries reflect each choice.
 - Evaluate usability of prompts and confirm resulting workbook/metadata.
 
 #### 2.2.2 Persistence & Profiles

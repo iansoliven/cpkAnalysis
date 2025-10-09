@@ -7,8 +7,9 @@ openpyxl.  The module assumes Matplotlib's Agg backend is available.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from io import BytesIO
-from typing import Optional, Tuple
+from typing import Literal, Optional, Sequence, Tuple
 
 import matplotlib
 
@@ -24,6 +25,19 @@ TIME_SERIES_COLOR = "#2ca02c"
 LIMIT_LOW_COLOR = "#C0504D"
 LIMIT_HIGH_COLOR = "#9BBB59"
 
+MarkerOrientation = Literal["vertical", "horizontal"]
+
+
+@dataclass(frozen=True)
+class ChartMarker:
+    label: str
+    value: float
+    orientation: MarkerOrientation = "vertical"
+    color: str = LIMIT_LOW_COLOR
+    linestyle: str = "--"
+    linewidth: float = 1.5
+    alpha: float = 1.0
+
 
 def render_histogram(
     values: np.ndarray,
@@ -34,6 +48,10 @@ def render_histogram(
     test_label: str = "",
     cpk: Optional[float] = None,
     unit_label: str = "",
+    extra_markers: Optional[Sequence[ChartMarker]] = None,
+    title_font_size: int = 11,
+    cpk_font_size: int = 9,
+    cpk_position: Optional[Tuple[float, float]] = None,
 ) -> bytes:
     """Render a histogram PNG for the supplied measurements."""
     clean = values[np.isfinite(values)]
@@ -78,14 +96,28 @@ def render_histogram(
     ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_vertical_limits(ax, lower_limit, upper_limit)
+    markers = list(extra_markers or [])
+    if lower_limit is not None and np.isfinite(lower_limit):
+        markers.append(ChartMarker("Lower Limit", float(lower_limit), "vertical", LIMIT_LOW_COLOR))
+    if upper_limit is not None and np.isfinite(upper_limit):
+        markers.append(ChartMarker("Upper Limit", float(upper_limit), "vertical", LIMIT_HIGH_COLOR))
+    _draw_markers(ax, markers)
 
     if x_range:
         xmin, xmax = x_range
         if xmin is not None or xmax is not None:
             ax.set_xlim(left=xmin, right=xmax)
 
-    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    _finalize_chart(
+        fig,
+        ax,
+        test_label,
+        cpk,
+        unit_label,
+        title_font_size=title_font_size,
+        cpk_font_size=cpk_font_size,
+        cpk_position=cpk_position,
+    )
     fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
@@ -99,6 +131,10 @@ def render_cdf(
     test_label: str = "",
     cpk: Optional[float] = None,
     unit_label: str = "",
+    extra_markers: Optional[Sequence[ChartMarker]] = None,
+    title_font_size: int = 11,
+    cpk_font_size: int = 9,
+    cpk_position: Optional[Tuple[float, float]] = None,
 ) -> bytes:
     """Render a cumulative distribution plot as PNG bytes."""
     clean = np.sort(values[np.isfinite(values)])
@@ -114,14 +150,28 @@ def render_cdf(
     ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_vertical_limits(ax, lower_limit, upper_limit)
+    markers = list(extra_markers or [])
+    if lower_limit is not None and np.isfinite(lower_limit):
+        markers.append(ChartMarker("Lower Limit", float(lower_limit), "vertical", LIMIT_LOW_COLOR))
+    if upper_limit is not None and np.isfinite(upper_limit):
+        markers.append(ChartMarker("Upper Limit", float(upper_limit), "vertical", LIMIT_HIGH_COLOR))
+    _draw_markers(ax, markers)
 
     if x_range:
         xmin, xmax = x_range
         if xmin is not None or xmax is not None:
             ax.set_xlim(left=xmin, right=xmax)
 
-    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    _finalize_chart(
+        fig,
+        ax,
+        test_label,
+        cpk,
+        unit_label,
+        title_font_size=title_font_size,
+        cpk_font_size=cpk_font_size,
+        cpk_position=cpk_position,
+    )
     fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
@@ -137,6 +187,10 @@ def render_time_series(
     cpk: Optional[float] = None,
     unit_label: str = "",
     x_label: str = "Timestamp / Index",
+    extra_markers: Optional[Sequence[ChartMarker]] = None,
+    title_font_size: int = 11,
+    cpk_font_size: int = 9,
+    cpk_position: Optional[Tuple[float, float]] = None,
 ) -> bytes:
     """Render a time-series trend chart for the given measurements."""
     mask = np.isfinite(x) & np.isfinite(y)
@@ -154,13 +208,27 @@ def render_time_series(
     ax.tick_params(labelsize=8)  # Smaller tick labels
     ax.grid(linestyle=":", linewidth=0.6, alpha=0.7)
 
-    _add_horizontal_limits(ax, lower_limit, upper_limit)
+    markers = list(extra_markers or [])
+    if lower_limit is not None and np.isfinite(lower_limit):
+        markers.append(ChartMarker("Lower Limit", float(lower_limit), "horizontal", LIMIT_LOW_COLOR))
+    if upper_limit is not None and np.isfinite(upper_limit):
+        markers.append(ChartMarker("Upper Limit", float(upper_limit), "horizontal", LIMIT_HIGH_COLOR))
+    _draw_markers(ax, markers)
     if y_range:
         ymin, ymax = y_range
         if ymin is not None or ymax is not None:
             ax.set_ylim(bottom=ymin, top=ymax)
 
-    _finalize_chart(fig, ax, test_label, cpk, unit_label)
+    _finalize_chart(
+        fig,
+        ax,
+        test_label,
+        cpk,
+        unit_label,
+        title_font_size=title_font_size,
+        cpk_font_size=cpk_font_size,
+        cpk_position=cpk_position,
+    )
     fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
@@ -191,21 +259,45 @@ def _freedman_diaconis_bins(values: np.ndarray) -> int:
     return bins
 
 
-def _add_vertical_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
-    if lower is not None and np.isfinite(lower):
-        ax.axvline(lower, color=LIMIT_LOW_COLOR, linestyle="--", linewidth=1.5, label="Lower Limit")
-    if upper is not None and np.isfinite(upper):
-        ax.axvline(upper, color=LIMIT_HIGH_COLOR, linestyle="--", linewidth=1.5, label="Upper Limit")
+def _draw_markers(ax, markers: Sequence[ChartMarker]) -> None:
+    seen_labels = set()
+    for marker in markers:
+        if marker.value is None or not np.isfinite(marker.value):
+            continue
+        label = marker.label if marker.label not in seen_labels else "_nolegend_"
+        if marker.label not in seen_labels:
+            seen_labels.add(marker.label)
+        if marker.orientation == "horizontal":
+            ax.axhline(
+                marker.value,
+                color=marker.color,
+                linestyle=marker.linestyle,
+                linewidth=marker.linewidth,
+                alpha=marker.alpha,
+                label=label,
+            )
+        else:
+            ax.axvline(
+                marker.value,
+                color=marker.color,
+                linestyle=marker.linestyle,
+                linewidth=marker.linewidth,
+                alpha=marker.alpha,
+                label=label,
+            )
 
 
-def _add_horizontal_limits(ax, lower: Optional[float], upper: Optional[float]) -> None:
-    if lower is not None and np.isfinite(lower):
-        ax.axhline(lower, color=LIMIT_LOW_COLOR, linestyle="--", linewidth=1.5, label="Lower Limit")
-    if upper is not None and np.isfinite(upper):
-        ax.axhline(upper, color=LIMIT_HIGH_COLOR, linestyle="--", linewidth=1.5, label="Upper Limit")
-
-
-def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: str) -> None:
+def _finalize_chart(
+    fig,
+    ax,
+    test_label: str,
+    cpk: Optional[float],
+    unit_label: str,
+    *,
+    title_font_size: int = 11,
+    cpk_font_size: int = 9,
+    cpk_position: Optional[Tuple[float, float]] = None,
+) -> None:
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(
@@ -215,19 +307,20 @@ def _finalize_chart(fig, ax, test_label: str, cpk: Optional[float], unit_label: 
             bbox_to_anchor=(1.02, 1.0),
             borderaxespad=0.0,
             frameon=False,
-            fontsize=9,  # Smaller font for smaller chart
+            fontsize=9,
         )
     if test_label:
-        ax.set_title(test_label, fontsize=11, fontweight="bold")  # Reduced from 13
+        ax.set_title(test_label, fontsize=title_font_size, fontweight="bold")
     if cpk is not None and math.isfinite(cpk):
+        position = cpk_position or (1.02, 0.9)
         ax.text(
-            1.02,
-            0.65,  # Moved lower from 0.80 to avoid legend overlap
+            position[0],
+            position[1],
             f"CPK: {cpk:.3f}",
             transform=ax.transAxes,
             ha="left",
             va="top",
-            fontsize=9,  # Reduced from 11
+            fontsize=cpk_font_size,
         )
     if unit_label:
         ax.text(
