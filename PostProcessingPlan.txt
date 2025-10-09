@@ -106,10 +106,27 @@ Testing & Verification
   - Verify each action updates the correct workbook cells using in-memory workbooks.
   - Ensure chart markers and axis metadata reflect new limits.
   - Exercise the menu loop with mocked IO adapters to cover navigation paths.
-- Create a smoke-test (e.g., pytest integration) that runs `cpkanalysis run --postprocess` against sample data, confirming workbook and metadata changes.
+- Build integration tests:
+  - CLI smoke test invoking `cpkanalysis run --postprocess` against data in `examples/`, capturing stdout/stderr and asserting the resulting workbook/metadata deltas.
+  - Direct invocation of `postprocess.menu.loop` with scripted inputs to simulate multi-action flows and verify audit log persistence.
+- Add chart renderer unit tests that render to an in-memory buffer and inspect legend labels / annotation positions to guarantee layout adjustments (title font, CPK placement) behave as expected.
+- Wire the new tests into the existing pytest suite (e.g., `tests/test_postprocess_*.py`) and document how to run them (`pytest` or `pytest tests/test_postprocess_*.py`).
 
 Documentation & Developer Guidance
 ----------------------------------
 - Update README and TEST_PLAN with instructions for invoking post-processing via GUI and CLI, describing available actions and their effects.
 - Document chart marker colour/legend conventions within `mpl_charts` to guide future contributions.
 - Note concurrency expectations: warn if the workbook changed on disk since the context loaded, and encourage users to close Excel before running post-processing actions.
+
+Manual Verification Steps
+-------------------------
+1. Build sample outputs by running `cpkanalysis run --output temp/ManualCheck.xlsx --postprocess` against the provided `examples/` data.
+2. In the GUI:
+   - Launch the console interface (`python -m cpkanalysis.gui`), run through a standard analysis, then select `post` at the main prompt to enter the menu.
+   - Execute each action (Update STDF Limits, Apply Spec/What-If, Calculate Proposed Limits) in both “all tests” and “single test” modes, providing representative CPK targets.
+   - After each action, reopen the workbook in Excel to visually confirm template sheet updates, chart marker additions, and relocated CPK annotations.
+3. In the CLI:
+   - Invoke `cpkanalysis post-process temp/ManualCheck.xlsx` and replicate the action scenarios above, confirming console summaries and metadata audit entries.
+4. Validate metadata JSON (`temp/ManualCheck.json`) contains a `post_processing.runs` array with accurate timestamps, scopes, parameters, and warnings.
+5. Re-run `cpkanalysis post-process` using the same workbook to ensure the re-entry workflow works and warnings appear if the workbook was modified externally.
+6. Optionally share the workbook with QA/stakeholders for sign-off once automated tests and manual checks pass.
