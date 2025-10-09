@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Post-Processing Menu</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      ul { margin-left: 1.2rem; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
+      th { background: #f2f4f8; }
+      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Post-Processing Menu</h1>
+    <p>
+      After the main pipeline completes, you can open an interactive menu that manipulates workbook limits, regenerates charts, and records metadata audits without re-running ingestion. The menu is available from both the CLI and the console GUI.
+    </p>
+
+    <h2>Launching the Menu</h2>
+    <h3>From the CLI</h3>
+    <ul>
+      <li><code>python -m cpkanalysis.cli run ... --postprocess</code> &mdash; automatically open the menu when the pipeline finishes.</li>
+      <li><code>python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx</code> &mdash; open the menu against an existing workbook/metadata pair.</li>
+    </ul>
+
+    <h3>From the Console GUI</h3>
+    <ol>
+      <li>Complete a standard analysis run.</li>
+      <li>Accept the prompt to launch post-processing immediately, or type <code>post</code> at the <code>post&gt;</code> prompt later in the session.</li>
+    </ol>
+
+    <h2>Menu Options</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Update STDF Limits</td>
+          <td>Recompute STDF (ATE) lower/upper limits using existing statistics or a user-specified CPK target. Updates both the template sheet and Test List &amp; Limits catalog, then regenerates affected charts.</td>
+        </tr>
+        <tr>
+          <td>Apply Spec / What-If Limits</td>
+          <td>Propagate manual Spec/What-If edits or compute new values from a target CPK. Original STDF limit markers remain; charts receive additional Spec/What-If markers and a repositioned CPK annotation.</td>
+        </tr>
+        <tr>
+          <td>Calculate Proposed Limits</td>
+          <td>Calculate LL_PROP / UL_PROP, CPK_PROP, and %YLD LOSS_PROP using a supplied CPK target. Writes results to the template sheet and adds proposed limit markers to charts.</td>
+        </tr>
+        <tr>
+          <td>Re-run Last Action</td>
+          <td>Repeat the previously executed option with the same parameters.</td>
+        </tr>
+        <tr>
+          <td>Reload Workbook</td>
+          <td>Discard unsaved changes and reload workbook/metadata from disk.</td>
+        </tr>
+        <tr>
+          <td>View Audit Log</td>
+          <td>Display recorded post-processing runs (including unsaved entries).</td>
+        </tr>
+        <tr>
+          <td>Exit</td>
+          <td>Close the menu (optionally saving if unsaved changes are detected).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Scope and Target CPK</h2>
+    <p>Each primary action asks whether to update all tests or a single test. Selecting a single test provides a searchable list using test name and number. When prompted for a target CPK:</p>
+    <ul>
+      <li>Leave blank to reuse existing statistics/limits.</li>
+      <li>Enter a positive value to compute new symmetrical limits around the mean.</li>
+      <li>For Spec/What-If and Proposed limits, the target CPK sets both lower and upper bounds.</li>
+    </ul>
+
+    <h2>Chart Regeneration</h2>
+    <p>
+      The menu automatically refreshes Histogram, CDF, and Time-Series charts for impacted tests. Additional limit markers (Spec, What-If, Proposed) are layered alongside original STDF lines. CPK text now appears above the chart title to keep legends readable.
+    </p>
+    <ul>
+      <li>Axis metadata in <code>_PlotAxisRanges</code> updates so linked templates and future runs stay aligned.</li>
+      <li>Legends avoid duplicate entries by consolidating labels when multiple markers share a name.</li>
+    </ul>
+
+    <h2>Metadata Audit</h2>
+    <p>
+      Each saved action appends an entry to the workbook&rsquo;s metadata JSON under <code>post_processing.runs</code>, capturing scope, tests affected,
+      parameters (including target CPK), warnings, and timestamps.
+    </p>
+
+    <h2>Tips</h2>
+    <ul>
+      <li>Save changes before reopening the workbook in Excel to avoid file locks.</li>
+      <li>If the workbook is modified externally between menu sessions, use the <strong>Reload</strong> option before continuing.</li>
+      <li>The menu honours chart-generation flags from the original run (histograms/CDF/time-series can be selectively disabled).</li>
+    </ul>
+  </body>
+</html>

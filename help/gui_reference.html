@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Console GUI Guide</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      ul, ol { margin-left: 1.2rem; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+      .tip { background: #eef7ff; border-left: 4px solid #4c9aff; padding: 0.8rem; margin: 1.2rem 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Console GUI Guide</h1>
+    <p>
+      The console GUI (<code>python -m cpkanalysis.gui</code>) provides a guided workflow for entering sources, template information, chart preferences, and post-processing options without recalling command-line flags.
+    </p>
+
+    <h2>Launching the GUI</h2>
+    <pre><code>python -m cpkanalysis.gui</code></pre>
+    <p>Follow the prompts to supply:</p>
+    <ol>
+      <li>STDF file paths or directories (blank line to finish).</li>
+      <li>Template directory/file (optional) and template sheet name.</li>
+      <li>Outlier method and multiplier.</li>
+      <li>Chart generation preferences (histogram, CDF, time-series).</li>
+      <li>Plugin selections (enabled state, priority, parameters).</li>
+      <li>Output workbook path.</li>
+    </ol>
+
+    <div class="tip">
+      <strong>Hint:</strong> When a directory is provided for templates, the first <code>.xlsx</code> file discovered is used automatically.
+    </div>
+
+    <h2>Post-Processing from the GUI</h2>
+    <ol>
+      <li>After the pipeline completes, the GUI reports the workbook path, metadata path, summary counts, and any plugins used.</li>
+      <li>If the post-processing context is initialised successfully, you are prompted to open the menu immediately.</li>
+      <li>The <code>post&gt;</code> command loop remains active after the initial run:
+        <ul>
+          <li><code>post</code> &mdash; Launch the post-processing menu again.</li>
+          <li><code>last</code> &mdash; Re-run the previous action without re-entering parameters.</li>
+          <li><code>audit</code> &mdash; Display recorded post-processing runs (including unsaved entries).</li>
+          <li><code>reload</code> &mdash; Discard changes and reload workbook/metadata from disk.</li>
+          <li><code>save</code> &mdash; Persist current workbook and metadata state immediately.</li>
+          <li><code>help</code> &mdash; Display available commands.</li>
+          <li><code>quit</code> / blank line &mdash; Exit the loop.</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h3>Menu Workflow</h3>
+    <ol>
+      <li>Choose an action from the numbered list.</li>
+      <li>Select the scope:
+        <ul>
+          <li><strong>All tests</strong> &mdash; applies changes across every summary row.</li>
+          <li><strong>Single test</strong> &mdash; the GUI presents a searchable list (by test name/number). Pick the desired entry.</li>
+        </ul>
+      </li>
+      <li>If prompted, enter a target CPK value. Blank input keeps existing limits; positive numbers compute symmetrical bounds around the mean.</li>
+      <li>Review warnings (for example, missing sheets or zero variance) displayed immediately after the action runs.</li>
+      <li>Accept the automatic save (recommended) or choose to defer saving and continue experimenting.</li>
+    </ol>
+
+    <h3>Action Details</h3>
+    <h4>Update STDF Limits</h4>
+    <ul>
+      <li>Prompts for scope and optional target CPK.</li>
+      <li>Writes new LL/UL values to the template sheet and Test List &amp; Limits catalog columns.</li>
+      <li>Regenerates histogram, CDF, and time-series charts for the affected tests.</li>
+      <li>Audit log records scope, target CPK, and test keys.</li>
+    </ul>
+
+    <h4>Apply Spec / What-If Limits</h4>
+    <ul>
+      <li>Prompts for scope and optional target CPK (used to compute new spec/what-if values when supplied).</li>
+      <li>Reads current Spec/What-If entries on the template sheet, merges edits, and synchronises the Test List &amp; Limits sheet.</li>
+      <li>Keeps original STDF markers while layering additional Spec/What-If lines into refreshed charts.</li>
+      <li>Metadata captures which columns were touched and the selected tests.</li>
+    </ul>
+
+    <h4>Calculate Proposed Limits</h4>
+    <ul>
+      <li>Requires a target CPK and prompts for scope.</li>
+      <li>Calculates LL_PROP, UL_PROP, CPK_PROP, and %YLD LOSS_PROP columns on the template sheet.</li>
+      <li>Adds “Proposed” markers to charts and updates axis ranges accordingly.</li>
+      <li>Audit entry includes the target CPK and test list.</li>
+    </ul>
+
+    <h4>Utility Menu Items</h4>
+    <ul>
+      <li><strong>Re-run last action</strong> &mdash; repeats the previous selection with the same parameters (also mapped to <code>last</code> command).</li>
+      <li><strong>Reload workbook</strong> &mdash; discards unsaved progress and reloads from disk. Use this if changes were made externally.</li>
+      <li><strong>View audit log</strong> &mdash; prints saved and pending audit entries to the console.</li>
+      <li><strong>Exit</strong> &mdash; prompts to save if dirty; otherwise closes the menu.</li>
+    </ul>
+
+    <div class="tip">
+      All menu actions update the metadata JSON alongside the workbook. Even if you select “Skip save”, the audit entry remains queued and will be written the next time <code>save</code> or automatic saving succeeds.
+    </div>
+
+    <h2>Plugin Profiles</h2>
+    <ul>
+      <li>Selections made in the GUI are written to <code>post_processing_profile.toml</code> under the workspace.</li>
+      <li>The CLI reuses the same profile unless overridden by <code>--plugin-profile</code>.</li>
+      <li>Use the GUI to bootstrap profiles during onboarding, then switch to CLI automation once defaults are established.</li>
+    </ul>
+
+    <h2>Error Handling</h2>
+    <ul>
+      <li>Missing STDF inputs cause the GUI to exit with guidance to provide at least one file.</li>
+      <li>Template or workbook path errors are surfaced alongside the prompt that triggered them.</li>
+      <li>Plugin discovery exceptions fall back to an empty list with a warning banner.</li>
+    </ul>
+
+    <h2>When to Use the GUI</h2>
+    <ul>
+      <li>Interactive demonstrations and ad-hoc analysis where prompts are more convenient than CLI flags.</li>
+      <li>Exploring new post-processing scenarios before scripting them into automation.</li>
+      <li>Training sessions where operators prefer guided input versus terminal commands.</li>
+    </ul>
+
+    <p>
+      For automation or batch processing, the <a href="cli_reference.html">CLI</a> is recommended. The GUI and CLI share the same underlying pipeline, post-processing engine, and plugin registry.
+    </p>
+  </body>
+</html>

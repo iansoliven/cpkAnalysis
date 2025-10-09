@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Automated Testing Guidance</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      ul, ol { margin-left: 1.2rem; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Automated Testing Guidance</h1>
+    <p>
+      This topic summarises the automated regression coverage for the CPK Analysis toolkit and explains how to execute the test suite locally or in CI.
+    </p>
+
+    <h2>Pytest Suite</h2>
+    <ul>
+      <li><code>Submodules/istdf/tests/test_reader.py</code> &mdash; Validates STDF ingestion scenarios (included by default).</li>
+      <li><code>tests/test_postprocess.py</code> &mdash; Covers the post-processing workflow, including STDF, Spec/What-If, and Proposed limit updates plus chart regeneration and metadata logging.</li>
+      <li>Additional unit tests exercise plugin registry discovery, profile handling, and CLI overrides.</li>
+    </ul>
+
+    <h2>Running Tests</h2>
+    <pre><code>pytest</code></pre>
+    <p>
+      The command above runs all available tests. To focus on post-processing coverage only:
+    </p>
+    <pre><code>pytest tests/test_postprocess.py</code></pre>
+
+    <h2>Interpreting Results</h2>
+    <ul>
+      <li>Successful runs report <code>PASS</code> with per-test durations. Any introduced regression will surface as a <code>FAIL</code> with detailed assertion output.</li>
+      <li>New tests should mirror the pattern in <code>tests/test_postprocess.py</code>, building in-memory workbooks and verifying key cells and chart artefacts.</li>
+      <li>The suite is Windows-friendly; ensure path assumptions use <code>Path</code> utilities to maintain cross-platform support.</li>
+    </ul>
+
+    <h2>Continuous Integration</h2>
+    <p>
+      Integrate the <code>pytest</code> command into CI pipelines (for example, GitHub Actions) to guard against regressions. Consider matrix builds for multiple Python versions if your deployment supports them.
+    </p>
+
+    <h2>Extending Coverage</h2>
+    <ul>
+      <li>Write new unit tests for future post-processing actions by reusing the workbook builder helper found in <code>tests/test_postprocess.py</code>.</li>
+      <li>Add CLI smoke tests that spawn subprocesses to verify end-to-end flows such as validation mode or plugin overrides.</li>
+      <li>Measure code paths for complex charts or metadata transformations to maintain confidence during refactors.</li>
+    </ul>
+  </body>
+</html>

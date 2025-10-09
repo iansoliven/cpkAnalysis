@@ -32,8 +32,11 @@ class PostProcessIO:
     def prompt_choice(self, message: str, options: Sequence[str]) -> int:
         if not options:
             raise ValueError("No options provided.")
+        self.info(message)
+        for index, option in enumerate(options, start=1):
+            self.info(f"  {index}. {option}")
         while True:
-            choice = self.prompt(message)
+            choice = self.prompt("Enter choice number:")
             if not choice:
                 continue
             if choice.isdigit():

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Manual Verification Checklist</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      ul, ol { margin-left: 1.2rem; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
+      th { background: #f2f4f8; }
+    </style>
+  </head>
+  <body>
+    <h1>Manual Verification Checklist</h1>
+    <p>
+      This checklist complements the automated tests and is designed for QA engineers or stakeholders performing hands-on validation of the CPK Analysis solution.
+    </p>
+
+    <h2>Preparation</h2>
+    <ul>
+      <li>Install prerequisites as described in <a href="getting_started.html">Getting Started</a>.</li>
+      <li>Ensure sample STDF files are available (for example, the <code>examples/</code> directory).</li>
+      <li>Close any open instances of the target workbook before running post-processing actions.</li>
+    </ul>
+
+    <h2>Core Workflow</h2>
+    <ol>
+      <li>Run the pipeline: <code>python -m cpkanalysis.cli run examples/lot2.stdf --output temp/ManualCheck.xlsx --postprocess</code>.</li>
+      <li>When the post-processing menu appears, exercise each action in “all tests” mode and verify workbook cells and charts update as described.</li>
+      <li>Repeat in “single test” mode with target CPK values to confirm calculations affect only the selected test.</li>
+      <li>Inspect the metadata JSON (<code>temp/ManualCheck.json</code>) and confirm the <code>post_processing.runs</code> array records each action with scope, tests, and parameters.</li>
+    </ol>
+
+    <h2>Console GUI</h2>
+    <ol>
+      <li>Launch <code>python -m cpkanalysis.gui</code> and complete a run using interactive prompts.</li>
+      <li>Accept the prompt to open post-processing immediately, then use the <code>post</code> command to reopen the menu.</li>
+      <li>Verify that <code>post_processing_profile.toml</code> reflects the selected plugin configuration and persists between sessions.</li>
+    </ol>
+
+    <h2>Workbook Review</h2>
+    <ul>
+      <li>Open the generated workbook in Excel.</li>
+      <li>Confirm that the template sheet reflects updated ATE, Spec/What-If, and Proposed columns as appropriate.</li>
+      <li>Check charts (Histogram, CDF, Time-Series) for new limit markers and CPK text positioned above the title.</li>
+      <li>Review the hidden <code>_PlotAxisRanges</code> sheet for updated axis metadata.</li>
+    </ul>
+
+    <h2>Error Scenarios</h2>
+    <ul>
+      <li>Intentionally remove a required sheet (for example, “Test List and Limits”) and confirm the menu reports a descriptive error.</li>
+      <li>Open the workbook in Excel to lock the file, then attempt to save from the menu; ensure a warning is displayed.</li>
+      <li>Modify the workbook externally between menu sessions and use the <strong>Reload</strong> option to pick up changes.</li>
+    </ul>
+
+    <h2>Reporting</h2>
+    <ul>
+      <li>Capture workbook paths, timestamps, and screenshots of updated charts for review.</li>
+      <li>Record console logs (CLI or GUI) highlighting warnings or errors encountered during testing.</li>
+      <li>Summarise findings alongside automated test results when closing a test cycle.</li>
+    </ul>
+  </body>
+</html>

@@ -95,12 +95,16 @@ def _prompt_scope(
         options = ["All tests"]
         if allow_single:
             options.append("Single test")
-        choice = io.prompt_choice("Apply to:", options)
+        choice = io.prompt_choice("Select scope for this action:", options)
         scope = "all" if choice == 0 else "single"
 
     target_cpk = (params or {}).get("target_cpk")
     if require_target or (params is None):
-        prompt = "Target CPK (blank to skip):" if not require_target else "Target CPK:"
+        prompt = (
+            "Enter target CPK (blank to keep existing limits):"
+            if not require_target
+            else "Enter target CPK (must be greater than zero):"
+        )
         default_text = "" if default_target is None else str(default_target)
         if require_target:
             while target_cpk is None:
@@ -149,8 +153,9 @@ def _resolve_tests(
     if resolved.get("test_key") in test_map:
         return [test_map[resolved["test_key"]]]
 
+    io.info("Select the test you want to update:")
     labels = [desc.label() for desc in descriptors]
-    choice = io.prompt_choice("Select test:", labels)
+    choice = io.prompt_choice("Test selection:", labels)
     descriptor = descriptors[choice]
     resolved["test_key"] = descriptor.key()
     return [descriptor]

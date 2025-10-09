@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Command-Line Reference</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
+      th { background: #f2f4f8; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+    </style>
+  </head>
+  <body>
+    <h1>Command-Line Reference</h1>
+    <p>
+      The <code>cpkanalysis.cli</code> module provides subcommands for scanning STDF directories, executing the analysis pipeline, moving template data, and opening the post-processing menu.
+    </p>
+
+    <h2>Commands</h2>
+    <ul>
+      <li><code>scan</code> &mdash; Recursively discover STDF files and write a metadata JSON manifest.</li>
+      <li><code>run</code> &mdash; Execute the full pipeline (ingestion through metadata) with optional post-processing.</li>
+      <li><code>move-template</code> &mdash; Copy the CPK Report sheet into another template sheet.</li>
+      <li><code>post-process</code> &mdash; Launch the interactive post-processing menu for an existing workbook.</li>
+    </ul>
+
+    <h2>Run Command Options</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Option</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>inputs</code></td>
+          <td>One or more STDF file paths. If omitted, the tool scans the current directory.</td>
+        </tr>
+        <tr>
+          <td><code>--metadata path.json</code></td>
+          <td>Load STDF file list from a JSON manifest created by <code>scan</code>.</td>
+        </tr>
+        <tr>
+          <td><code>--output path.xlsx</code></td>
+          <td>Destination workbook (default <code>CPK_Workbook.xlsx</code>).</td>
+        </tr>
+        <tr>
+          <td><code>--template path</code></td>
+          <td>Excel template file or directory containing a single template workbook.</td>
+        </tr>
+        <tr>
+          <td><code>--template-sheet name</code></td>
+          <td>Target sheet to receive CPK data when copying into templates.</td>
+        </tr>
+        <tr>
+          <td><code>--outlier-method {none,iqr,stdev}</code></td>
+          <td>Outlier filtering strategy (default <code>none</code>).</td>
+        </tr>
+        <tr>
+          <td><code>--outlier-k value</code></td>
+          <td>Multiplier for IQR or standard deviation filters (default <code>1.5</code>).</td>
+        </tr>
+        <tr>
+          <td><code>--no-histogram</code>, <code>--no-cdf</code>, <code>--no-time-series</code></td>
+          <td>Skip generating the corresponding chart families to reduce runtime.</td>
+        </tr>
+        <tr>
+          <td><code>--plugin &lt;directive&gt;</code></td>
+          <td>Enable, disable, reprioritise, or amend plugin parameters (e.g. <code>enable:builtin.summary_logger</code>).</td>
+        </tr>
+        <tr>
+          <td><code>--plugin-profile path.toml</code></td>
+          <td>Override the default plugin profile (defaults to <code>post_processing_profile.toml</code> in the workspace).</td>
+        </tr>
+        <tr>
+          <td><code>--validate-plugins</code></td>
+          <td>Run the analysis into a temporary workbook and discard outputs after plugin validation completes.</td>
+        </tr>
+        <tr>
+          <td><code>--postprocess</code></td>
+          <td>Automatically launch the post-processing menu after the workbook is written.</td>
+        </tr>
+        <tr>
+          <td><code>--debug</code></td>
+          <td>Print additional stack traces and environment details when diagnosing pipeline issues. (Primarily for development builds.)</td>
+        </tr>
+        <tr>
+          <td><code>--quiet</code></td>
+          <td>Minimise console chatter by suppressing status messages (errors still print). Useful when wrapping the CLI in automation scripts.</td>
+        </tr>
+        <tr>
+          <td><code>--session-dir path</code></td>
+          <td>Override the default <code>temp/session_*</code> directory for intermediate Parquet files. Handy when running multiple analyses simultaneously.</td>
+        </tr>
+        <tr>
+          <td><code>--skip-template</code></td>
+          <td>Run ingestion, outlier filtering, statistics, and metadata generation without building the Excel template (produces a minimal workbook).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Examples</h2>
+    <h3>Basic Run</h3>
+    <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf Sample/lot3.stdf \
+  --output temp/CPK_Workbook.xlsx</code></pre>
+
+    <h3>Using Metadata Manifest</h3>
+    <pre><code>python -m cpkanalysis.cli scan Sample --metadata temp/lot_manifest.json
+python -m cpkanalysis.cli run --metadata temp/lot_manifest.json --postprocess</code></pre>
+
+    <h3>Post-Processing Only</h3>
+    <pre><code>python -m cpkanalysis.cli post-process --workbook temp/CPK_Workbook.xlsx</code></pre>
+
+    <h2>Validation Mode Tips</h2>
+    <ul>
+      <li>Temporary outputs are stored under <code>temp/validation_*</code> and deleted automatically.</li>
+      <li>Combine with plugins to spot-check post-processing behaviour without touching production workbooks.</li>
+      <li>The metadata JSON still records action logs even when validation mode is enabled.</li>
+    </ul>
+  </body>
+</html>

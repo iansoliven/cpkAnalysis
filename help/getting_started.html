@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Getting Started</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
+      h1, h2, h3 { color: #004c8c; }
+      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+      ul { margin-left: 1.2rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Getting Started</h1>
+    <p>
+      This topic explains how to install prerequisites, initialise the repository, and run the CPK analysis pipeline for the first time.
+    </p>
+
+    <h2>Prerequisites</h2>
+    <ul>
+      <li><strong>Python 3.11+</strong> (3.13 recommended)</li>
+      <li>Windows, macOS, or Linux with permission to create files under <code>temp/</code></li>
+      <li>Git tooling capable of cloning submodules</li>
+    </ul>
+
+    <h2>Clone and Install</h2>
+    <pre><code>git clone &lt;repository-url&gt;
+cd cpkAnalysis
+git submodule update --init --recursive
+pip install -r requirements.txt</code></pre>
+    <p>
+      The <code>Submodules/istdf</code> project provides the STDF reader used by the ingestion stage. The <code>pip install</code> step brings in
+      <code>pandas</code>, <code>numpy</code>, <code>pyarrow</code>, <code>openpyxl</code>, and <code>matplotlib</code>.
+    </p>
+
+    <h2>Directory Layout</h2>
+    <ul>
+      <li><code>cpkanalysis/</code> &mdash; Core pipeline, post-processing engine, GUI, and CLI.</li>
+      <li><code>examples/</code> &mdash; Sample STDF files and plugin templates.</li>
+      <li><code>temp/</code> &mdash; Session directories created for intermediate files.</li>
+      <li><code>help/</code> &mdash; HTML Help sources (this content).</li>
+      <li><code>tests/</code> &mdash; Pytest-based automation, including post-processing regression coverage.</li>
+    </ul>
+
+    <h2>Running the Pipeline</h2>
+    <p>To analyse one or more STDF files and produce the Excel workbook:</p>
+    <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf Sample/lot3.stdf \
+  --output temp/CPK_Workbook.xlsx \
+  --template cpkTemplate/cpk_report_output_template.xlsx</code></pre>
+    <p>
+      The command emits console progress for ingest, outlier filtering (if enabled), statistics, chart generation, template population, and metadata output.
+    </p>
+
+    <h2>Outputs</h2>
+    <ul>
+      <li><strong>Workbook</strong>: Excel file containing summary tables, charts, Test List &amp; Limits, and linked CPK template data.</li>
+      <li><strong>Metadata</strong>: JSON sidecar named after the workbook (for example <code>CPK_Workbook.json</code>) capturing configuration, source stats, limit provenance, and post-processing audits.</li>
+      <li><strong>Parquet</strong>: Intermediate measurement stores under a temporary session directory; removed automatically when the pipeline completes.</li>
+    </ul>
+
+    <h2>Next Steps</h2>
+    <ul>
+      <li>Refer to the <a href="cli_reference.html">Command-Line Reference</a> for advanced flags, validation mode, and plugin overrides.</li>
+      <li>Launch the <a href="gui_reference.html">console GUI</a> for an interactive configuration flow.</li>
+      <li>After the workbook is generated, explore the <a href="post_processing.html">post-processing menu</a> to adjust limits and regenerate charts without re-running ingestion.</li>
+    </ul>
+  </body>
+</html>
