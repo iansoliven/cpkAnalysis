@@ -1,0 +1,115 @@
+Post-Pipeline Capability Plan
+==============================
+
+Architecture & Entry Points
+---------------------------
+- Introduce a `cpkanalysis.postprocess` package that owns shared logic (context models, menu dispatcher, action implementations) so the GUI and CLI simply delegate to it.
+- After a successful `run_analysis`, the GUI hands control to `postprocess.menu.loop(...)`, passing the output workbook path, metadata path, and a frozen copy of the `AnalysisInputs`. The GUI instance keeps the resulting context so a `post` command can reopen the menu without rerunning the pipeline.
+- Extend the CLI:
+  - `cpkanalysis run` gains `--postprocess` to start the menu immediately after the workbook is written.
+  - `cpkanalysis post-process` can target an existing workbook (with optional metadata path) and launch the same menu.
+- Maintain current layering: post-processing depends on the pipeline’s outputs (workbook, metadata, cached parquet) but does not change pipeline flow or require plugin hooks.
+
+Context & State Management
+--------------------------
+- Define `PostProcessContext` with:
+  - Immutable `analysis_inputs`.
+  - Paths for workbook, metadata JSON, filtered measurements parquet, and any cached summary/limit parquet files.
+  - Lazy-open workbook handle (openpyxl) and pandas DataFrames for summary, template limits, and “test list and limits”.
+  - Dirty flag and mutation journal (list of action results).
+- Provide `context.reload()` to reopen workbook/metadata from disk and clear caches; `context.save()` writes workbook, updates metadata under a new `"post_processing"` section, and clears the dirty flag.
+
+Menu Loop & UX Contracts
+------------------------
+- Menu options:
+  1. Update STDF Limits
+  2. Apply Spec / What-If Limits
+  3. Calculate Proposed Limits
+  4. Re-run last action
+  5. Reload workbook from disk
+  6. View audit log
+  7. Exit
+- IO adapters abstract prompting/printing so both GUI (rich text) and CLI (console) reuse the same menu logic.
+- After each action, print a concise summary (tests touched, charts regenerated, warnings) and append the result to the audit log.
+- GUI main prompt recognises a `post` command that calls `postprocess.menu.loop` with the persisted context; CLI simply relaunches the command. Warn if the workbook timestamp changed since the context loaded.
+
+Shared Utilities
+----------------
+- Sheet resolver locates the template sheet (from metadata or config), “Test List and Limits”, “CPK Report”, “Summary”, and the hidden axis metadata sheet.
+- Lookup helpers translate between DataFrame keys (`File`, `Test Name`, `Test Number`) and workbook row coordinates, preserving case and spacing.
+- Chart target enumerator collects `(file, test_name, test_number)` triplets with workbook anchors and existing image references.
+- Limit propagators read/write LL/UL, Spec, What-If, and Proposal columns while preserving number formats and hyperlinks.
+
+Action 1: Update STDF Limits
+----------------------------
+- Prompt for scope (all tests or a specific test selected via case-insensitive search) and an optional target CPK for single-test runs.
+- For each target test, compute new LL/UL using filtered measurements and the chosen CPK (fallback to existing statistics when no target provided).
+- Update template sheet LL/UL and synchronise any CPK Report columns that mirror ATE bounds.
+- Mark affected tests for chart regeneration and log `{action: "update_stdf_limits", scope, target_cpk, tests, timestamp}` in metadata.
+
+Action 2: Apply Spec / What-If Limits
+-------------------------------------
+- Prompt for scope and optional target CPK (for per-test adjustments).
+- Read Spec/What-If columns from “Test List and Limits”; detect differences versus the template sheet.
+- Copy changed values into the template sheet while leaving existing LL/UL markers untouched.
+- If a per-test target CPK is supplied, calculate Spec/What-If values that achieve the goal before propagation.
+- Chart refresh adds Spec/What-If markers alongside the original LL/UL lines:
+  - Keep existing LL/UL markers and legend entries.
+  - Insert new Spec/What-If marker entries.
+  - Move the CPK annotation above a smaller title (e.g., title 10 pt, CPK label 9 pt).
+- Record columns modified and any computed target CPK in metadata.
+
+Action 3: Calculate Proposed Limits
+-----------------------------------
+- Require target CPK; prompt for scope up front.
+- For each selected test, compute LL_PROP, UL_PROP, CPK_PROP, and %YLD LOSS_PROP (guarding against zero variance and sparse data).
+- Write proposals to the template sheet (and optionally the CPK Report sheet) and mark tests for chart refresh.
+- Chart updates add proposed limit markers with distinct styling and expand axis ranges as needed.
+- Log action details (target CPK, tests, warnings) to metadata.
+
+Chart Refresh Strategy
+----------------------
+- Extend `mpl_charts` rendering functions to accept a `ChartMarkers` structure containing LL/UL, Spec, What-If, and Proposed markers, plus layout options (`cpk_label_position`, `title_font_size`, `cpk_font_size`).
+- Maintain backwards compatibility so the main pipeline can continue invoking renderers without extra parameters.
+- Implement `postprocess.charts.refresh_tests(context, tests, markers_map)` that regenerates histogram/CDF/time-series PNGs, replaces existing images in the workbook, and updates the hidden `_PlotAxisRanges` sheet.
+- Respect pipeline configuration flags (`generate_histogram`, etc.) to avoid creating charts the user disabled during the initial run.
+
+Error Handling & Validation
+---------------------------
+- Before executing an action, validate required sheets and columns; aggregate missing elements and present a single warning without crashing.
+- Wrap workbook saves with error handling (e.g., file locked). If save fails, keep the dirty flag set so the user can retry.
+- For CLI automation, exit with a non-zero status on unrecoverable failures but still flush the audit log to stdout.
+
+Audit Trail & Metadata Format
+-----------------------------
+- Extend metadata JSON with a `"post_processing"` section:
+  ```
+  "post_processing": {
+    "runs": [
+      {
+        "action": "apply_spec_limits",
+        "timestamp": "...",
+        "scope": "single",
+        "tests": ["file|test|number"],
+        "parameters": {"target_cpk": 1.67},
+        "warnings": [],
+        "duration_seconds": 3.2
+      }
+    ]
+  }
+  ```
+- Provide a helper that prints the audit log via the IO adapter so users can review past actions while in the menu.
+
+Testing & Verification
+----------------------
+- Add unit tests that:
+  - Verify each action updates the correct workbook cells using in-memory workbooks.
+  - Ensure chart markers and axis metadata reflect new limits.
+  - Exercise the menu loop with mocked IO adapters to cover navigation paths.
+- Create a smoke-test (e.g., pytest integration) that runs `cpkanalysis run --postprocess` against sample data, confirming workbook and metadata changes.
+
+Documentation & Developer Guidance
+----------------------------------
+- Update README and TEST_PLAN with instructions for invoking post-processing via GUI and CLI, describing available actions and their effects.
+- Document chart marker colour/legend conventions within `mpl_charts` to guide future contributions.
+- Note concurrency expectations: warn if the workbook changed on disk since the context loaded, and encourage users to close Excel before running post-processing actions.
