@@ -236,17 +236,28 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     if unit_value:
         metadata.unit = unit_value
     
+    # Extract OPT_FLG for limit detection
+    opt_flg = data.get("OPT_FLG", 0)
+    if isinstance(opt_flg, bytes):
+        opt_flg = opt_flg[0] if opt_flg else 0
+    
     res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
     
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
-    low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    if low_limit is not None:
-        metadata.low_limit = low_limit
+    raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
+    
+    # STDF specification: OPT_FLG bit 6 (0x40) indicates no low limit
+    # Only update metadata if we have a valid limit (not flagged as no limit)
+    if raw_low_limit is not None and not (opt_flg & 0x40):
+        metadata.low_limit = raw_low_limit
     
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
-    high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    if high_limit is not None:
-        metadata.high_limit = high_limit
+    raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
+    
+    # STDF specification: OPT_FLG bit 7 (0x80) indicates no high limit
+    # Only update metadata if we have a valid limit (not flagged as no limit)
+    if raw_high_limit is not None and not (opt_flg & 0x80):
+        metadata.high_limit = raw_high_limit
     
     metadata.scale = res_scale
     cache[key] = metadata
@@ -282,12 +293,15 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     # Check if measurement is invalid due to test or parameter flags
     test_flg = data.get("TEST_FLG", 0)
     parm_flg = data.get("PARM_FLG", 0)
+    opt_flg = data.get("OPT_FLG", 0)
     
     # Convert bytes to int if needed
     if isinstance(test_flg, bytes):
         test_flg = test_flg[0] if test_flg else 0
     if isinstance(parm_flg, bytes):
         parm_flg = parm_flg[0] if parm_flg else 0
+    if isinstance(opt_flg, bytes):
+        opt_flg = opt_flg[0] if opt_flg else 0
     
     # STDF specification: PARM_FLG bit 2 (0x04) indicates RESULT_INVALID
     # Skip measurements where the result is flagged as invalid
@@ -315,17 +329,33 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     measurement_value = _apply_scale(_coerce_float(data.get("RESULT")), res_scale)
 
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
-    low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    if low_limit is not None:
-        metadata.low_limit = low_limit
+    raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
+    
+    # STDF specification: OPT_FLG bit 6 (0x40) indicates no low limit
+    # Prioritize null values as the clearest indication of no limit
+    if raw_low_limit is None or (opt_flg & 0x40):  # No low limit
+        low_limit = None
     else:
+        low_limit = raw_low_limit
+        metadata.low_limit = raw_low_limit
+    
+    # Use cached limit if no current limit available
+    if low_limit is None and raw_low_limit is None:
         low_limit = metadata.low_limit
 
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
-    high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    if high_limit is not None:
-        metadata.high_limit = high_limit
+    raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
+    
+    # STDF specification: OPT_FLG bit 7 (0x80) indicates no high limit
+    # Prioritize null values as the clearest indication of no limit
+    if raw_high_limit is None or (opt_flg & 0x80):  # No high limit
+        high_limit = None
     else:
+        high_limit = raw_high_limit
+        metadata.high_limit = raw_high_limit
+        
+    # Use cached limit if no current limit available
+    if high_limit is None and raw_high_limit is None:
         high_limit = metadata.high_limit
 
     metadata.scale = res_scale
