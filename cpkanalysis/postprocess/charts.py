@@ -345,8 +345,16 @@ def _bounds_with_markers(values: np.ndarray, lower, upper, markers: Sequence[flo
     axis_min, axis_max, data_min, data_max = _compute_axis_bounds(values, lower, upper, desired_ticks=10)
     candidates = [m for m in markers if m is not None and np.isfinite(m)]
     if candidates:
-        axis_min = float(min(axis_min, min(candidates)))
-        axis_max = float(max(axis_max, max(candidates)))
+        min_marker = float(min(candidates))
+        max_marker = float(max(candidates))
+        axis_min = float(min(axis_min, min_marker))
+        axis_max = float(max(axis_max, max_marker))
+        span = axis_max - axis_min
+        if not np.isfinite(span) or span <= 0:
+            span = max(abs(axis_min), abs(axis_max), 1.0)
+        padding = max(span * 0.02, 1e-6)
+        axis_min = float(min(axis_min, min_marker - padding))
+        axis_max = float(max(axis_max, max_marker + padding))
     return axis_min, axis_max, data_min, data_max
 
 
