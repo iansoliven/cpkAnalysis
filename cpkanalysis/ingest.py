@@ -99,16 +99,11 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
             existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
             info_low_flag = info.get("has_stdf_lower")
             info_high_flag = info.get("has_stdf_upper")
-            if info_low_flag is False:
-                existing["stdf_lower"] = None
-                existing["has_stdf_lower"] = False
-            elif info.get("stdf_lower") is not None:
+            # Only update limits if we have valid limit data (don't overwrite good limits with None)
+            if info_low_flag is True and info.get("stdf_lower") is not None:
                 existing["stdf_lower"] = info["stdf_lower"]
                 existing["has_stdf_lower"] = True
-            if info_high_flag is False:
-                existing["stdf_upper"] = None
-                existing["has_stdf_upper"] = False
-            elif info.get("stdf_upper") is not None:
+            if info_high_flag is True and info.get("stdf_upper") is not None:
                 existing["stdf_upper"] = info["stdf_upper"]
                 existing["has_stdf_upper"] = True
 
@@ -306,16 +301,11 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
         existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
         if existing.get("unit") in ("", None) and metadata.unit:
             existing["unit"] = _compose_unit(metadata.unit, metadata.scale)
-        if metadata.has_low_limit is False:
-            existing["stdf_lower"] = None
-            existing["has_stdf_lower"] = False
-        elif metadata.low_limit is not None:
+        # Only update limits if we have valid limit data (don't overwrite good limits with None)
+        if metadata.has_low_limit is True and metadata.low_limit is not None:
             existing["stdf_lower"] = metadata.low_limit
             existing["has_stdf_lower"] = True
-        if metadata.has_high_limit is False:
-            existing["stdf_upper"] = None
-            existing["has_stdf_upper"] = False
-        elif metadata.high_limit is not None:
+        if metadata.has_high_limit is True and metadata.high_limit is not None:
             existing["stdf_upper"] = metadata.high_limit
             existing["has_stdf_upper"] = True
 
