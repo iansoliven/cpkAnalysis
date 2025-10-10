@@ -18,7 +18,12 @@ from cpkanalysis.postprocess import sheet_utils
 from cpkanalysis.workbook_builder import SUMMARY_COLUMNS, TEST_LIMIT_COLUMNS, MEAS_COLUMNS
 
 
-def _build_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs]:
+def _build_test_workbook(
+    tmp_path: Path,
+    *,
+    test_name: str = "Voltage",
+    test_number: int | str = "100",
+) -> tuple[Path, Path, AnalysisInputs]:
     workbook_path = tmp_path / "cpk_test.xlsx"
     metadata_path = workbook_path.with_suffix(".json")
 
@@ -31,8 +36,8 @@ def _build_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs]:
     summary_ws.append(SUMMARY_COLUMNS)
     summary_values = {
         "File": "lot1",
-        "Test Name": "Voltage",
-        "Test Number": "100",
+        "Test Name": test_name,
+        "Test Number": test_number,
         "Unit": "V",
         "MEAN": 1.0,
         "STDEV": 0.1,
@@ -50,9 +55,9 @@ def _build_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs]:
     measurement_headers = [target for _, target in MEAS_COLUMNS]
     measurements_ws.append(measurement_headers)
     measurement_data = [
-        ("lot1", "device-1", "Voltage", "100", 1.05, "V", 1),
-        ("lot1", "device-2", "Voltage", "100", 0.95, "V", 2),
-        ("lot1", "device-3", "Voltage", "100", 1.10, "V", 3),
+        ("lot1", "device-1", test_name, test_number, 1.05, "V", 1),
+        ("lot1", "device-2", test_name, test_number, 0.95, "V", 2),
+        ("lot1", "device-3", test_name, test_number, 1.10, "V", 3),
     ]
     for row in measurement_data:
         measurements_ws.append(row)
@@ -62,8 +67,8 @@ def _build_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs]:
     limit_headers = [target for _, target in TEST_LIMIT_COLUMNS]
     limits_ws.append(limit_headers)
     limit_row_values = {
-        "Test name": "Voltage",
-        "Test number": "100",
+        "Test name": test_name,
+        "Test number": test_number,
         "STDF Lower Limit": 0.7,
         "STDF Upper Limit": 1.3,
         "Spec Lower Limit": 0.65,
@@ -93,8 +98,8 @@ def _build_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs]:
     template_ws.append(template_headers)
     template_ws.append(
         [
-            "Voltage",
-            "100",
+            test_name,
+            test_number,
             0.7,
             1.3,
             0.65,
@@ -251,3 +256,34 @@ def test_calculate_proposed_limits(tmp_path):
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     runs = metadata.get("post_processing", {}).get("runs", [])
     assert runs[-1]["action"] == "calculate_proposed_limits"
+
+
+def test_update_limits_with_zero_test_number(tmp_path):
+    workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path, test_number=0)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+    io = CliIO(scripted_choices=[])
+    descriptor_key = "lot1|Voltage|0"
+
+    result = actions.update_stdf_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.5},
+    )
+    context.mark_dirty()
+    audit_entry = dict(result.get("audit", {}))
+    audit_entry.setdefault("action", "update_stdf_limits_zero")
+    context.add_audit_entry(audit_entry)
+    context.save()
+
+    header_row, header_map, template_ws = _template_row(workbook_path)
+    ll_col = header_map[sheet_utils.normalize_header("LL_ATE")]
+    ul_col = header_map[sheet_utils.normalize_header("UL_ATE")]
+    ll_value = template_ws.cell(row=header_row + 1, column=ll_col).value
+    ul_value = template_ws.cell(row=header_row + 1, column=ul_col).value
+
+    assert pytest.approx(ll_value, rel=1e-4) == 1.0 - (1.5 * 3 * 0.1)
+    assert pytest.approx(ul_value, rel=1e-4) == 1.0 + (1.5 * 3 * 0.1)

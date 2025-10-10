@@ -58,10 +58,10 @@ def _build_test_descriptors(context: PostProcessContext) -> List[TestDescriptor]
     for _, row in summary.iterrows():
         descriptors.append(
             TestDescriptor(
-                file=str(row.get("File", "") or ""),
-                test_name=str(row.get("Test Name", "") or ""),
-                test_number=str(row.get("Test Number", "") or ""),
-                unit=str(row.get("Unit", "") or ""),
+                file=_safe_str(row.get("File")),
+                test_name=_safe_str(row.get("Test Name")),
+                test_number=_safe_str(row.get("Test Number")),
+                unit=_safe_str(row.get("Unit")),
                 mean=_safe_float(row.get("MEAN")),
                 stdev=_safe_float(row.get("STDEV")),
                 cpk=_safe_float(row.get("CPK")),
@@ -164,7 +164,13 @@ def _resolve_tests(
 def _summaries_by_key(summary: pd.DataFrame) -> Dict[str, pd.Series]:
     mapping: Dict[str, pd.Series] = {}
     for _, row in summary.iterrows():
-        key = f"{row.get('File','')}|{row.get('Test Name','')}|{row.get('Test Number','')}"
+        key = "|".join(
+            [
+                _safe_str(row.get("File")),
+                _safe_str(row.get("Test Name")),
+                _safe_str(row.get("Test Number")),
+            ]
+        )
         mapping[key] = row
     return mapping
 
@@ -184,6 +190,18 @@ def _resolve_column(header_map: Dict[str, int], aliases: Iterable[str]) -> Optio
 
 def _tests_to_strings(tests: Iterable[TestDescriptor]) -> List[str]:
     return [test.key() for test in tests]
+
+
+def _safe_str(value) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    text = str(value)
+    return text.strip() if text is not None else ""
 
 
 def _first_not_none(*values):

@@ -266,7 +266,10 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     elif raw_low_limit is not None:
         metadata.low_limit = raw_low_limit
         metadata.has_low_limit = True
-    
+    else:
+        metadata.low_limit = None
+        metadata.has_low_limit = False
+
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
     no_high_limit = bool(opt_flg & 0x80)
@@ -276,6 +279,9 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     elif raw_high_limit is not None:
         metadata.high_limit = raw_high_limit
         metadata.has_high_limit = True
+    else:
+        metadata.high_limit = None
+        metadata.has_high_limit = False
     
     metadata.scale = res_scale
     cache[key] = metadata
@@ -367,6 +373,9 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     elif raw_low_limit is not None:
         metadata.low_limit = raw_low_limit
         metadata.has_low_limit = True
+    else:
+        metadata.low_limit = None
+        metadata.has_low_limit = False
     low_limit = metadata.low_limit if metadata.has_low_limit else None
 
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
@@ -378,6 +387,9 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     elif raw_high_limit is not None:
         metadata.high_limit = raw_high_limit
         metadata.has_high_limit = True
+    else:
+        metadata.high_limit = None
+        metadata.has_high_limit = False
     high_limit = metadata.high_limit if metadata.has_high_limit else None
 
     metadata.scale = res_scale

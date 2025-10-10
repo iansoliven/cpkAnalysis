@@ -58,6 +58,22 @@ def test_populate_test_catalog_clears_limits_when_flagged():
     assert test_catalog[key]["has_stdf_upper"] is False
 
 
+def test_populate_test_catalog_missing_limit_without_flag_clears():
+    cache: dict[str, ingest._TestMetadata] = {}
+    test_catalog: dict[tuple[str, str], dict] = {}
+
+    ingest._populate_test_catalog_from_ptr(_build_ptr_record(lo_limit=1.0, hi_limit=2.0, opt_flg=0), cache, test_catalog)
+    key = ("VDD", "1")
+    assert test_catalog[key]["has_stdf_lower"] is True
+    assert test_catalog[key]["has_stdf_upper"] is True
+
+    ingest._populate_test_catalog_from_ptr(_build_ptr_record(lo_limit=None, hi_limit=None, opt_flg=0), cache, test_catalog)
+    assert test_catalog[key]["stdf_lower"] is None
+    assert test_catalog[key]["stdf_upper"] is None
+    assert test_catalog[key]["has_stdf_lower"] is False
+    assert test_catalog[key]["has_stdf_upper"] is False
+
+
 def test_extract_measurement_returns_none_limits_after_flag_clear():
     cache: dict[str, ingest._TestMetadata] = {}
 
@@ -71,3 +87,13 @@ def test_extract_measurement_returns_none_limits_after_flag_clear():
     assert measurement is not None
     assert measurement["low_limit"] is None
     assert measurement["high_limit"] is None
+
+
+def test_extract_measurement_missing_limit_without_flag_clears_cache():
+    cache: dict[str, ingest._TestMetadata] = {}
+
+    ingest._extract_measurement(_build_ptr_record(lo_limit=0.5, hi_limit=1.5, opt_flg=0), cache)
+    follow_up = ingest._extract_measurement(_build_ptr_record(lo_limit=None, hi_limit=None, opt_flg=0), cache)
+    assert follow_up is not None
+    assert follow_up["low_limit"] is None
+    assert follow_up["high_limit"] is None
