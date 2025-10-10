@@ -147,7 +147,6 @@ def refresh_tests(
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
-                cpk_position=(0.0, 1.05),
             )
             cell = _place_image(anchor["sheet"], image_bytes, anchor["row"], label=test_label)
             axis_ranges[test_key] = {
@@ -174,7 +173,6 @@ def refresh_tests(
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
-                cpk_position=(0.0, 1.05),
             )
             _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
             _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
@@ -194,7 +192,6 @@ def refresh_tests(
                 extra_markers=_horizontalised_markers(markers),
                 title_font_size=10,
                 cpk_font_size=8,
-                cpk_position=(0.0, 1.05),
             )
             _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=test_label)
             _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])

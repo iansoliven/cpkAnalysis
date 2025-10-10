@@ -298,6 +298,9 @@ def _finalize_chart(
     cpk_font_size: int = 9,
     cpk_position: Optional[Tuple[float, float]] = None,
 ) -> None:
+    test_label = _clean_text(test_label)
+    unit_label = _clean_text(unit_label)
+
     handles, labels = ax.get_legend_handles_labels()
     if handles:
         ax.legend(
@@ -312,14 +315,20 @@ def _finalize_chart(
     if test_label:
         ax.set_title(test_label, fontsize=title_font_size, fontweight="bold")
     if cpk is not None and math.isfinite(cpk):
-        position = cpk_position or (1.02, 0.9)
+        position = cpk_position or (1.02, 0.12)
+        ha = "left"
+        va = "bottom"
+        if position[0] <= 1.0:
+            ha = "right" if position[0] >= 0.5 else "left"
+        if position[1] >= 0.5:
+            va = "top"
         ax.text(
             position[0],
             position[1],
             f"CPK: {cpk:.3f}",
             transform=ax.transAxes,
-            ha="left",
-            va="top",
+            ha=ha,
+            va=va,
             fontsize=cpk_font_size,
         )
     if unit_label:
@@ -342,3 +351,16 @@ def _figure_to_png(fig) -> bytes:
     plt.close(fig)
     buffer.seek(0)
     return buffer.getvalue()
+
+
+def _clean_text(value: str) -> str:
+    if not value:
+        return ""
+    cleaned = []
+    for ch in value:
+        code = ord(ch)
+        if code < 32:
+            cleaned.append(" ")
+        else:
+            cleaned.append(ch)
+    return "".join(cleaned).strip()

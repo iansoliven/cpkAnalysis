@@ -89,6 +89,7 @@ def _prompt_scope(
     allow_single: bool = True,
     require_target: bool = False,
     default_target: float | None = None,
+    prompt_target: bool = True,
 ) -> dict:
     scope = (params or {}).get("scope")
     if scope not in {"all", "single"}:
@@ -98,8 +99,21 @@ def _prompt_scope(
         choice = io.prompt_choice("Select scope for this action:", options)
         scope = "all" if choice == 0 else "single"
 
-    target_cpk = (params or {}).get("target_cpk")
-    if require_target or (params is None):
+    target_cpk = None
+    if prompt_target:
+        target_cpk = (params or {}).get("target_cpk")
+        if require_target and target_cpk is not None:
+            try:
+                target_cpk = float(target_cpk)
+            except (TypeError, ValueError):
+                io.warn("Target CPK must be numeric.")
+                target_cpk = None
+            else:
+                if target_cpk <= 0:
+                    io.warn("Target CPK must be positive.")
+                    target_cpk = None
+
+    if prompt_target and (require_target or (params is None)):
         prompt = (
             "Enter target CPK (blank to keep existing limits):"
             if not require_target
@@ -221,7 +235,7 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
     if not descriptors:
         raise ActionCancelled("Summary sheet is empty.")
 
-    resolved = _prompt_scope(io, params, allow_single=True, require_target=False)
+    resolved = _prompt_scope(io, params, allow_single=True, require_target=False, prompt_target=False)
     selected_tests = _resolve_tests(descriptors, context, io, resolved)
 
     summary_df = context.summary_frame()
@@ -261,14 +275,8 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
             )
             continue
 
-        target_cpk = resolved.get("target_cpk")
-        if target_cpk and target_cpk > 0:
-            half_width = 3.0 * target_cpk * stdev
-            lower_limit = mean - half_width if mean is not None else None
-            upper_limit = mean + half_width if mean is not None else None
-        else:
-            lower_limit = _first_not_none(_safe_float(row.get("LL_2CPK")), _safe_float(row.get("LL_3IQR")))
-            upper_limit = _first_not_none(_safe_float(row.get("UL_2CPK")), _safe_float(row.get("UL_3IQR")))
+        lower_limit = _first_not_none(_safe_float(row.get("LL_2CPK")), _safe_float(row.get("LL_3IQR")))
+        upper_limit = _first_not_none(_safe_float(row.get("UL_2CPK")), _safe_float(row.get("UL_3IQR")))
 
         if lower_limit is None or upper_limit is None:
             _warn_if_missing(
@@ -324,7 +332,6 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
         "audit": {
             "scope": resolved["scope"],
             "tests": _tests_to_strings(updated_tests),
-            "parameters": {"target_cpk": resolved.get("target_cpk")},
         },
         "replay_params": resolved,
         "mark_dirty": True,

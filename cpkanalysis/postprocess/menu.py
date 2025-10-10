@@ -40,12 +40,20 @@ def loop(context: PostProcessContext, *, io: PostProcessIO) -> None:
         for index, action in enumerate(ACTION_DEFINITIONS, start=1):
             io.print(f"{index}. {action.label}")
         offset = len(ACTION_DEFINITIONS)
-        io.print(f"{offset + 1}. Re-run last action" + ("" if last_action else " (n/a)"))
-        io.print(f"{offset + 2}. Reload workbook from disk")
-        io.print(f"{offset + 3}. View audit log")
-        io.print(f"{offset + 4}. Exit")
+        extra_labels = [
+            "Re-run last action" + ("" if last_action else " (n/a)"),
+            "Reload workbook from disk",
+            "View audit log",
+            "Exit",
+        ]
+        for index, label in enumerate(extra_labels, start=offset + 1):
+            io.print(f"{index}. {label}")
 
-        choice = io.prompt_choice("Select an option:", [a.label for a in ACTION_DEFINITIONS] + ["", "", "", ""])
+        choice = io.prompt_choice(
+            "Select an option:",
+            [a.label for a in ACTION_DEFINITIONS]
+            + extra_labels,
+        )
         if choice < len(ACTION_DEFINITIONS):
             action_def = ACTION_DEFINITIONS[choice]
             params: Optional[dict] = None

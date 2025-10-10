@@ -152,10 +152,21 @@ def test_update_stdf_limits(tmp_path):
     )
     io = CliIO(scripted_choices=[])
     descriptor_key = "lot1|Voltage|100"
+
+    # Clear existing template values to ensure the action repopulates them.
+    wb = load_workbook(workbook_path)
+    template_ws = wb["Template"]
+    header_row, header_map = sheet_utils.build_header_map(template_ws)
+    ll_col = header_map[sheet_utils.normalize_header("LL_ATE")]
+    ul_col = header_map[sheet_utils.normalize_header("UL_ATE")]
+    template_ws.cell(row=header_row + 1, column=ll_col, value=None)
+    template_ws.cell(row=header_row + 1, column=ul_col, value=None)
+    wb.save(workbook_path)
+
     result = actions.update_stdf_limits(
         context,
         io,
-        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.67},
+        {"scope": "single", "test_key": descriptor_key},
     )
     context.mark_dirty()
     audit_entry = dict(result.get("audit", {}))
@@ -169,8 +180,8 @@ def test_update_stdf_limits(tmp_path):
     ll_value = template_ws.cell(row=header_row + 1, column=ll_col).value
     ul_value = template_ws.cell(row=header_row + 1, column=ul_col).value
 
-    assert pytest.approx(ll_value, rel=1e-4) == 1.0 - (1.67 * 3 * 0.1)
-    assert pytest.approx(ul_value, rel=1e-4) == 1.0 + (1.67 * 3 * 0.1)
+    assert ll_value == pytest.approx(0.7, rel=1e-4)
+    assert ul_value == pytest.approx(1.3, rel=1e-4)
 
     # Ensure metadata audit log recorded the action
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -258,6 +269,25 @@ def test_calculate_proposed_limits(tmp_path):
     assert runs[-1]["action"] == "calculate_proposed_limits"
 
 
+def test_reject_invalid_cpk_param(tmp_path):
+    workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+    io = CliIO(scripted_choices=["1.4"])
+    descriptor_key = "lot1|Voltage|100"
+
+    result = actions.calculate_proposed_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 0},
+    )
+
+    assert result["audit"]["parameters"]["target_cpk"] == pytest.approx(1.4)
+
+
 def test_update_limits_with_zero_test_number(tmp_path):
     workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path, test_number=0)
     context = postprocess.create_context(
@@ -268,10 +298,19 @@ def test_update_limits_with_zero_test_number(tmp_path):
     io = CliIO(scripted_choices=[])
     descriptor_key = "lot1|Voltage|0"
 
+    wb = load_workbook(workbook_path)
+    template_ws = wb["Template"]
+    header_row, header_map = sheet_utils.build_header_map(template_ws)
+    ll_col = header_map[sheet_utils.normalize_header("LL_ATE")]
+    ul_col = header_map[sheet_utils.normalize_header("UL_ATE")]
+    template_ws.cell(row=header_row + 1, column=ll_col, value=None)
+    template_ws.cell(row=header_row + 1, column=ul_col, value=None)
+    wb.save(workbook_path)
+
     result = actions.update_stdf_limits(
         context,
         io,
-        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.5},
+        {"scope": "single", "test_key": descriptor_key},
     )
     context.mark_dirty()
     audit_entry = dict(result.get("audit", {}))
@@ -285,5 +324,5 @@ def test_update_limits_with_zero_test_number(tmp_path):
     ll_value = template_ws.cell(row=header_row + 1, column=ll_col).value
     ul_value = template_ws.cell(row=header_row + 1, column=ul_col).value
 
-    assert pytest.approx(ll_value, rel=1e-4) == 1.0 - (1.5 * 3 * 0.1)
-    assert pytest.approx(ul_value, rel=1e-4) == 1.0 + (1.5 * 3 * 0.1)
+    assert ll_value == pytest.approx(0.7, rel=1e-4)
+    assert ul_value == pytest.approx(1.3, rel=1e-4)
