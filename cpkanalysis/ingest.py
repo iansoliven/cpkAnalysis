@@ -245,8 +245,8 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     if unit_value:
         metadata.unit = unit_value
     
-    # Extract OPT_FLG for limit detection
-    opt_flg = data.get("OPT_FLG", 0)
+    # Extract OPT_FLG for limit detection - try both field name variants
+    opt_flg = data.get("OPT_FLG", data.get("OPT_FLAG", 0))
     if isinstance(opt_flg, bytes):
         opt_flg = opt_flg[0] if opt_flg else 0
     
@@ -319,7 +319,8 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     # Check if measurement is invalid due to test or parameter flags
     test_flg = data.get("TEST_FLG", 0)
     parm_flg = data.get("PARM_FLG", 0)
-    opt_flg = data.get("OPT_FLG", 0)
+    # Try both field name variants for OPT_FLG/OPT_FLAG
+    opt_flg = data.get("OPT_FLG", data.get("OPT_FLAG", 0))
     
     # Convert bytes to int if needed
     if isinstance(test_flg, bytes):
