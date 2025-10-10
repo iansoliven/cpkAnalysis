@@ -118,6 +118,26 @@ def refresh_tests(
         )
 
         data_limits = [m.value for m in markers if m.value is not None]
+        if include_spec:
+            data_limits.extend(
+                value
+                for value in (
+                    limit_info.spec_lower,
+                    limit_info.spec_upper,
+                    limit_info.what_lower,
+                    limit_info.what_upper,
+                )
+                if value is not None
+            )
+        if include_proposed:
+            data_limits.extend(
+                value
+                for value in (
+                    limit_info.proposed_lower,
+                    limit_info.proposed_upper,
+                )
+                if value is not None
+            )
         lower_limit = limit_info.stdf_lower
         upper_limit = limit_info.stdf_upper
 

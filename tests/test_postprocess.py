@@ -143,6 +143,17 @@ def _template_row(workbook_path: Path) -> tuple[int, dict[str, int], any]:
     return header_row, header_map, template_ws
 
 
+def _axis_bounds(workbook_path: Path) -> tuple[float, float]:
+    wb = load_workbook(workbook_path)
+    if "_PlotAxisRanges" not in wb.sheetnames:
+        raise AssertionError("Axis ranges sheet not created.")
+    ws = wb["_PlotAxisRanges"]
+    headers = {cell.value: idx for idx, cell in enumerate(ws[1], start=1)}
+    axis_min = ws.cell(row=2, column=headers["Axis Min"]).value
+    axis_max = ws.cell(row=2, column=headers["Axis Max"]).value
+    return float(axis_min), float(axis_max)
+
+
 def test_update_stdf_limits(tmp_path):
     workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path)
     context = postprocess.create_context(
@@ -326,3 +337,59 @@ def test_update_limits_with_zero_test_number(tmp_path):
 
     assert ll_value == pytest.approx(0.7, rel=1e-4)
     assert ul_value == pytest.approx(1.3, rel=1e-4)
+
+
+def test_apply_spec_limits_extends_axis(tmp_path):
+    workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+    io = CliIO(scripted_choices=[])
+    descriptor_key = "lot1|Voltage|100"
+
+    actions.apply_spec_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 5},
+    )
+    context.save()
+
+    header_row, header_map, template_ws = _template_row(workbook_path)
+    spec_lower_col = header_map[sheet_utils.normalize_header("Spec Lower")]
+    spec_upper_col = header_map[sheet_utils.normalize_header("Spec Upper")]
+    spec_lower = float(template_ws.cell(row=header_row + 1, column=spec_lower_col).value)
+    spec_upper = float(template_ws.cell(row=header_row + 1, column=spec_upper_col).value)
+    axis_min, axis_max = _axis_bounds(workbook_path)
+
+    assert axis_min <= spec_lower
+    assert axis_max >= spec_upper
+
+
+def test_calculate_proposed_limits_extends_axis(tmp_path):
+    workbook_path, metadata_path, analysis_inputs = _build_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+    io = CliIO(scripted_choices=[])
+    descriptor_key = "lot1|Voltage|100"
+
+    actions.calculate_proposed_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 5},
+    )
+    context.save()
+
+    header_row, header_map, template_ws = _template_row(workbook_path)
+    ll_prop_col = header_map[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop_col = header_map[sheet_utils.normalize_header("UL_PROP")]
+    proposed_lower = float(template_ws.cell(row=header_row + 1, column=ll_prop_col).value)
+    proposed_upper = float(template_ws.cell(row=header_row + 1, column=ul_prop_col).value)
+    axis_min, axis_max = _axis_bounds(workbook_path)
+
+    assert axis_min <= proposed_lower
+    assert axis_max >= proposed_upper
