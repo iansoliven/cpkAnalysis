@@ -240,21 +240,37 @@ def _collect_limit_info(limits_df: pd.DataFrame, template_ws) -> Dict[Tuple[str,
         key = (test_name, test_number)
         info = lookup.setdefault(key, LimitInfo())
         if ll_ate_col:
-            info.stdf_lower = _safe_float(get_cell(template_ws, row_idx, ll_ate_col)) or info.stdf_lower
+            value = _safe_float(get_cell(template_ws, row_idx, ll_ate_col))
+            if value is not None:
+                info.stdf_lower = value
         if ul_ate_col:
-            info.stdf_upper = _safe_float(get_cell(template_ws, row_idx, ul_ate_col)) or info.stdf_upper
+            value = _safe_float(get_cell(template_ws, row_idx, ul_ate_col))
+            if value is not None:
+                info.stdf_upper = value
         if spec_lower_col:
-            info.spec_lower = _safe_float(get_cell(template_ws, row_idx, spec_lower_col)) or info.spec_lower
+            value = _safe_float(get_cell(template_ws, row_idx, spec_lower_col))
+            if value is not None:
+                info.spec_lower = value
         if spec_upper_col:
-            info.spec_upper = _safe_float(get_cell(template_ws, row_idx, spec_upper_col)) or info.spec_upper
+            value = _safe_float(get_cell(template_ws, row_idx, spec_upper_col))
+            if value is not None:
+                info.spec_upper = value
         if what_lower_col:
-            info.what_lower = _safe_float(get_cell(template_ws, row_idx, what_lower_col)) or info.what_lower
+            value = _safe_float(get_cell(template_ws, row_idx, what_lower_col))
+            if value is not None:
+                info.what_lower = value
         if what_upper_col:
-            info.what_upper = _safe_float(get_cell(template_ws, row_idx, what_upper_col)) or info.what_upper
+            value = _safe_float(get_cell(template_ws, row_idx, what_upper_col))
+            if value is not None:
+                info.what_upper = value
         if prop_lower_col:
-            info.proposed_lower = _safe_float(get_cell(template_ws, row_idx, prop_lower_col)) or info.proposed_lower
+            value = _safe_float(get_cell(template_ws, row_idx, prop_lower_col))
+            if value is not None:
+                info.proposed_lower = value
         if prop_upper_col:
-            info.proposed_upper = _safe_float(get_cell(template_ws, row_idx, prop_upper_col)) or info.proposed_upper
+            value = _safe_float(get_cell(template_ws, row_idx, prop_upper_col))
+            if value is not None:
+                info.proposed_upper = value
 
     return lookup
 

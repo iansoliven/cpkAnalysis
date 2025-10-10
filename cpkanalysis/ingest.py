@@ -29,6 +29,8 @@ class _TestMetadata:
     unit: str = ""
     low_limit: float | None = None
     high_limit: float | None = None
+    has_low_limit: bool = False
+    has_high_limit: bool = False
     scale: int | None = None
 
 
@@ -93,10 +95,22 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
                 continue
             if existing.get("unit") in ("", None) and info.get("unit"):
                 existing["unit"] = info["unit"]
-            if existing.get("stdf_lower") is None and info.get("stdf_lower") is not None:
+            existing.setdefault("has_stdf_lower", existing.get("stdf_lower") is not None)
+            existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
+            info_low_flag = info.get("has_stdf_lower")
+            info_high_flag = info.get("has_stdf_upper")
+            if info_low_flag is False:
+                existing["stdf_lower"] = None
+                existing["has_stdf_lower"] = False
+            elif info.get("stdf_lower") is not None:
                 existing["stdf_lower"] = info["stdf_lower"]
-            if existing.get("stdf_upper") is None and info.get("stdf_upper") is not None:
+                existing["has_stdf_lower"] = True
+            if info_high_flag is False:
+                existing["stdf_upper"] = None
+                existing["has_stdf_upper"] = False
+            elif info.get("stdf_upper") is not None:
                 existing["stdf_upper"] = info["stdf_upper"]
+                existing["has_stdf_upper"] = True
 
     if all_frames:
         combined = pd.concat(all_frames, ignore_index=True)
@@ -111,8 +125,8 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
             "test_name": key[0],
             "test_number": key[1],
             "unit": info.get("unit") or "",
-            "stdf_lower": info.get("stdf_lower"),
-            "stdf_upper": info.get("stdf_upper"),
+            "stdf_lower": info.get("stdf_lower") if info.get("has_stdf_lower", info.get("stdf_lower") is not None) else None,
+            "stdf_upper": info.get("stdf_upper") if info.get("has_stdf_upper", info.get("stdf_upper") is not None) else None,
             "spec_lower": None,
             "spec_upper": None,
             "what_if_lower": None,
@@ -245,19 +259,23 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    
-    # STDF specification: OPT_FLG bit 6 (0x40) indicates no low limit
-    # Only update metadata if we have a valid limit (not flagged as no limit)
-    if raw_low_limit is not None and not (opt_flg & 0x40):
+    no_low_limit = bool(opt_flg & 0x40)
+    if no_low_limit:
+        metadata.low_limit = None
+        metadata.has_low_limit = False
+    elif raw_low_limit is not None:
         metadata.low_limit = raw_low_limit
+        metadata.has_low_limit = True
     
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    
-    # STDF specification: OPT_FLG bit 7 (0x80) indicates no high limit
-    # Only update metadata if we have a valid limit (not flagged as no limit)
-    if raw_high_limit is not None and not (opt_flg & 0x80):
+    no_high_limit = bool(opt_flg & 0x80)
+    if no_high_limit:
+        metadata.high_limit = None
+        metadata.has_high_limit = False
+    elif raw_high_limit is not None:
         metadata.high_limit = raw_high_limit
+        metadata.has_high_limit = True
     
     metadata.scale = res_scale
     cache[key] = metadata
@@ -270,18 +288,30 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     if catalog_key not in test_catalog:
         test_catalog[catalog_key] = {
             "unit": _compose_unit(metadata.unit, metadata.scale),
-            "stdf_lower": metadata.low_limit,
-            "stdf_upper": metadata.high_limit,
+            "stdf_lower": metadata.low_limit if metadata.has_low_limit else None,
+            "stdf_upper": metadata.high_limit if metadata.has_high_limit else None,
+            "has_stdf_lower": metadata.has_low_limit,
+            "has_stdf_upper": metadata.has_high_limit,
         }
     else:
         # Update existing entry if we have better information
         existing = test_catalog[catalog_key]
+        existing.setdefault("has_stdf_lower", existing.get("stdf_lower") is not None)
+        existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
         if existing.get("unit") in ("", None) and metadata.unit:
             existing["unit"] = _compose_unit(metadata.unit, metadata.scale)
-        if existing.get("stdf_lower") is None and metadata.low_limit is not None:
+        if metadata.has_low_limit is False:
+            existing["stdf_lower"] = None
+            existing["has_stdf_lower"] = False
+        elif metadata.low_limit is not None:
             existing["stdf_lower"] = metadata.low_limit
-        if existing.get("stdf_upper") is None and metadata.high_limit is not None:
+            existing["has_stdf_lower"] = True
+        if metadata.has_high_limit is False:
+            existing["stdf_upper"] = None
+            existing["has_stdf_upper"] = False
+        elif metadata.high_limit is not None:
             existing["stdf_upper"] = metadata.high_limit
+            existing["has_stdf_upper"] = True
 
 
 def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[dict[str, Any]]:
@@ -330,33 +360,25 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
 
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    
-    # STDF specification: OPT_FLG bit 6 (0x40) indicates no low limit
-    # Prioritize null values as the clearest indication of no limit
-    if raw_low_limit is None or (opt_flg & 0x40):  # No low limit
-        low_limit = None
-    else:
-        low_limit = raw_low_limit
+    no_low_limit = bool(opt_flg & 0x40)
+    if no_low_limit:
+        metadata.low_limit = None
+        metadata.has_low_limit = False
+    elif raw_low_limit is not None:
         metadata.low_limit = raw_low_limit
-    
-    # Use cached limit if no current limit available
-    if low_limit is None and raw_low_limit is None:
-        low_limit = metadata.low_limit
+        metadata.has_low_limit = True
+    low_limit = metadata.low_limit if metadata.has_low_limit else None
 
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    
-    # STDF specification: OPT_FLG bit 7 (0x80) indicates no high limit
-    # Prioritize null values as the clearest indication of no limit
-    if raw_high_limit is None or (opt_flg & 0x80):  # No high limit
-        high_limit = None
-    else:
-        high_limit = raw_high_limit
+    no_high_limit = bool(opt_flg & 0x80)
+    if no_high_limit:
+        metadata.high_limit = None
+        metadata.has_high_limit = False
+    elif raw_high_limit is not None:
         metadata.high_limit = raw_high_limit
-        
-    # Use cached limit if no current limit available
-    if high_limit is None and raw_high_limit is None:
-        high_limit = metadata.high_limit
+        metadata.has_high_limit = True
+    high_limit = metadata.high_limit if metadata.has_high_limit else None
 
     metadata.scale = res_scale
     cache[key] = metadata

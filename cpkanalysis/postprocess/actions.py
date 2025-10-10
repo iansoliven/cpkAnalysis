@@ -186,6 +186,13 @@ def _tests_to_strings(tests: Iterable[TestDescriptor]) -> List[str]:
     return [test.key() for test in tests]
 
 
+def _first_not_none(*values):
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Action implementations
 # ---------------------------------------------------------------------------
@@ -242,8 +249,8 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
             lower_limit = mean - half_width if mean is not None else None
             upper_limit = mean + half_width if mean is not None else None
         else:
-            lower_limit = _safe_float(row.get("LL_2CPK")) or _safe_float(row.get("LL_3IQR"))
-            upper_limit = _safe_float(row.get("UL_2CPK")) or _safe_float(row.get("UL_3IQR"))
+            lower_limit = _first_not_none(_safe_float(row.get("LL_2CPK")), _safe_float(row.get("LL_3IQR")))
+            upper_limit = _first_not_none(_safe_float(row.get("UL_2CPK")), _safe_float(row.get("UL_3IQR")))
 
         if lower_limit is None or upper_limit is None:
             _warn_if_missing(
