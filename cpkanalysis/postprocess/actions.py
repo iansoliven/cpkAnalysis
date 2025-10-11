@@ -278,11 +278,11 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
         lower_limit = _first_not_none(_safe_float(row.get("LL_2CPK")), _safe_float(row.get("LL_3IQR")))
         upper_limit = _first_not_none(_safe_float(row.get("UL_2CPK")), _safe_float(row.get("UL_3IQR")))
 
-        if lower_limit is None or upper_limit is None:
+        if lower_limit is None and upper_limit is None:
             _warn_if_missing(
                 io,
                 warnings,
-                f"Unable to determine LL/UL for {descriptor.label()} – skipping.",
+                f"Unable to determine limits for {descriptor.label()} – skipping.",
             )
             continue
 
@@ -302,10 +302,12 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
             continue
 
         for row_idx in template_rows:
-            sheet_utils.set_cell(template_ws, row_idx, ll_column, lower_limit)
-            sheet_utils.set_cell(template_ws, row_idx, ul_column, upper_limit)
+            if lower_limit is not None:
+                sheet_utils.set_cell(template_ws, row_idx, ll_column, lower_limit)
+            if upper_limit is not None:
+                sheet_utils.set_cell(template_ws, row_idx, ul_column, upper_limit)
 
-        if stdf_lower_col is not None and stdf_upper_col is not None:
+        if stdf_lower_col is not None or stdf_upper_col is not None:
             limit_rows = sheet_utils.find_rows_by_test(
                 limits_ws,
                 limits_header_row,
@@ -314,8 +316,10 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
                 test_number=descriptor.test_number,
             )
             for row_idx in limit_rows or []:
-                sheet_utils.set_cell(limits_ws, row_idx, stdf_lower_col, lower_limit)
-                sheet_utils.set_cell(limits_ws, row_idx, stdf_upper_col, upper_limit)
+                if stdf_lower_col is not None and lower_limit is not None:
+                    sheet_utils.set_cell(limits_ws, row_idx, stdf_lower_col, lower_limit)
+                if stdf_upper_col is not None and upper_limit is not None:
+                    sheet_utils.set_cell(limits_ws, row_idx, stdf_upper_col, upper_limit)
 
         updated_tests.append(descriptor)
 
@@ -568,14 +572,20 @@ def _compute_yield_loss(
     if measurements.empty:
         return float("nan")
     filtered = measurements.copy()
-    if "Test Name" in filtered.columns:
-        filtered = filtered[filtered["Test Name"].astype(str) == str(test_name)]
-    elif "TEST NAME" in filtered.columns:
-        filtered = filtered[filtered["TEST NAME"].astype(str) == str(test_name)]
-    if "Test Number" in filtered.columns:
-        filtered = filtered[filtered["Test Number"].astype(str) == str(test_number)]
-    elif "TEST NUM" in filtered.columns:
-        filtered = filtered[filtered["TEST NUM"].astype(str) == str(test_number)]
+    target_name = _safe_str(test_name)
+    target_number = _safe_str(test_number)
+    if target_name:
+        for column in ("Test Name", "TEST NAME"):
+            if column in filtered.columns:
+                mask = filtered[column].map(_safe_str)
+                filtered = filtered[mask == target_name]
+                break
+    if target_number:
+        for column in ("Test Number", "TEST NUM"):
+            if column in filtered.columns:
+                mask = filtered[column].map(_safe_str)
+                filtered = filtered[mask == target_number]
+                break
 
     if filtered.empty or "Value" not in filtered.columns:
         return float("nan")

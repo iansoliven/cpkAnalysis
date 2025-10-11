@@ -58,7 +58,11 @@ def refresh_tests(
 
     limit_lookup = _collect_limit_info(limits_df, template_ws)
     summary_lookup = {
-        (str(row.get("File")), str(row.get("Test Name")), str(row.get("Test Number"))): row
+        (
+            _safe_text(row.get("File")),
+            _safe_text(row.get("Test Name")),
+            _safe_text(row.get("Test Number")),
+        ): row
         for _, row in summary_df.iterrows()
     }
 
@@ -78,17 +82,19 @@ def refresh_tests(
     if tests:
         target_keys = {
             (
-                str(getattr(test, "file", "") or ""),
-                str(getattr(test, "test_name", "") or ""),
-                str(getattr(test, "test_number", "") or ""),
+                _safe_text(getattr(test, "file", "")),
+                _safe_text(getattr(test, "test_name", "")),
+                _safe_text(getattr(test, "test_number", "")),
             )
             for test in tests
         }
 
     grouped = measurements_df.groupby(["File", "Test Name", "Test Number"], sort=False, dropna=False)
     for (file_name, test_name, test_number), group in grouped:
-        file_key = str(file_name or "")
-        test_key = (str(file_name or ""), str(test_name or ""), str(test_number or ""))
+        file_key = _safe_text(file_name)
+        safe_test_name = _safe_text(test_name)
+        safe_test_number = _safe_text(test_number)
+        test_key = (file_key, safe_test_name, safe_test_number)
 
         if target_keys and test_key not in target_keys:
             continue
@@ -110,7 +116,7 @@ def refresh_tests(
         serial_numbers = filtered_group["_serial_number"].to_numpy()
         values = pd.to_numeric(filtered_group["Value"], errors="coerce").to_numpy()
 
-        limit_info = limit_lookup.get((str(test_name or ""), str(test_number or "")), LimitInfo())
+        limit_info = limit_lookup.get((safe_test_name, safe_test_number), LimitInfo())
         markers = _build_markers(
             limit_info,
             include_spec=include_spec,
@@ -150,9 +156,9 @@ def refresh_tests(
         unit_label = ""
         if summary_row is not None:
             cpk = _safe_float(summary_row.get("CPK"))
-            unit_label = str(summary_row.get("Unit") or "")
+            unit_label = _safe_text(summary_row.get("Unit"))
 
-        test_label = test_name if not test_number else f"{test_name} (Test {test_number})"
+        test_label = safe_test_name if not safe_test_number else f"{safe_test_name} (Test {safe_test_number})"
 
         if context.analysis_inputs.generate_histogram:
             anchor = _ensure_plot_anchor(hist_sheets, workbook, file_key, "Histogram")
@@ -373,7 +379,16 @@ def _safe_float(value) -> float | None:
 def _safe_text(value) -> str:
     if value is None:
         return ""
-    return str(value).strip()
+    if isinstance(value, str):
+        text = value.strip()
+        return "" if text.lower() == "nan" else text
+    try:
+        if pd.isna(value):
+            return ""
+    except Exception:
+        pass
+    text = str(value).strip()
+    return "" if text.lower() == "nan" else text
 
 
 def _row_value(row: pd.Series, candidates: Sequence[str]):
