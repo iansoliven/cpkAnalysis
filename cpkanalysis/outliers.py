@@ -42,7 +42,12 @@ def apply_outlier_filter(frame: pd.DataFrame, method: OutlierMethod, k: float) -
             lower = mean - k * std
             upper = mean + k * std
 
-        mask = (values >= lower) & (values <= upper)
+        # Create mask: keep values within bounds OR NaN/Inf (preserve non-finite values)
+        # NaN and Inf values have already passed ingestion validation and should be preserved
+        is_finite = np.isfinite(values)
+        is_within_bounds = (values >= lower) & (values <= upper)
+        mask = is_within_bounds | ~is_finite
+
         kept = group.loc[mask]
         removed += int(len(group) - len(kept))
         filtered_groups.append(kept)
