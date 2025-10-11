@@ -2,129 +2,791 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Console GUI Guide</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Console GUI Guide - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      ul, ol { margin-left: 1.2rem; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
-      .tip { background: #eef7ff; border-left: 4px solid #4c9aff; padding: 0.8rem; margin: 1.2rem 0; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      .card h4 {
+        margin-top: 0;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 0.8rem;
+        text-align: left;
+      }
+
+      th {
+        background: #667eea;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f8f9fb;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        background: #667eea;
+        color: white;
+        border-radius: 50%;
+        font-weight: 700;
+        margin-right: 0.5rem;
+      }
     </style>
   </head>
   <body>
-    <h1>Console GUI Guide</h1>
-    <p>
-      The console GUI (<code>python -m cpkanalysis.gui</code>) provides a guided workflow for entering sources, template information, chart preferences, and post-processing options without recalling command-line flags.
-    </p>
+    <div class="container">
+      <header>
+        <h1>Console GUI Guide</h1>
+        <p>Interactive workflow for guided CPK analysis configuration</p>
+      </header>
 
-    <h2>Launching the GUI</h2>
-    <pre><code>python -m cpkanalysis.gui</code></pre>
-    <p>Follow the prompts to supply:</p>
-    <ol>
-      <li>STDF file paths or directories (blank line to finish).</li>
-      <li>Template directory/file (optional) and template sheet name.</li>
-      <li>Outlier method and multiplier.</li>
-      <li>Chart generation preferences (histogram, CDF, time-series).</li>
-      <li>Plugin selections (enabled state, priority, parameters).</li>
-      <li>Output workbook path.</li>
-    </ol>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+        <a href="post_processing.html">Post-Processing</a>
+      </nav>
 
-    <div class="tip">
-      <strong>Hint:</strong> When a directory is provided for templates, the first <code>.xlsx</code> file discovered is used automatically.
-    </div>
+      <div class="content">
+        <p>
+          The console GUI (<code>python -m cpkanalysis.gui</code>) provides a guided, interactive workflow for configuring and running CPK analysis. It eliminates the need to memorize command-line flags while offering the same powerful features as the CLI, making it ideal for training, demonstrations, and exploratory analysis.
+        </p>
 
-    <h2>Post-Processing from the GUI</h2>
-    <ol>
-      <li>After the pipeline completes, the GUI reports the workbook path, metadata path, summary counts, and any plugins used.</li>
-      <li>If the post-processing context is initialised successfully, you are prompted to open the menu immediately.</li>
-      <li>The <code>post&gt;</code> command loop remains active after the initial run:
+        <div class="info-box">
+          <strong>When to Use the GUI</strong>
+          Perfect for interactive sessions, training new users, exploring post-processing options, or when you prefer prompts over command-line flags. For automation and batch processing, use the <a href="cli_reference.html">CLI</a> instead.
+        </div>
+
+        <h2>Launching the GUI</h2>
+        <div class="card">
+          <p>Start the interactive console:</p>
+          <pre><code>python -m cpkanalysis.gui</code></pre>
+          <p>The GUI will guide you through a series of prompts to configure your analysis.</p>
+        </div>
+
+        <h2>Step-by-Step Workflow</h2>
+        <p>The GUI walks you through the following configuration steps in order:</p>
+
+        <div class="card">
+          <h3><span class="step-number">1</span> STDF Input Files</h3>
+          <p><strong>Prompt:</strong> Enter STDF file paths or directories (one per line, blank line to finish)</p>
+          <ul>
+            <li>Provide absolute or relative paths to STDF files</li>
+            <li>Can specify directories (GUI will scan for <code>*.stdf</code> files)</li>
+            <li>Enter multiple files by typing each path and pressing Enter</li>
+            <li>Press Enter on blank line when finished</li>
+          </ul>
+          <p><strong>Example:</strong></p>
+          <pre><code>Enter STDF files: examples/lot2.stdf
+Enter STDF files: examples/lot3.stdf
+Enter STDF files: [press Enter]</code></pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="step-number">2</span> Template Configuration</h3>
+          <p><strong>Prompt:</strong> Template directory/file (optional, press Enter to skip)</p>
+          <ul>
+            <li>Specify path to Excel template workbook</li>
+            <li>Can provide directory (first <code>.xlsx</code> file will be used)</li>
+            <li>Press Enter to use default template</li>
+          </ul>
+          <p><strong>Follow-up:</strong> Template sheet name (default: "CPK Report")</p>
+          <ul>
+            <li>Specify which sheet receives the CPK data</li>
+            <li>Press Enter to accept default</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3><span class="step-number">3</span> Outlier Filtering</h3>
+          <p><strong>Prompt:</strong> Outlier method (none/iqr/stdev, default: none)</p>
+          <ul>
+            <li><code>none</code> — No filtering (recommended for production)</li>
+            <li><code>iqr</code> — Interquartile range filtering</li>
+            <li><code>stdev</code> — Standard deviation filtering</li>
+          </ul>
+          <p><strong>Follow-up:</strong> Outlier multiplier (default: 1.5 for IQR, 3.0 for stdev)</p>
+          <ul>
+            <li>Controls how aggressive the filtering is</li>
+            <li>Lower values = more aggressive filtering</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3><span class="step-number">4</span> Chart Generation Options</h3>
+          <p>The GUI prompts separately for each chart type:</p>
+          <ul>
+            <li><strong>Generate histograms?</strong> (yes/no, default: yes)</li>
+            <li><strong>Generate CDF charts?</strong> (yes/no, default: yes)</li>
+            <li><strong>Generate time-series charts?</strong> (yes/no, default: yes)</li>
+          </ul>
+          <div class="info-box">
+            <strong>Performance Tip</strong>
+            Disabling charts can reduce processing time by 40-60%. Charts can be regenerated later via post-processing menu.
+          </div>
+        </div>
+
+        <div class="card">
+          <h3><span class="step-number">5</span> Plugin Configuration</h3>
+          <p><strong>Prompt:</strong> Configure plugins? (yes/no, default: no)</p>
+          <p>If yes, the GUI displays available plugins and allows you to:</p>
+          <ul>
+            <li>Enable/disable specific plugins</li>
+            <li>Set plugin priorities</li>
+            <li>Configure plugin parameters</li>
+          </ul>
+          <p>Plugin selections are saved to <code>post_processing_profile.toml</code> for reuse.</p>
+        </div>
+
+        <div class="card">
+          <h3><span class="step-number">6</span> Output Path</h3>
+          <p><strong>Prompt:</strong> Output workbook path (default: CPK_Workbook.xlsx)</p>
+          <ul>
+            <li>Specify where to save the Excel workbook</li>
+            <li>Can include directory path</li>
+            <li>Press Enter to accept default</li>
+          </ul>
+        </div>
+
+        <h2>Pipeline Execution</h2>
+        <p>After configuration, the GUI automatically:</p>
+        <ol>
+          <li>Displays your configuration summary</li>
+          <li>Launches the CPK analysis pipeline</li>
+          <li>Shows progress for ingestion, statistics, and chart generation</li>
+          <li>Reports completion status with output paths</li>
+          <li>Offers to launch post-processing menu</li>
+        </ol>
+
+        <div class="success-box">
+          <strong>Configuration Review</strong>
+          Before starting, the GUI displays a complete summary of your settings. Review this to catch any configuration issues early.
+        </div>
+
+        <h2>Post-Processing from the GUI</h2>
+        <p>After pipeline completion, the GUI seamlessly transitions to post-processing mode.</p>
+
+        <h3>Initial Prompt</h3>
+        <div class="card">
+          <p><strong>Prompt:</strong> Open post-processing menu? (yes/no)</p>
+          <ul>
+            <li>Select <strong>yes</strong> to immediately access limit updates and chart regeneration</li>
+            <li>Select <strong>no</strong> to review outputs first (can open menu later)</li>
+          </ul>
+        </div>
+
+        <h3>Post-Processing Command Loop</h3>
+        <p>Once post-processing context is initialized, you enter a special command mode with prompt <code>post&gt;</code></p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>post</code></td>
+              <td>Open the interactive post-processing menu with numbered options</td>
+            </tr>
+            <tr>
+              <td><code>last</code></td>
+              <td>Re-run the previous post-processing action with same parameters</td>
+            </tr>
+            <tr>
+              <td><code>audit</code></td>
+              <td>Display complete audit log of all post-processing operations</td>
+            </tr>
+            <tr>
+              <td><code>reload</code></td>
+              <td>Discard unsaved changes and reload workbook/metadata from disk</td>
+            </tr>
+            <tr>
+              <td><code>save</code></td>
+              <td>Immediately save current workbook and metadata state</td>
+            </tr>
+            <tr>
+              <td><code>help</code></td>
+              <td>Display available commands and brief descriptions</td>
+            </tr>
+            <tr>
+              <td><code>quit</code> or blank line</td>
+              <td>Exit post-processing mode (prompts to save if changes exist)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Interactive Menu Operations</h3>
+        <p>When you type <code>post</code> at the prompt, a numbered menu appears:</p>
+
+        <div class="card">
+          <h4>1. Update STDF Limits</h4>
+          <p>Recalculate ATE limits and regenerate charts</p>
+          <ul>
+            <li>Choose scope: All tests or single test</li>
+            <li>Optionally provide target CPK value</li>
+            <li>Updates LL/UL columns and Test List sheet</li>
+            <li>Regenerates all charts for affected tests</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>2. Apply Spec / What-If Limits</h4>
+          <p>Work with specification or hypothetical limits</p>
+          <ul>
+            <li>Choose scope: All tests or single test</li>
+            <li>Reads current Spec/What-If values from workbook</li>
+            <li>Optionally compute new values from target CPK</li>
+            <li>Adds Spec/What-If markers to charts</li>
+            <li>Keeps original STDF limits intact</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>3. Calculate Proposed Limits</h4>
+          <p>Generate limit proposals for new specifications</p>
+          <ul>
+            <li><strong>Requires:</strong> Target CPK value</li>
+            <li>Choose scope: All tests or single test</li>
+            <li>Calculates LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP</li>
+            <li>Adds "Proposed" markers to charts</li>
+            <li>Updates axis ranges to accommodate new limits</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>4. Re-run Last Action</h4>
+          <p>Repeat previous operation</p>
+          <ul>
+            <li>Uses same action, scope, and parameters</li>
+            <li>Useful for iterative refinement</li>
+            <li>Also available via <code>last</code> command</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>5. Reload Workbook</h4>
+          <p>Discard changes and reload from disk</p>
+          <ul>
+            <li>Abandons all unsaved modifications</li>
+            <li>Useful if external edits were made</li>
+            <li>Confirms before discarding changes</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>6. View Audit Log</h4>
+          <p>Review operation history</p>
+          <ul>
+            <li>Shows all saved operations</li>
+            <li>Includes pending operations (not yet saved)</li>
+            <li>Displays timestamps, scope, and parameters</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>7. Exit Menu</h4>
+          <p>Return to post&gt; command prompt or exit GUI</p>
+          <ul>
+            <li>Prompts to save if unsaved changes exist</li>
+            <li>Returns to <code>post&gt;</code> prompt for more commands</li>
+          </ul>
+        </div>
+
+        <h3>Single Test Selection</h3>
+        <p>When selecting a single test, the GUI presents an interactive searchable list:</p>
+        <ol>
+          <li>All tests displayed with test number and name</li>
+          <li>Type to filter the list (searches both number and name)</li>
+          <li>Select from filtered results</li>
+          <li>Chosen test is processed immediately</li>
+        </ol>
+
+        <div class="info-box">
+          <strong>Search Tips</strong>
+          The test search is case-insensitive and matches partial strings. For example, typing "VDD" will show all tests with "VDD" in the name.
+        </div>
+
+        <h2>Plugin Profiles</h2>
+        <p>Plugin configurations made in the GUI are persisted for future use:</p>
+
+        <div class="card">
+          <h3>Profile Storage</h3>
+          <ul>
+            <li><strong>Location:</strong> <code>post_processing_profile.toml</code> in workspace root</li>
+            <li><strong>Format:</strong> TOML with plugin names, enabled state, priorities, and parameters</li>
+            <li><strong>Shared:</strong> CLI automatically uses the same profile unless overridden</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Profile Benefits</h3>
+          <ul>
+            <li>Configure once in GUI, use everywhere</li>
+            <li>Consistent plugin behavior across CLI and GUI</li>
+            <li>Easy to version control and share with team</li>
+            <li>Can manually edit TOML for batch customization</li>
+          </ul>
+        </div>
+
+        <div class="success-box">
+          <strong>Recommended Workflow</strong>
+          Use the GUI to bootstrap your plugin profile during initial setup, then switch to CLI for automation once your preferred settings are established.
+        </div>
+
+        <h2>Error Handling</h2>
+
+        <div class="card">
+          <h3>Missing Input Files</h3>
+          <p><strong>Behavior:</strong> GUI exits with error message if no valid STDF files provided</p>
+          <p><strong>Solution:</strong> Ensure at least one valid STDF file path is entered</p>
+        </div>
+
+        <div class="card">
+          <h3>Template Not Found</h3>
+          <p><strong>Behavior:</strong> Warning displayed, analysis continues with default template</p>
+          <p><strong>Solution:</strong> Verify template path or press Enter to use defaults</p>
+        </div>
+
+        <div class="card">
+          <h3>Plugin Discovery Errors</h3>
+          <p><strong>Behavior:</strong> Warning banner shown, plugin list may be empty</p>
+          <p><strong>Solution:</strong> Check plugin directory permissions and profile syntax</p>
+        </div>
+
+        <div class="card">
+          <h3>Workbook Write Errors</h3>
+          <p><strong>Behavior:</strong> Error displayed if output path is not writable</p>
+          <p><strong>Solution:</strong></p>
+          <ul>
+            <li>Close workbook if open in Excel</li>
+            <li>Verify directory write permissions</li>
+            <li>Choose alternative output path</li>
+          </ul>
+        </div>
+
+        <h2>GUI vs CLI Comparison</h2>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th>GUI</th>
+              <th>CLI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Configuration Method</td>
+              <td>Interactive prompts</td>
+              <td>Command-line flags</td>
+            </tr>
+            <tr>
+              <td>Learning Curve</td>
+              <td>Low (guided)</td>
+              <td>Medium (requires flag knowledge)</td>
+            </tr>
+            <tr>
+              <td>Automation</td>
+              <td>Not suitable</td>
+              <td>Excellent</td>
+            </tr>
+            <tr>
+              <td>Batch Processing</td>
+              <td>Manual for each file</td>
+              <td>Supports manifests and scripting</td>
+            </tr>
+            <tr>
+              <td>Post-Processing</td>
+              <td>Interactive menu with commands</td>
+              <td>Direct menu access</td>
+            </tr>
+            <tr>
+              <td>Plugin Configuration</td>
+              <td>Visual selection</td>
+              <td>Directive strings</td>
+            </tr>
+            <tr>
+              <td>Best For</td>
+              <td>Training, exploration, demos</td>
+              <td>Production, automation, CI/CD</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Best Practices</h2>
+
+        <div class="success-box">
+          <strong>Training Sessions</strong>
+          <ul>
+            <li>Use GUI for live demonstrations</li>
+            <li>Let users follow prompts to build understanding</li>
+            <li>Show post-processing menu for iterative refinement</li>
+            <li>Export profile for CLI use once comfortable</li>
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <strong>Exploratory Analysis</strong>
+          <ul>
+            <li>GUI excels for one-off investigations</li>
+            <li>Test different outlier settings interactively</li>
+            <li>Try various limit scenarios via post-processing</li>
+            <li>Save/reload to experiment without fear</li>
+          </ul>
+        </div>
+
+        <div class="warning-box">
+          <strong>When Not to Use GUI</strong>
+          <ul>
+            <li>Automated pipelines (use CLI)</li>
+            <li>Batch processing dozens of files (use CLI with manifest)</li>
+            <li>CI/CD integration (use CLI)</li>
+            <li>Headless environments (GUI requires interactive terminal)</li>
+          </ul>
+        </div>
+
+        <h2>Example Session</h2>
+        <div class="card">
+          <p>Typical interactive session flow:</p>
+          <pre><code>$ python -m cpkanalysis.gui
+
+Welcome to CPK Analysis Interactive Console!
+
+Enter STDF files (blank line to finish):
+  examples/lot2.stdf
+  examples/lot3.stdf
+  [Enter]
+
+Template directory/file (Enter to skip): cpkTemplate/
+Template sheet (default "CPK Report"): [Enter]
+
+Outlier method (none/iqr/stdev): iqr
+Outlier multiplier (default 1.5): [Enter]
+
+Generate histograms? (yes/no): yes
+Generate CDF charts? (yes/no): yes
+Generate time-series charts? (yes/no): no
+
+Configure plugins? (yes/no): no
+
+Output workbook (default CPK_Workbook.xlsx): temp/MyAnalysis.xlsx
+
+Configuration Summary:
+  Inputs: 2 STDF files
+  Template: cpkTemplate/cpk_report_output_template.xlsx
+  Outlier: IQR (k=1.5)
+  Charts: Histogram, CDF
+  Output: temp/MyAnalysis.xlsx
+
+Starting analysis...
+[Progress indicators]
+Analysis complete!
+
+Open post-processing menu? (yes/no): yes
+
+post> post
+[Menu displayed]
+Select action: 1
+Update STDF Limits
+Scope (all/single): single
+[Test list displayed]
+Select test: VDD_CORE
+Target CPK (blank to skip): 1.67
+Processing...
+Done! Charts regenerated.
+
+post> save
+Saved temp/MyAnalysis.xlsx
+
+post> quit
+Goodbye!</code></pre>
+        </div>
+
+        <h2>Troubleshooting Tips</h2>
+
+        <div class="card">
+          <h3>GUI Freezes or Hangs</h3>
+          <ul>
+            <li>Check if waiting for input (prompt may have scrolled)</li>
+            <li>Large files may take time - be patient during ingestion</li>
+            <li>Use Ctrl+C to interrupt if truly frozen</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Post-Processing Menu Not Appearing</h3>
+          <ul>
+            <li>Ensure analysis completed successfully</li>
+            <li>Check for errors in pipeline output</li>
+            <li>Verify workbook was created</li>
+            <li>Manually run: <code>python -m cpkanalysis.cli post-process --workbook &lt;path&gt;</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Plugin Configuration Issues</h3>
+          <ul>
+            <li>Check <code>post_processing_profile.toml</code> syntax</li>
+            <li>Delete profile to reset to defaults</li>
+            <li>Verify plugin directory exists and is readable</li>
+            <li>Use <code>--debug</code> flag with CLI for detailed error info</li>
+          </ul>
+        </div>
+
+        <h2>Related Documentation</h2>
         <ul>
-          <li><code>post</code> &mdash; Launch the post-processing menu again.</li>
-          <li><code>last</code> &mdash; Re-run the previous action without re-entering parameters.</li>
-          <li><code>audit</code> &mdash; Display recorded post-processing runs (including unsaved entries).</li>
-          <li><code>reload</code> &mdash; Discard changes and reload workbook/metadata from disk.</li>
-          <li><code>save</code> &mdash; Persist current workbook and metadata state immediately.</li>
-          <li><code>help</code> &mdash; Display available commands.</li>
-          <li><code>quit</code> / blank line &mdash; Exit the loop.</li>
+          <li><a href="getting_started.html">Getting Started</a> — Installation and setup guide</li>
+          <li><a href="cli_reference.html">CLI Reference</a> — Command-line alternative with full options</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> — Detailed menu operation reference</li>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> — Understanding data parsing</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> — Automated test execution</li>
         </ul>
-      </li>
-    </ol>
+      </div>
 
-    <h3>Menu Workflow</h3>
-    <ol>
-      <li>Choose an action from the numbered list.</li>
-      <li>Select the scope:
-        <ul>
-          <li><strong>All tests</strong> &mdash; applies changes across every summary row.</li>
-          <li><strong>Single test</strong> &mdash; the GUI presents a searchable list (by test name/number). Pick the desired entry.</li>
-        </ul>
-      </li>
-      <li>If prompted, enter a target CPK value. Blank input keeps existing limits; positive numbers compute symmetrical bounds around the mean.</li>
-      <li>Review warnings (for example, missing sheets or zero variance) displayed immediately after the action runs.</li>
-      <li>Accept the automatic save (recommended) or choose to defer saving and continue experimenting.</li>
-    </ol>
-
-    <h3>Action Details</h3>
-    <h4>Update STDF Limits</h4>
-    <ul>
-      <li>Prompts for scope and optional target CPK.</li>
-      <li>Writes new LL/UL values to the template sheet and Test List &amp; Limits catalog columns.</li>
-      <li>Regenerates histogram, CDF, and time-series charts for the affected tests.</li>
-      <li>Audit log records scope, target CPK, and test keys.</li>
-    </ul>
-
-    <h4>Apply Spec / What-If Limits</h4>
-    <ul>
-      <li>Prompts for scope and optional target CPK (used to compute new spec/what-if values when supplied).</li>
-      <li>Reads current Spec/What-If entries on the template sheet, merges edits, and synchronises the Test List &amp; Limits sheet.</li>
-      <li>Keeps original STDF markers while layering additional Spec/What-If lines into refreshed charts.</li>
-      <li>Metadata captures which columns were touched and the selected tests.</li>
-    </ul>
-
-    <h4>Calculate Proposed Limits</h4>
-    <ul>
-      <li>Requires a target CPK and prompts for scope.</li>
-      <li>Calculates LL_PROP, UL_PROP, CPK_PROP, and %YLD LOSS_PROP columns on the template sheet.</li>
-      <li>Adds “Proposed” markers to charts and updates axis ranges accordingly.</li>
-      <li>Audit entry includes the target CPK and test list.</li>
-    </ul>
-
-    <h4>Utility Menu Items</h4>
-    <ul>
-      <li><strong>Re-run last action</strong> &mdash; repeats the previous selection with the same parameters (also mapped to <code>last</code> command).</li>
-      <li><strong>Reload workbook</strong> &mdash; discards unsaved progress and reloads from disk. Use this if changes were made externally.</li>
-      <li><strong>View audit log</strong> &mdash; prints saved and pending audit entries to the console.</li>
-      <li><strong>Exit</strong> &mdash; prompts to save if dirty; otherwise closes the menu.</li>
-    </ul>
-
-    <div class="tip">
-      All menu actions update the metadata JSON alongside the workbook. Even if you select “Skip save”, the audit entry remains queued and will be written the next time <code>save</code> or automatic saving succeeds.
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
     </div>
-
-    <h2>Plugin Profiles</h2>
-    <ul>
-      <li>Selections made in the GUI are written to <code>post_processing_profile.toml</code> under the workspace.</li>
-      <li>The CLI reuses the same profile unless overridden by <code>--plugin-profile</code>.</li>
-      <li>Use the GUI to bootstrap profiles during onboarding, then switch to CLI automation once defaults are established.</li>
-    </ul>
-
-    <h2>Error Handling</h2>
-    <ul>
-      <li>Missing STDF inputs cause the GUI to exit with guidance to provide at least one file.</li>
-      <li>Template or workbook path errors are surfaced alongside the prompt that triggered them.</li>
-      <li>Plugin discovery exceptions fall back to an empty list with a warning banner.</li>
-    </ul>
-
-    <h2>When to Use the GUI</h2>
-    <ul>
-      <li>Interactive demonstrations and ad-hoc analysis where prompts are more convenient than CLI flags.</li>
-      <li>Exploring new post-processing scenarios before scripting them into automation.</li>
-      <li>Training sessions where operators prefer guided input versus terminal commands.</li>
-    </ul>
-
-    <p>
-      For automation or batch processing, the <a href="cli_reference.html">CLI</a> is recommended. The GUI and CLI share the same underlying pipeline, post-processing engine, and plugin registry.
-    </p>
   </body>
 </html>

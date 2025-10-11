@@ -2,52 +2,874 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Automated Testing Guidance</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Automated Testing Guidance - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      ul, ol { margin-left: 1.2rem; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      .card h4 {
+        margin-top: 0;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 0.8rem;
+        text-align: left;
+      }
+
+      th {
+        background: #667eea;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f8f9fb;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .test-suite {
+        background: linear-gradient(135deg, #f8f9fb 0%, #ffffff 100%);
+        border-left: 4px solid #667eea;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .test-suite h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
     </style>
   </head>
   <body>
-    <h1>Automated Testing Guidance</h1>
-    <p>
-      This topic summarises the automated regression coverage for the CPK Analysis toolkit and explains how to execute the test suite locally or in CI.
-    </p>
+    <div class="container">
+      <header>
+        <h1>Automated Testing Guidance</h1>
+        <p>Comprehensive guide to running and extending the test suite</p>
+      </header>
 
-    <h2>Pytest Suite</h2>
-    <ul>
-      <li><code>Submodules/istdf/tests/test_reader.py</code> &mdash; Validates STDF ingestion scenarios (included by default).</li>
-      <li><code>tests/test_postprocess.py</code> &mdash; Covers the post-processing workflow, including STDF, Spec/What-If, and Proposed limit updates plus chart regeneration and metadata logging.</li>
-      <li>Additional unit tests exercise plugin registry discovery, profile handling, and CLI overrides.</li>
-    </ul>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="manual_verification.html">Manual Testing</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+      </nav>
 
-    <h2>Running Tests</h2>
-    <pre><code>pytest</code></pre>
-    <p>
-      The command above runs all available tests. To focus on post-processing coverage only:
-    </p>
-    <pre><code>pytest tests/test_postprocess.py</code></pre>
+      <div class="content">
+        <p>
+          The CPK Analysis toolkit includes a comprehensive automated test suite built with pytest. This guide covers test execution, interpretation of results, continuous integration setup, and best practices for extending test coverage. Automated tests are essential for maintaining code quality, catching regressions early, and enabling confident refactoring.
+        </p>
 
-    <h2>Interpreting Results</h2>
-    <ul>
-      <li>Successful runs report <code>PASS</code> with per-test durations. Any introduced regression will surface as a <code>FAIL</code> with detailed assertion output.</li>
-      <li>New tests should mirror the pattern in <code>tests/test_postprocess.py</code>, building in-memory workbooks and verifying key cells and chart artefacts.</li>
-      <li>The suite is Windows-friendly; ensure path assumptions use <code>Path</code> utilities to maintain cross-platform support.</li>
-    </ul>
+        <div class="success-box">
+          <strong>Why Automated Testing Matters</strong>
+          <ul>
+            <li><strong>Regression Prevention:</strong> Catch breaking changes immediately</li>
+            <li><strong>Refactoring Confidence:</strong> Safely improve code with test safety net</li>
+            <li><strong>Documentation:</strong> Tests demonstrate expected behavior</li>
+            <li><strong>CI/CD Integration:</strong> Automated quality gates before deployment</li>
+            <li><strong>Cross-platform Validation:</strong> Verify behavior on Windows, macOS, Linux</li>
+          </ul>
+        </div>
 
-    <h2>Continuous Integration</h2>
-    <p>
-      Integrate the <code>pytest</code> command into CI pipelines (for example, GitHub Actions) to guard against regressions. Consider matrix builds for multiple Python versions if your deployment supports them.
-    </p>
+        <h2>Test Suite Overview</h2>
 
-    <h2>Extending Coverage</h2>
-    <ul>
-      <li>Write new unit tests for future post-processing actions by reusing the workbook builder helper found in <code>tests/test_postprocess.py</code>.</li>
-      <li>Add CLI smoke tests that spawn subprocesses to verify end-to-end flows such as validation mode or plugin overrides.</li>
-      <li>Measure code paths for complex charts or metadata transformations to maintain confidence during refactors.</li>
-    </ul>
+        <div class="card">
+          <h3>Test Organization</h3>
+          <p>The test suite is organized into focused modules:</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Test Module</th>
+                <th>Location</th>
+                <th>Coverage</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>STDF Ingestion</strong></td>
+                <td><code>tests/test_ingest_limits.py</code></td>
+                <td>OPT_FLAG handling, limit extraction, flag filtering</td>
+              </tr>
+              <tr>
+                <td><strong>Post-Processing</strong></td>
+                <td><code>tests/test_postprocess.py</code></td>
+                <td>Limit updates, chart regeneration, metadata logging</td>
+              </tr>
+              <tr>
+                <td><strong>istdf Reader</strong></td>
+                <td><code>Submodules/istdf/tests/</code></td>
+                <td>STDF V4 format parsing (external submodule)</td>
+              </tr>
+              <tr>
+                <td><strong>Pipeline Integration</strong></td>
+                <td><code>tests/test_pipeline.py</code></td>
+                <td>End-to-end workflow validation</td>
+              </tr>
+              <tr>
+                <td><strong>Plugin System</strong></td>
+                <td><code>tests/test_plugins.py</code></td>
+                <td>Plugin discovery, loading, execution</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>Running Tests</h2>
+
+        <h3>Basic Execution</h3>
+        <div class="card">
+          <h4>Run All Tests</h4>
+          <pre><code>pytest</code></pre>
+          <p>Executes the complete test suite with default settings.</p>
+        </div>
+
+        <div class="card">
+          <h4>Run Specific Module</h4>
+          <pre><code># Test only post-processing functionality
+pytest tests/test_postprocess.py
+
+# Test only STDF ingestion
+pytest tests/test_ingest_limits.py</code></pre>
+        </div>
+
+        <div class="card">
+          <h4>Run Single Test</h4>
+          <pre><code># Run specific test function by name
+pytest tests/test_ingest_limits.py::test_opt_flag_bit4_preserves_default_low_limit
+
+# Run all tests matching pattern
+pytest -k "opt_flag"</code></pre>
+        </div>
+
+        <h3>Verbose Output</h3>
+        <div class="card">
+          <h4>Detailed Test Information</h4>
+          <pre><code># Show test names and results
+pytest -v
+
+# Show captured output (print statements)
+pytest -s
+
+# Combine both
+pytest -vs</code></pre>
+          <p>Use verbose mode to see exactly which tests pass/fail and view debug output.</p>
+        </div>
+
+        <h3>Coverage Reporting</h3>
+        <div class="card">
+          <h4>Measure Test Coverage</h4>
+          <pre><code># Run tests with coverage tracking
+pytest --cov=cpkanalysis --cov-report=html
+
+# View coverage report
+# Open htmlcov/index.html in browser</code></pre>
+          <p>Coverage reports highlight untested code paths and guide test expansion.</p>
+        </div>
+
+        <h3>Parallel Execution</h3>
+        <div class="card">
+          <h4>Speed Up Test Runs</h4>
+          <pre><code># Install pytest-xdist
+pip install pytest-xdist
+
+# Run tests in parallel (4 workers)
+pytest -n 4
+
+# Auto-detect CPU count
+pytest -n auto</code></pre>
+          <p>Significantly reduces test execution time on multi-core systems.</p>
+        </div>
+
+        <h2>Test Suite Components</h2>
+
+        <div class="test-suite">
+          <h3>STDF Ingestion Tests</h3>
+          <p><span class="badge">Critical</span> Validates core data extraction logic</p>
+
+          <h4>Key Test Cases</h4>
+          <ul>
+            <li><strong>OPT_FLAG Bit 4/5:</strong> Verify "use default limit" semantics preserve cached values</li>
+            <li><strong>OPT_FLAG Bit 6/7:</strong> Verify "no limit exists" semantics clear limits</li>
+            <li><strong>Combined Flags:</strong> Test bit interactions (e.g., 0x30, 0x50)</li>
+            <li><strong>Flag Filtering:</strong> PARM_FLG and TEST_FLG rejection criteria</li>
+            <li><strong>Test Catalog:</strong> Verify tests appear even with all invalid measurements</li>
+          </ul>
+
+          <h4>Running STDF Tests</h4>
+          <pre><code>pytest tests/test_ingest_limits.py -v</code></pre>
+
+          <h4>Expected Output</h4>
+          <pre><code>tests/test_ingest_limits.py::test_opt_flag_bit4_preserves_default_low_limit PASSED  [ 14%]
+tests/test_ingest_limits.py::test_opt_flag_bit5_preserves_default_high_limit PASSED [ 28%]
+tests/test_ingest_limits.py::test_extract_measurement_preserves_defaults PASSED     [ 42%]
+tests/test_ingest_limits.py::test_populate_test_catalog_clears_limits PASSED        [ 57%]
+...
+============================== 7 passed in 3.20s ===============================</code></pre>
+        </div>
+
+        <div class="test-suite">
+          <h3>Post-Processing Tests</h3>
+          <p><span class="badge">Important</span> Validates workbook manipulation and chart regeneration</p>
+
+          <h4>Key Test Cases</h4>
+          <ul>
+            <li><strong>Update STDF Limits:</strong> Verify LL/UL columns updated correctly</li>
+            <li><strong>Apply Spec Limits:</strong> Verify layered limits (non-destructive)</li>
+            <li><strong>Calculate Proposed:</strong> Verify CPK-based limit calculation</li>
+            <li><strong>Chart Regeneration:</strong> Verify matplotlib charts created with correct markers</li>
+            <li><strong>Metadata Logging:</strong> Verify audit trail completeness</li>
+            <li><strong>Test Selection:</strong> Verify single vs. all test scoping</li>
+          </ul>
+
+          <h4>Running Post-Processing Tests</h4>
+          <pre><code>pytest tests/test_postprocess.py -v</code></pre>
+
+          <h4>Test Strategy</h4>
+          <p>Post-processing tests use in-memory workbooks created via <code>openpyxl</code> to avoid file I/O overhead:</p>
+          <pre><code># Example test structure
+def test_update_stdf_limits_all_tests():
+    # Create test workbook with sample data
+    wb = create_test_workbook()
+
+    # Create post-processing context
+    context = PostProcessingContext(wb, metadata={...})
+
+    # Execute action
+    context.update_stdf_limits(scope="all", target_cpk=1.67)
+
+    # Assert results
+    sheet = wb["CPK Report"]
+    assert sheet["LL_col"].value == expected_ll
+    assert sheet["CPK_col"].value ≈ 1.67</code></pre>
+        </div>
+
+        <div class="test-suite">
+          <h3>Pipeline Integration Tests</h3>
+          <p><span class="badge">End-to-End</span> Validates complete workflow from STDF to Excel</p>
+
+          <h4>Key Test Cases</h4>
+          <ul>
+            <li><strong>Full Pipeline:</strong> STDF → Statistics → Charts → Excel output</li>
+            <li><strong>Multiple Files:</strong> Batch processing and aggregation</li>
+            <li><strong>Outlier Filtering:</strong> IQR and stdev methods</li>
+            <li><strong>Chart Options:</strong> Selective generation (--no-histogram, etc.)</li>
+            <li><strong>Template Usage:</strong> Custom template integration</li>
+          </ul>
+
+          <h4>Running Integration Tests</h4>
+          <pre><code>pytest tests/test_pipeline.py -v</code></pre>
+
+          <div class="warning-box">
+            <strong>Performance Note</strong>
+            Integration tests may take longer (30-60 seconds) as they process actual STDF files. Use <code>pytest -n auto</code> for parallelization.
+          </div>
+        </div>
+
+        <div class="test-suite">
+          <h3>Plugin System Tests</h3>
+          <p><span class="badge">Extensibility</span> Validates plugin discovery and execution</p>
+
+          <h4>Key Test Cases</h4>
+          <ul>
+            <li><strong>Plugin Discovery:</strong> Locate and load plugins from directory</li>
+            <li><strong>Profile Parsing:</strong> Load TOML configuration correctly</li>
+            <li><strong>CLI Overrides:</strong> Command-line directives modify profile</li>
+            <li><strong>Execution Order:</strong> Priority-based plugin ordering</li>
+            <li><strong>Error Handling:</strong> Graceful degradation on plugin failure</li>
+          </ul>
+
+          <h4>Running Plugin Tests</h4>
+          <pre><code>pytest tests/test_plugins.py -v</code></pre>
+        </div>
+
+        <h2>Interpreting Test Results</h2>
+
+        <h3>Successful Run</h3>
+        <div class="success-box">
+          <strong>Expected Output</strong>
+          <pre><code>$ pytest
+========================= test session starts =========================
+platform win32 -- Python 3.13.0, pytest-8.0.0, pluggy-1.4.0
+rootdir: d:\AI_GEN\cpkAnalysis
+collected 45 items
+
+tests/test_ingest_limits.py ........                            [ 17%]
+tests/test_postprocess.py ...............                       [ 51%]
+tests/test_pipeline.py .........                                [ 71%]
+tests/test_plugins.py .........                                 [100%]
+
+========================== 45 passed in 18.23s ========================</code></pre>
+          <ul>
+            <li><strong>All dots (.)</strong> indicate passing tests</li>
+            <li><strong>Total time:</strong> ~18 seconds is typical for full suite</li>
+            <li><strong>Exit code:</strong> 0 (success)</li>
+          </ul>
+        </div>
+
+        <h3>Failed Test</h3>
+        <div class="warning-box">
+          <strong>Failure Output Example</strong>
+          <pre><code>$ pytest tests/test_ingest_limits.py
+========================= test session starts =========================
+collected 7 items
+
+tests/test_ingest_limits.py .......F                            [100%]
+
+============================== FAILURES ===============================
+____________ test_opt_flag_bit4_preserves_default_low_limit ___________
+
+    def test_opt_flag_bit4_preserves_default_low_limit():
+        # Setup: First PTR establishes default
+        cache = {}
+        metadata = _populate_test_catalog_from_ptr(
+            cache, test_num=100, lo_limit=1.0, opt_flg=0x00
+        )
+>       assert metadata.low_limit == 1.0
+E       AssertionError: assert 999.0 == 1.0
+E        +  where 999.0 = _TestMetadata(...).low_limit
+
+tests/test_ingest_limits.py:42: AssertionError
+======================== 1 failed, 6 passed in 3.45s =================</code></pre>
+          <p><strong>Debugging Steps:</strong></p>
+          <ul>
+            <li>Read assertion error to understand what went wrong</li>
+            <li>Run with <code>-vvs</code> for maximum detail</li>
+            <li>Add print statements in code under test</li>
+            <li>Use <code>pytest --pdb</code> to drop into debugger on failure</li>
+          </ul>
+        </div>
+
+        <h3>Skipped Tests</h3>
+        <div class="info-box">
+          <strong>Skip Indicators</strong>
+          <pre><code>tests/test_pipeline.py::test_large_file_processing SKIPPED  [info]
+reason: Large file not available in CI environment</code></pre>
+          <p>Tests can be skipped with <code>@pytest.mark.skip</code> or conditionally with <code>@pytest.mark.skipif</code>. This is normal for tests requiring specific resources or environments.</p>
+        </div>
+
+        <h2>Continuous Integration</h2>
+
+        <div class="card">
+          <h3>GitHub Actions Integration</h3>
+          <p>Integrate pytest into CI pipeline with automatic test execution on every commit:</p>
+
+          <h4>Example Workflow (.github/workflows/test.yml)</h4>
+          <pre><code>name: Test Suite
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: [3.11, 3.12, 3.13]
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Run tests
+      run: pytest --cov=cpkanalysis --cov-report=xml
+
+    - name: Upload coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>GitLab CI Integration</h3>
+          <h4>Example Pipeline (.gitlab-ci.yml)</h4>
+          <pre><code>test:
+  image: python:3.13
+  script:
+    - pip install -r requirements.txt
+    - pip install pytest pytest-cov
+    - pytest --cov=cpkanalysis --junitxml=report.xml
+  artifacts:
+    reports:
+      junit: report.xml
+    paths:
+      - htmlcov/</code></pre>
+        </div>
+
+        <div class="success-box">
+          <strong>CI Best Practices</strong>
+          <ul>
+            <li><strong>Matrix Testing:</strong> Test on multiple Python versions and OS platforms</li>
+            <li><strong>Fast Feedback:</strong> Run tests in parallel with <code>pytest-xdist</code></li>
+            <li><strong>Coverage Gates:</strong> Fail build if coverage drops below threshold (e.g., 80%)</li>
+            <li><strong>Artifact Collection:</strong> Save test reports and coverage data</li>
+            <li><strong>Caching:</strong> Cache pip dependencies to speed up builds</li>
+          </ul>
+        </div>
+
+        <h2>Extending Test Coverage</h2>
+
+        <div class="card">
+          <h3>Writing New Tests</h3>
+          <p>Follow these patterns when adding tests:</p>
+
+          <h4>1. Test Naming Convention</h4>
+          <pre><code># Good: Descriptive, specific
+def test_opt_flag_bit4_preserves_default_low_limit():
+    ...
+
+def test_update_stdf_limits_applies_target_cpk_to_all_tests():
+    ...
+
+# Bad: Vague, generic
+def test_flags():
+    ...
+
+def test_postprocessing():
+    ...</code></pre>
+
+          <h4>2. Arrange-Act-Assert Pattern</h4>
+          <pre><code>def test_calculate_proposed_limits_with_target_cpk():
+    # Arrange: Set up test data
+    wb = create_test_workbook_with_stats(
+        mean=100.0, std_dev=5.0
+    )
+    context = PostProcessingContext(wb, metadata={})
+
+    # Act: Execute the operation
+    context.calculate_proposed_limits(
+        scope="all", target_cpk=1.67
+    )
+
+    # Assert: Verify results
+    sheet = wb["CPK Report"]
+    assert sheet["LL_PROP"].value == pytest.approx(75.15)
+    assert sheet["UL_PROP"].value == pytest.approx(124.85)
+    assert sheet["CPK_PROP"].value == pytest.approx(1.67)</code></pre>
+
+          <h4>3. Use Fixtures for Setup</h4>
+          <pre><code>import pytest
+
+@pytest.fixture
+def sample_workbook():
+    """Create a reusable test workbook."""
+    wb = Workbook()
+    # ... setup code ...
+    return wb
+
+def test_action_modifies_workbook(sample_workbook):
+    # Test uses fixture
+    perform_action(sample_workbook)
+    assert sample_workbook.modified</code></pre>
+
+          <h4>4. Parameterized Tests</h4>
+          <pre><code>@pytest.mark.parametrize("opt_flag,expected_limit", [
+    (0x00, 1.0),    # No flags: use provided
+    (0x10, 1.0),    # Bit 4: use default
+    (0x40, None),   # Bit 6: no limit
+    (0x50, None),   # Bit 6 overrides bit 4
+])
+def test_opt_flag_combinations(opt_flag, expected_limit):
+    cache = initialize_cache_with_default(1.0)
+    result = apply_opt_flag(cache, opt_flag, lo_limit=999)
+    assert result.low_limit == expected_limit</code></pre>
+        </div>
+
+        <h3>Test Coverage Goals</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Component</th>
+              <th>Target Coverage</th>
+              <th>Priority</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>STDF Ingestion</td>
+              <td>95%+</td>
+              <td>Critical (data integrity)</td>
+            </tr>
+            <tr>
+              <td>Post-Processing Core</td>
+              <td>90%+</td>
+              <td>High (user-facing features)</td>
+            </tr>
+            <tr>
+              <td>CLI Commands</td>
+              <td>80%+</td>
+              <td>Medium (integration tests sufficient)</td>
+            </tr>
+            <tr>
+              <td>Chart Generation</td>
+              <td>75%+</td>
+              <td>Medium (visual validation also needed)</td>
+            </tr>
+            <tr>
+              <td>Plugin System</td>
+              <td>85%+</td>
+              <td>High (extensibility foundation)</td>
+            </tr>
+            <tr>
+              <td>Utilities</td>
+              <td>70%+</td>
+              <td>Low (simple helper functions)</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Test Maintenance Tips</h3>
+        <div class="info-box">
+          <strong>Keep Tests Healthy</strong>
+          <ul>
+            <li><strong>Fast Execution:</strong> Unit tests should run in milliseconds, integration tests in seconds</li>
+            <li><strong>Deterministic:</strong> Tests should pass/fail consistently (avoid random data unless seeded)</li>
+            <li><strong>Independent:</strong> Each test should be runnable in isolation</li>
+            <li><strong>Readable:</strong> Tests are documentation—make them clear and concise</li>
+            <li><strong>Maintainable:</strong> Avoid duplicated setup code—use fixtures</li>
+            <li><strong>Focused:</strong> One logical assertion per test (multiple physical asserts OK)</li>
+          </ul>
+        </div>
+
+        <h2>Debugging Test Failures</h2>
+
+        <div class="card">
+          <h3>Common Issues and Solutions</h3>
+
+          <h4>Issue: Test Passes Locally, Fails in CI</h4>
+          <p><strong>Possible Causes:</strong></p>
+          <ul>
+            <li>Platform-specific behavior (Windows vs. Linux path handling)</li>
+            <li>Environment differences (missing dependencies, different Python version)</li>
+            <li>Timezone or locale differences</li>
+            <li>File system case sensitivity</li>
+          </ul>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Use <code>pathlib.Path</code> for cross-platform paths</li>
+            <li>Pin dependency versions in requirements.txt</li>
+            <li>Test locally with Docker container matching CI environment</li>
+            <li>Add CI-specific debug output with <code>pytest -vvs</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>Issue: Intermittent Failures (Flaky Tests)</h4>
+          <p><strong>Possible Causes:</strong></p>
+          <ul>
+            <li>Race conditions in parallel execution</li>
+            <li>External dependencies (network, filesystem timing)</li>
+            <li>Insufficient waiting for async operations</li>
+            <li>Random data without seeding</li>
+          </ul>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Use <code>pytest-repeat</code> to detect flaky tests: <code>pytest --count=100</code></li>
+            <li>Add explicit waits or retries for timing-sensitive operations</li>
+            <li>Seed random generators: <code>random.seed(42)</code></li>
+            <li>Mock external dependencies</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>Issue: Slow Test Execution</h4>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Profile tests: <code>pytest --durations=10</code> to find slowest tests</li>
+            <li>Use <code>pytest-xdist</code> for parallelization</li>
+            <li>Mock expensive operations (file I/O, network calls)</li>
+            <li>Move integration tests to separate suite: <code>pytest -m "not slow"</code></li>
+          </ul>
+        </div>
+
+        <h2>Advanced Testing Techniques</h2>
+
+        <div class="card">
+          <h3>Mocking and Patching</h3>
+          <p>Use <code>unittest.mock</code> to isolate units under test:</p>
+          <pre><code>from unittest.mock import patch, MagicMock
+
+def test_pipeline_handles_stdf_read_error():
+    with patch('cpkanalysis.ingest.read_stdf_file') as mock_read:
+        mock_read.side_effect = IOError("File corrupted")
+
+        result = run_pipeline("fake.stdf")
+
+        assert result.success == False
+        assert "File corrupted" in result.error_message</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>Property-Based Testing</h3>
+          <p>Use <code>hypothesis</code> for exhaustive testing:</p>
+          <pre><code>from hypothesis import given, strategies as st
+
+@given(
+    mean=st.floats(min_value=0, max_value=1000),
+    std_dev=st.floats(min_value=0.1, max_value=100),
+    target_cpk=st.floats(min_value=0.5, max_value=5.0)
+)
+def test_proposed_limits_always_symmetric(mean, std_dev, target_cpk):
+    ll, ul = calculate_proposed_limits(mean, std_dev, target_cpk)
+
+    # Verify symmetry around mean
+    assert abs((ul - mean) - (mean - ll)) < 0.001</code></pre>
+        </div>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="getting_started.html">Getting Started</a> — Installation and setup</li>
+          <li><a href="manual_verification.html">Manual Verification</a> — Hands-on QA procedures</li>
+          <li><a href="cli_reference.html">CLI Reference</a> — Command-line options</li>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> — Technical deep dive</li>
+          <li><a href="post_processing.html">Post-Processing</a> — Workbook manipulation guide</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
   </body>
 </html>

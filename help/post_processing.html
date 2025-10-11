@@ -2,105 +2,790 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Post-Processing Menu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Post-Processing Menu - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      ul { margin-left: 1.2rem; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
-      th { background: #f2f4f8; }
-      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      .card h4 {
+        margin-top: 0;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 0.8rem;
+        text-align: left;
+      }
+
+      th {
+        background: #667eea;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f8f9fb;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .action-card {
+        background: linear-gradient(135deg, #f8f9fb 0%, #ffffff 100%);
+        border-left: 4px solid #667eea;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      }
+
+      .action-card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
     </style>
   </head>
   <body>
-    <h1>Post-Processing Menu</h1>
-    <p>
-      After the main pipeline completes, you can open an interactive menu that manipulates workbook limits, regenerates charts, and records metadata audits without re-running ingestion. The menu is available from both the CLI and the console GUI.
-    </p>
+    <div class="container">
+      <header>
+        <h1>Post-Processing Menu</h1>
+        <p>Update limits, regenerate charts, and explore what-if scenarios without re-ingesting data</p>
+      </header>
 
-    <h2>Launching the Menu</h2>
-    <h3>From the CLI</h3>
-    <ul>
-      <li><code>python -m cpkanalysis.cli run ... --postprocess</code> &mdash; automatically open the menu when the pipeline finishes.</li>
-      <li><code>python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx</code> &mdash; open the menu against an existing workbook/metadata pair.</li>
-    </ul>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="gui_reference.html">GUI Guide</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+      </nav>
 
-    <h3>From the Console GUI</h3>
-    <ol>
-      <li>Complete a standard analysis run.</li>
-      <li>Accept the prompt to launch post-processing immediately, or type <code>post</code> at the <code>post&gt;</code> prompt later in the session.</li>
-    </ol>
+      <div class="content">
+        <p>
+          The post-processing menu provides an interactive interface for modifying workbook limits, recalculating CPK statistics, and regenerating charts without the need to re-ingest STDF data. This powerful feature enables rapid iteration on limit specifications and what-if analysis, saving significant time during characterization and production setup.
+        </p>
 
-    <h2>Menu Options</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Option</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Update STDF Limits</td>
-          <td>Recompute STDF (ATE) lower/upper limits using existing statistics or a user-specified CPK target. Updates both the template sheet and Test List &amp; Limits catalog, then regenerates affected charts.</td>
-        </tr>
-        <tr>
-          <td>Apply Spec / What-If Limits</td>
-          <td>Propagate manual Spec/What-If edits or compute new values from a target CPK. Original STDF limit markers remain; charts receive additional Spec/What-If markers and a repositioned CPK annotation.</td>
-        </tr>
-        <tr>
-          <td>Calculate Proposed Limits</td>
-          <td>Calculate LL_PROP / UL_PROP, CPK_PROP, and %YLD LOSS_PROP using a supplied CPK target. Writes results to the template sheet and adds proposed limit markers to charts.</td>
-        </tr>
-        <tr>
-          <td>Re-run Last Action</td>
-          <td>Repeat the previously executed option with the same parameters.</td>
-        </tr>
-        <tr>
-          <td>Reload Workbook</td>
-          <td>Discard unsaved changes and reload workbook/metadata from disk.</td>
-        </tr>
-        <tr>
-          <td>View Audit Log</td>
-          <td>Display recorded post-processing runs (including unsaved entries).</td>
-        </tr>
-        <tr>
-          <td>Exit</td>
-          <td>Close the menu (optionally saving if unsaved changes are detected).</td>
-        </tr>
-      </tbody>
-    </table>
+        <div class="success-box">
+          <strong>Key Advantage</strong>
+          Post-processing operates directly on the existing workbook and intermediate Parquet files. This means you can experiment with different limit scenarios, target CPK values, and specification changes in seconds rather than minutes, without re-parsing large STDF files.
+        </div>
 
-    <h2>Scope and Target CPK</h2>
-    <p>Each primary action asks whether to update all tests or a single test. Selecting a single test provides a searchable list using test name and number. When prompted for a target CPK:</p>
-    <ul>
-      <li>Leave blank to reuse existing statistics/limits.</li>
-      <li>Enter a positive value to compute new symmetrical limits around the mean.</li>
-      <li>For Spec/What-If and Proposed limits, the target CPK sets both lower and upper bounds.</li>
-    </ul>
+        <h2>Launching the Menu</h2>
 
-    <h2>Chart Regeneration</h2>
-    <p>
-      The menu automatically refreshes Histogram, CDF, and Time-Series charts for impacted tests. Additional limit markers (Spec, What-If, Proposed) are layered alongside original STDF lines. CPK text now appears above the chart title to keep legends readable.
-    </p>
-    <ul>
-      <li>Axis metadata in <code>_PlotAxisRanges</code> updates so linked templates and future runs stay aligned.</li>
-      <li>Legends avoid duplicate entries by consolidating labels when multiple markers share a name.</li>
-    </ul>
+        <h3>From the CLI</h3>
+        <div class="card">
+          <h4>Option 1: Automatic Launch After Analysis</h4>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --output temp/CPK_Workbook.xlsx \
+  --postprocess</code></pre>
+          <p>The <code>--postprocess</code> flag automatically opens the menu when pipeline completes.</p>
+        </div>
 
-    <h2>Metadata Audit</h2>
-    <p>
-      Each saved action appends an entry to the workbook&rsquo;s metadata JSON under <code>post_processing.runs</code>, capturing scope, tests affected,
-      parameters (including target CPK), warnings, and timestamps.
-    </p>
+        <div class="card">
+          <h4>Option 2: Manual Launch for Existing Workbook</h4>
+          <pre><code>python -m cpkanalysis.cli post-process --workbook temp/CPK_Workbook.xlsx</code></pre>
+          <p>Open the menu for any previously generated workbook. The associated JSON metadata is loaded automatically.</p>
+        </div>
 
-    <h2>Tips</h2>
-    <ul>
-      <li>Save changes before reopening the workbook in Excel to avoid file locks.</li>
-      <li>If the workbook is modified externally between menu sessions, use the <strong>Reload</strong> option before continuing.</li>
-      <li>The menu honours chart-generation flags from the original run (histograms/CDF/time-series can be selectively disabled).</li>
-    </ul>
+        <h3>From the Console GUI</h3>
+        <div class="card">
+          <ol>
+            <li>Complete a standard analysis run via <code>python -m cpkanalysis.gui</code></li>
+            <li>Accept the prompt to launch post-processing immediately, or</li>
+            <li>Type <code>post</code> at the <code>post&gt;</code> prompt later in the session</li>
+          </ol>
+        </div>
+
+        <div class="info-box">
+          <strong>Metadata Requirement</strong>
+          The menu requires the workbook's associated JSON metadata file (e.g., <code>CPK_Workbook.json</code>). This file is automatically created during analysis and contains crucial information about test configurations, original STDF limits, and processing history.
+        </div>
+
+        <h2>Menu Options Overview</h2>
+        <p>The post-processing menu presents seven primary operations:</p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Purpose</th>
+              <th>Typical Use Case</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>1. Update STDF Limits</strong></td>
+              <td>Recalculate ATE limits and regenerate charts</td>
+              <td>Tightening limits for production qualification</td>
+            </tr>
+            <tr>
+              <td><strong>2. Apply Spec / What-If Limits</strong></td>
+              <td>Work with specification or hypothetical limits</td>
+              <td>Evaluating customer specifications or design targets</td>
+            </tr>
+            <tr>
+              <td><strong>3. Calculate Proposed Limits</strong></td>
+              <td>Generate limit proposals for target CPK</td>
+              <td>Creating new spec proposals for approval</td>
+            </tr>
+            <tr>
+              <td><strong>4. Re-run Last Action</strong></td>
+              <td>Repeat previous operation</td>
+              <td>Iterative refinement of single test</td>
+            </tr>
+            <tr>
+              <td><strong>5. Reload Workbook</strong></td>
+              <td>Discard changes and reload from disk</td>
+              <td>Abandoning experimental changes</td>
+            </tr>
+            <tr>
+              <td><strong>6. View Audit Log</strong></td>
+              <td>Review operation history</td>
+              <td>Understanding what changes were made</td>
+            </tr>
+            <tr>
+              <td><strong>7. Exit Menu</strong></td>
+              <td>Save and close</td>
+              <td>Finalizing changes</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Detailed Action Reference</h2>
+
+        <div class="action-card">
+          <h3>1. Update STDF Limits</h3>
+          <p><span class="badge">Recalculates</span> <span class="badge">Regenerates Charts</span></p>
+
+          <h4>Purpose</h4>
+          <p>Update the ATE (Automated Test Equipment) lower and upper limits based on current statistics or a target CPK value. This is the primary action for tightening or loosening test limits while maintaining the same measurement data.</p>
+
+          <h4>Workflow</h4>
+          <ol>
+            <li><strong>Select scope:</strong> All tests or single test</li>
+            <li><strong>Choose test:</strong> If single test, search and select from list</li>
+            <li><strong>Provide target CPK:</strong> Optional. Leave blank to keep existing statistics
+              <ul>
+                <li>Positive value: Compute symmetrical limits around mean for target CPK</li>
+                <li>Blank: Reuse current mean/std dev without changing limits</li>
+              </ul>
+            </li>
+            <li><strong>Confirmation:</strong> Review changes before applying</li>
+          </ol>
+
+          <h4>What Gets Updated</h4>
+          <ul>
+            <li>Template sheet: LL (lower limit) and UL (upper limit) columns</li>
+            <li>Test List & Limits sheet: STDF limit columns synchronized</li>
+            <li>Charts: All histogram, CDF, and time-series charts regenerated with new limit markers</li>
+            <li>Metadata: Operation logged with timestamp, scope, tests affected, and target CPK</li>
+          </ul>
+
+          <h4>Use Cases</h4>
+          <ul>
+            <li>Production qualification: Tighten limits after characterization</li>
+            <li>Yield recovery: Relax limits based on actual process capability</li>
+            <li>Multi-site correlation: Harmonize limits across facilities</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>2. Apply Spec / What-If Limits</h3>
+          <p><span class="badge">Layered Limits</span> <span class="badge">Non-Destructive</span></p>
+
+          <h4>Purpose</h4>
+          <p>Work with specification or hypothetical limits alongside the original STDF limits. This action is non-destructive—it adds additional limit markers to charts without removing STDF markers, enabling side-by-side comparison.</p>
+
+          <h4>Workflow</h4>
+          <ol>
+            <li><strong>Select scope:</strong> All tests or single test</li>
+            <li><strong>Choose test:</strong> If single test, select from list</li>
+            <li><strong>Provide target CPK:</strong> Optional
+              <ul>
+                <li>Blank: Use existing Spec/What-If values from workbook</li>
+                <li>Positive value: Compute new Spec/What-If limits for target CPK</li>
+              </ul>
+            </li>
+            <li><strong>Apply:</strong> Updates propagate to charts and Test List sheet</li>
+          </ol>
+
+          <h4>What Gets Updated</h4>
+          <ul>
+            <li>Template sheet: LL_SPEC, UL_SPEC, CPK_SPEC, %YLD LOSS_SPEC columns (or What-If equivalents)</li>
+            <li>Test List & Limits: Spec columns synchronized</li>
+            <li>Charts: Spec/What-If limit markers added (STDF markers remain)</li>
+            <li>CPK annotation: Positioned above chart title to show multiple CPK values</li>
+          </ul>
+
+          <h4>Use Cases</h4>
+          <ul>
+            <li>Customer specifications: Compare ATE limits vs. datasheet specs</li>
+            <li>Design targets: Evaluate design goals against actual performance</li>
+            <li>What-if analysis: Explore impact of tighter/looser limits on yield</li>
+            <li>Vendor negotiations: Present data-driven spec proposals</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>3. Calculate Proposed Limits</h3>
+          <p><span class="badge">Requires Target CPK</span> <span class="badge">New Columns</span></p>
+
+          <h4>Purpose</h4>
+          <p>Generate proposed limit recommendations for a specific target CPK. This action calculates new lower/upper limits, the resulting CPK, and estimated yield loss, providing quantitative data for limit change proposals.</p>
+
+          <h4>Workflow</h4>
+          <ol>
+            <li><strong>Provide target CPK:</strong> Required (e.g., 1.33, 1.67, 2.0)</li>
+            <li><strong>Select scope:</strong> All tests or single test</li>
+            <li><strong>Choose test:</strong> If single test, select from list</li>
+            <li><strong>Calculate:</strong> Proposed limits computed from mean and std dev</li>
+            <li><strong>Review:</strong> Check proposed values before saving</li>
+          </ol>
+
+          <h4>What Gets Updated</h4>
+          <ul>
+            <li>Template sheet: LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP columns</li>
+            <li>Charts: "Proposed" limit markers added to all chart types</li>
+            <li>Axis ranges: Automatically expanded to accommodate proposed limits if needed</li>
+            <li>Hidden metadata: _PlotAxisRanges sheet updated for consistency</li>
+          </ul>
+
+          <h4>Calculation Method</h4>
+          <pre><code># For target CPK value (e.g., 1.67):
+# Assuming bilateral limits
+
+sigma = std_dev
+mean = sample_mean
+
+# Proposed limits for symmetric specification
+LL_PROP = mean - (target_CPK × 3 × sigma)
+UL_PROP = mean + (target_CPK × 3 × sigma)
+
+# Resulting CPK with proposed limits
+CPK_PROP = min((UL_PROP - mean)/(3×sigma), (mean - LL_PROP)/(3×sigma))
+
+# Yield loss estimate (normal distribution assumption)
+YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
+
+          <h4>Use Cases</h4>
+          <ul>
+            <li>Spec proposals: Generate data-driven limit recommendations</li>
+            <li>Quality targets: Determine limits needed for Six Sigma compliance</li>
+            <li>Process capability studies: Document achievable CPK levels</li>
+            <li>Management reviews: Present quantitative yield vs. quality tradeoffs</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>4. Re-run Last Action</h3>
+          <p><span class="badge">Quick Repeat</span></p>
+
+          <h4>Purpose</h4>
+          <p>Repeat the previous post-processing action with the same parameters. Useful for iterative refinement or applying the same operation to multiple tests sequentially.</p>
+
+          <h4>Behavior</h4>
+          <ul>
+            <li>Reuses action type, scope, test selection, and target CPK from last operation</li>
+            <li>No additional prompts—executes immediately</li>
+            <li>Also available via <code>last</code> command in GUI mode</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>5. Reload Workbook</h3>
+          <p><span class="badge">Discard Changes</span></p>
+
+          <h4>Purpose</h4>
+          <p>Abandon all unsaved modifications and reload the workbook and metadata from disk. Useful for recovering from unwanted changes or picking up external edits.</p>
+
+          <h4>Behavior</h4>
+          <ul>
+            <li>Prompts for confirmation before discarding</li>
+            <li>Reloads Excel workbook from file</li>
+            <li>Reloads JSON metadata (loses unsaved audit entries)</li>
+            <li>Reinitializes post-processing context</li>
+          </ul>
+
+          <h4>Use Cases</h4>
+          <ul>
+            <li>Undo experiments: Revert to last saved state</li>
+            <li>External edits: Pick up manual Excel changes</li>
+            <li>Error recovery: Reset after unexpected results</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>6. View Audit Log</h3>
+          <p><span class="badge">Traceability</span></p>
+
+          <h4>Purpose</h4>
+          <p>Display complete history of post-processing operations, including both saved and pending actions. Provides full traceability for regulatory compliance and debugging.</p>
+
+          <h4>Information Displayed</h4>
+          <ul>
+            <li>Timestamp of each operation</li>
+            <li>Action type (Update STDF, Apply Spec, Calculate Proposed, etc.)</li>
+            <li>Scope (all tests or specific test)</li>
+            <li>Test identifiers (test numbers and names)</li>
+            <li>Parameters (target CPK, limit values)</li>
+            <li>Warnings or errors encountered</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>7. Exit Menu</h3>
+          <p><span class="badge">Save & Close</span></p>
+
+          <h4>Purpose</h4>
+          <p>Close the post-processing menu, optionally saving changes.</p>
+
+          <h4>Behavior</h4>
+          <ul>
+            <li>If changes exist: Prompts to save or discard</li>
+            <li>If no changes: Exits immediately</li>
+            <li>Returns to <code>post&gt;</code> prompt (GUI mode) or terminates (CLI mode)</li>
+          </ul>
+        </div>
+
+        <h2>Scope Selection</h2>
+        <p>Most actions prompt for scope selection:</p>
+
+        <div class="card">
+          <h3>All Tests</h3>
+          <p>Apply the operation to every test in the workbook.</p>
+          <ul>
+            <li><strong>Advantages:</strong> Fast, consistent, batch processing</li>
+            <li><strong>Use when:</strong> Applying uniform limit strategy, initial CPK targeting, mass updates</li>
+            <li><strong>Caution:</strong> Verify target CPK is appropriate for all test types</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Single Test</h3>
+          <p>Apply the operation to one specific test.</p>
+          <ul>
+            <li><strong>Advantages:</strong> Precise control, test-specific tuning</li>
+            <li><strong>Use when:</strong> Investigating outliers, custom specifications, iterative refinement</li>
+            <li><strong>Selection:</strong> Interactive searchable list (filter by test number or name)</li>
+          </ul>
+        </div>
+
+        <h2>Target CPK Input</h2>
+        <p>Many actions prompt for a target CPK value. Understanding this parameter is crucial:</p>
+
+        <div class="info-box">
+          <strong>What is Target CPK?</strong>
+          Target CPK represents your desired process capability index. Common values:
+          <ul>
+            <li><strong>CPK ≥ 1.33:</strong> Minimum acceptable (4-sigma process, ~63 ppm defects)</li>
+            <li><strong>CPK ≥ 1.67:</strong> High quality (5-sigma process, ~0.6 ppm defects)</li>
+            <li><strong>CPK ≥ 2.0:</strong> Six Sigma (6-sigma process, ~0.002 ppm defects)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Blank Input (No Target CPK)</h3>
+          <ul>
+            <li>Uses current mean and standard deviation</li>
+            <li>Keeps existing limit calculations</li>
+            <li>Useful for regenerating charts without changing values</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Positive Value (e.g., 1.67)</h3>
+          <ul>
+            <li>Calculates new symmetrical limits around mean</li>
+            <li>Formula: LL = μ - (target_CPK × 3σ), UL = μ + (target_CPK × 3σ)</li>
+            <li>Updates CPK and yield loss calculations</li>
+            <li>Regenerates charts with new limits</li>
+          </ul>
+        </div>
+
+        <h2>Chart Regeneration</h2>
+        <p>Post-processing automatically regenerates affected charts with enhanced features:</p>
+
+        <div class="card">
+          <h3>Limit Markers</h3>
+          <p>Different limit types are displayed with distinct visual markers:</p>
+          <ul>
+            <li><strong>STDF Limits:</strong> Solid lines (original ATE limits)</li>
+            <li><strong>Spec Limits:</strong> Dashed lines (specification or datasheet limits)</li>
+            <li><strong>What-If Limits:</strong> Dash-dot lines (hypothetical scenarios)</li>
+            <li><strong>Proposed Limits:</strong> Dotted lines (recommendations from target CPK)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>CPK Text Positioning</h3>
+          <p>CPK values are displayed above the chart title to avoid legend clutter:</p>
+          <pre><code>CPK: 1.85  |  CPK_SPEC: 1.45  |  CPK_PROP: 1.67
+
+                    Test 100: VDD_CORE
+        [Histogram with multiple limit markers...]</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>Axis Scaling</h3>
+          <p>Axes automatically expand to accommodate all limit types:</p>
+          <ul>
+            <li>Minimum x-axis includes all lower limits with 10% padding</li>
+            <li>Maximum x-axis includes all upper limits with 10% padding</li>
+            <li>Axis metadata stored in hidden <code>_PlotAxisRanges</code> sheet</li>
+            <li>Ensures consistent scaling across multiple chart updates</li>
+          </ul>
+        </div>
+
+        <h2>Metadata and Audit Trail</h2>
+
+        <div class="success-box">
+          <strong>Complete Traceability</strong>
+          Every post-processing operation is logged to the metadata JSON file under <code>post_processing.runs</code>, creating a complete audit trail for compliance, debugging, and documentation.
+        </div>
+
+        <h3>Audit Entry Structure</h3>
+        <pre><code>{
+  "post_processing": {
+    "runs": [
+      {
+        "timestamp": "2025-10-11T15:30:45",
+        "action": "update_stdf_limits",
+        "scope": "single",
+        "tests": ["100:VDD_CORE"],
+        "parameters": {
+          "target_cpk": 1.67
+        },
+        "warnings": [],
+        "charts_regenerated": ["histogram", "cdf", "time_series"]
+      }
+    ]
+  }
+}</code></pre>
+
+        <h2>Best Practices</h2>
+
+        <div class="success-box">
+          <strong>Iterative Workflow</strong>
+          <ul>
+            <li>Start with "all tests" to apply uniform strategy</li>
+            <li>Review results in Excel</li>
+            <li>Use "single test" mode to fine-tune outliers</li>
+            <li>Save frequently to create checkpoints</li>
+            <li>Use audit log to document rationale for changes</li>
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <strong>File Management</strong>
+          <ul>
+            <li>Close Excel before running post-processing (avoid file locks)</li>
+            <li>Keep workbook and JSON files together (same directory, matching names)</li>
+            <li>Version control metadata JSON for traceability</li>
+            <li>Use descriptive output filenames (e.g., <code>CPK_v2_tighter_limits.xlsx</code>)</li>
+          </ul>
+        </div>
+
+        <div class="warning-box">
+          <strong>Common Pitfalls</strong>
+          <ul>
+            <li><strong>Target CPK too high:</strong> May result in limits tighter than measurement noise</li>
+            <li><strong>Missing metadata:</strong> Cannot post-process without associated JSON file</li>
+            <li><strong>Workbook open in Excel:</strong> Causes save failures due to file lock</li>
+            <li><strong>External manual edits:</strong> Use "Reload" to sync before continuing</li>
+          </ul>
+        </div>
+
+        <h2>Troubleshooting</h2>
+
+        <div class="card">
+          <h3>Menu Won't Launch</h3>
+          <p><strong>Issue:</strong> Post-processing command fails or menu doesn't appear</p>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Verify JSON metadata exists: <code>ls temp/CPK_Workbook.json</code></li>
+            <li>Check workbook path is correct (case-sensitive on Linux/Mac)</li>
+            <li>Ensure analysis completed successfully (check for errors in pipeline output)</li>
+            <li>Try manual launch: <code>python -m cpkanalysis.cli post-process --workbook &lt;path&gt;</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Charts Not Updating</h3>
+          <p><strong>Issue:</strong> Limits change but charts remain unchanged</p>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Check if chart generation was disabled in original run (<code>--no-histogram</code>, etc.)</li>
+            <li>Verify chart sheets exist in workbook (Histogram, CDF, Time-Series)</li>
+            <li>Review warnings displayed after action (may indicate missing data)</li>
+            <li>Try "Reload Workbook" and repeat operation</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Save Failures</h3>
+          <p><strong>Issue:</strong> Cannot save workbook or metadata</p>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Close workbook in Excel (file lock)</li>
+            <li>Check directory write permissions</li>
+            <li>Verify disk space available</li>
+            <li>Try saving to different path</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Unexpected CPK Values</h3>
+          <p><strong>Issue:</strong> Calculated CPK doesn't match expectations</p>
+          <p><strong>Solutions:</strong></p>
+          <ul>
+            <li>Review original statistics (mean, std dev) on template sheet</li>
+            <li>Check if outlier filtering was applied during ingestion</li>
+            <li>Verify measurement count (low N may cause variance)</li>
+            <li>Ensure limits are appropriate for test type (unilateral vs. bilateral)</li>
+            <li>Check for data quality issues (PARM_FLG, TEST_FLG filtering)</li>
+          </ul>
+        </div>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="getting_started.html">Getting Started</a> — Initial setup and first analysis</li>
+          <li><a href="cli_reference.html">CLI Reference</a> — Command-line options and flags</li>
+          <li><a href="gui_reference.html">GUI Guide</a> — Interactive console alternative</li>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> — Understanding data quality and flags</li>
+          <li><a href="manual_verification.html">Manual Verification</a> — QA checklist for validating results</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
   </body>
 </html>

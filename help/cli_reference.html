@@ -2,124 +2,726 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Command-Line Reference</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Command-Line Reference - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
-      th { background: #f2f4f8; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      .card h4 {
+        margin-top: 0;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 0.8rem;
+        text-align: left;
+      }
+
+      th {
+        background: #667eea;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f8f9fb;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .badge-success {
+        background: #00c853;
+      }
+
+      .badge-info {
+        background: #4c9aff;
+      }
+
+      .badge-warning {
+        background: #f39c12;
+      }
     </style>
   </head>
   <body>
-    <h1>Command-Line Reference</h1>
-    <p>
-      The <code>cpkanalysis.cli</code> module provides subcommands for scanning STDF directories, executing the analysis pipeline, moving template data, and opening the post-processing menu.
-    </p>
+    <div class="container">
+      <header>
+        <h1>Command-Line Reference</h1>
+        <p>Complete documentation for cpkanalysis.cli commands and options</p>
+      </header>
 
-    <h2>Commands</h2>
-    <ul>
-      <li><code>scan</code> &mdash; Recursively discover STDF files and write a metadata JSON manifest.</li>
-      <li><code>run</code> &mdash; Execute the full pipeline (ingestion through metadata) with optional post-processing.</li>
-      <li><code>move-template</code> &mdash; Copy the CPK Report sheet into another template sheet.</li>
-      <li><code>post-process</code> &mdash; Launch the interactive post-processing menu for an existing workbook.</li>
-    </ul>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="gui_reference.html">GUI Guide</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+        <a href="post_processing.html">Post-Processing</a>
+      </nav>
 
-    <h2>Run Command Options</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Option</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td><code>inputs</code></td>
-          <td>One or more STDF file paths. If omitted, the tool scans the current directory.</td>
-        </tr>
-        <tr>
-          <td><code>--metadata path.json</code></td>
-          <td>Load STDF file list from a JSON manifest created by <code>scan</code>.</td>
-        </tr>
-        <tr>
-          <td><code>--output path.xlsx</code></td>
-          <td>Destination workbook (default <code>CPK_Workbook.xlsx</code>).</td>
-        </tr>
-        <tr>
-          <td><code>--template path</code></td>
-          <td>Excel template file or directory containing a single template workbook.</td>
-        </tr>
-        <tr>
-          <td><code>--template-sheet name</code></td>
-          <td>Target sheet to receive CPK data when copying into templates.</td>
-        </tr>
-        <tr>
-          <td><code>--outlier-method {none,iqr,stdev}</code></td>
-          <td>Outlier filtering strategy (default <code>none</code>).</td>
-        </tr>
-        <tr>
-          <td><code>--outlier-k value</code></td>
-          <td>Multiplier for IQR or standard deviation filters (default <code>1.5</code>).</td>
-        </tr>
-        <tr>
-          <td><code>--no-histogram</code>, <code>--no-cdf</code>, <code>--no-time-series</code></td>
-          <td>Skip generating the corresponding chart families to reduce runtime.</td>
-        </tr>
-        <tr>
-          <td><code>--plugin &lt;directive&gt;</code></td>
-          <td>Enable, disable, reprioritise, or amend plugin parameters (e.g. <code>enable:builtin.summary_logger</code>).</td>
-        </tr>
-        <tr>
-          <td><code>--plugin-profile path.toml</code></td>
-          <td>Override the default plugin profile (defaults to <code>post_processing_profile.toml</code> in the workspace).</td>
-        </tr>
-        <tr>
-          <td><code>--validate-plugins</code></td>
-          <td>Run the analysis into a temporary workbook and discard outputs after plugin validation completes.</td>
-        </tr>
-        <tr>
-          <td><code>--postprocess</code></td>
-          <td>Automatically launch the post-processing menu after the workbook is written.</td>
-        </tr>
-        <tr>
-          <td><code>--debug</code></td>
-          <td>Print additional stack traces and environment details when diagnosing pipeline issues. (Primarily for development builds.)</td>
-        </tr>
-        <tr>
-          <td><code>--quiet</code></td>
-          <td>Minimise console chatter by suppressing status messages (errors still print). Useful when wrapping the CLI in automation scripts.</td>
-        </tr>
-        <tr>
-          <td><code>--session-dir path</code></td>
-          <td>Override the default <code>temp/session_*</code> directory for intermediate Parquet files. Handy when running multiple analyses simultaneously.</td>
-        </tr>
-        <tr>
-          <td><code>--skip-template</code></td>
-          <td>Run ingestion, outlier filtering, statistics, and metadata generation without building the Excel template (produces a minimal workbook).</td>
-        </tr>
-      </tbody>
-    </table>
+      <div class="content">
+        <p>
+          The <code>cpkanalysis.cli</code> module provides a comprehensive command-line interface for scanning STDF directories, executing the complete analysis pipeline, managing templates, and accessing the post-processing menu. This reference details all commands, options, and usage patterns.
+        </p>
 
-    <h2>Examples</h2>
-    <h3>Basic Run</h3>
-    <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf Sample/lot3.stdf \
+        <div class="info-box">
+          <strong>Quick Access</strong>
+          Display help for any command: <code>python -m cpkanalysis.cli &lt;command&gt; --help</code>
+        </div>
+
+        <h2>Available Commands</h2>
+
+        <div class="card">
+          <h3><span class="badge">scan</span> Discover STDF Files</h3>
+          <p>Recursively search directories for STDF files and generate a metadata JSON manifest for batch processing.</p>
+          <pre><code>python -m cpkanalysis.cli scan &lt;directory&gt; --metadata output.json</code></pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="badge">run</span> Execute Analysis Pipeline</h3>
+          <p>Run the complete CPK analysis workflow from STDF ingestion through chart generation and Excel output.</p>
+          <pre><code>python -m cpkanalysis.cli run [inputs...] [options]</code></pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="badge">move-template</span> Copy Template Sheets</h3>
+          <p>Copy the CPK Report sheet data into another template workbook for integration with existing reports.</p>
+          <pre><code>python -m cpkanalysis.cli move-template --source src.xlsx --dest dest.xlsx</code></pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="badge">post-process</span> Interactive Menu</h3>
+          <p>Launch the post-processing menu to update limits, regenerate charts, and apply what-if scenarios to existing workbooks.</p>
+          <pre><code>python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx</code></pre>
+        </div>
+
+        <h2>Run Command Options</h2>
+        <p>The <code>run</code> command is the primary interface for CPK analysis. Below are all available options organized by category.</p>
+
+        <h3>Input Sources</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>inputs</code></td>
+              <td>One or more STDF file paths or directories. If omitted, scans current directory. Supports wildcards on compatible shells.</td>
+            </tr>
+            <tr>
+              <td><code>--metadata path.json</code></td>
+              <td>Load STDF file list from a JSON manifest created by the <code>scan</code> command. Useful for batch processing.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="info-box">
+          <strong>Multiple Sources</strong>
+          Combine multiple STDF files from different lots or test runs in a single analysis. The tool aggregates measurements while preserving per-file limit information.
+        </div>
+
+        <h3>Output Configuration</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--output path.xlsx</code></td>
+              <td>Destination workbook path. Default: <code>CPK_Workbook.xlsx</code> in current directory.</td>
+            </tr>
+            <tr>
+              <td><code>--template path</code></td>
+              <td>Excel template file or directory containing template. If directory, first <code>.xlsx</code> file is used.</td>
+            </tr>
+            <tr>
+              <td><code>--template-sheet name</code></td>
+              <td>Target sheet name to receive CPK data when using custom templates. Default: <code>CPK Report</code></td>
+            </tr>
+            <tr>
+              <td><code>--skip-template</code></td>
+              <td>Run ingestion and statistics only, producing minimal workbook without full template population.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Statistical Filtering</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--outlier-method {none,iqr,stdev}</code></td>
+              <td>Outlier detection method. <code>none</code> = no filtering (default), <code>iqr</code> = interquartile range, <code>stdev</code> = standard deviation.</td>
+            </tr>
+            <tr>
+              <td><code>--outlier-k value</code></td>
+              <td>Multiplier for outlier bounds. Default: <code>1.5</code> for IQR, <code>3.0</code> for stdev.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="card">
+          <h4>Outlier Method Comparison</h4>
+          <ul>
+            <li><strong>none:</strong> Use all measurements (recommended for final reports)</li>
+            <li><strong>iqr:</strong> Remove values beyond Q1 - k·IQR and Q3 + k·IQR (robust to extreme outliers)</li>
+            <li><strong>stdev:</strong> Remove values beyond μ ± k·σ (assumes normal distribution)</li>
+          </ul>
+        </div>
+
+        <h3>Chart Generation</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--no-histogram</code></td>
+              <td>Skip histogram chart generation to reduce processing time.</td>
+            </tr>
+            <tr>
+              <td><code>--no-cdf</code></td>
+              <td>Skip cumulative distribution function (CDF) chart generation.</td>
+            </tr>
+            <tr>
+              <td><code>--no-time-series</code></td>
+              <td>Skip time-series (measurement vs. device index) chart generation.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="success-box">
+          <strong>Performance Optimization</strong>
+          Disabling chart generation can reduce runtime by 40-60% for large datasets with hundreds of tests. Charts can be regenerated later using the post-processing menu.
+        </div>
+
+        <h3>Plugin System</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--plugin &lt;directive&gt;</code></td>
+              <td>Enable, disable, or configure plugins. Supports multiple directives. See examples below.</td>
+            </tr>
+            <tr>
+              <td><code>--plugin-profile path.toml</code></td>
+              <td>Load plugin configuration from TOML profile. Default: <code>post_processing_profile.toml</code></td>
+            </tr>
+            <tr>
+              <td><code>--validate-plugins</code></td>
+              <td>Test plugin execution with temporary workbook, then discard outputs. Useful for development.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="card">
+          <h4>Plugin Directive Syntax</h4>
+          <ul>
+            <li><code>enable:plugin.name</code> — Enable a specific plugin</li>
+            <li><code>disable:plugin.name</code> — Disable a specific plugin</li>
+            <li><code>priority:plugin.name:10</code> — Set execution priority</li>
+            <li><code>param:plugin.name:key=value</code> — Set plugin parameter</li>
+          </ul>
+          <p><strong>Example:</strong></p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --plugin enable:builtin.summary_logger \
+  --plugin param:builtin.summary_logger:verbose=true</code></pre>
+        </div>
+
+        <h3>Advanced Options</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--postprocess</code></td>
+              <td>Automatically launch post-processing menu after pipeline completes.</td>
+            </tr>
+            <tr>
+              <td><code>--session-dir path</code></td>
+              <td>Override default <code>temp/session_*</code> directory for intermediate Parquet files. Useful for parallel runs.</td>
+            </tr>
+            <tr>
+              <td><code>--debug</code></td>
+              <td>Enable verbose logging with stack traces and environment information for troubleshooting.</td>
+            </tr>
+            <tr>
+              <td><code>--quiet</code></td>
+              <td>Suppress status messages (errors still print). Ideal for automation scripts.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h2>Common Usage Examples</h2>
+
+        <h3>Basic Analysis</h3>
+        <div class="card">
+          <p>Analyze STDF files with default settings:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf examples/lot3.stdf \
   --output temp/CPK_Workbook.xlsx</code></pre>
+        </div>
 
-    <h3>Using Metadata Manifest</h3>
-    <pre><code>python -m cpkanalysis.cli scan Sample --metadata temp/lot_manifest.json
-python -m cpkanalysis.cli run --metadata temp/lot_manifest.json --postprocess</code></pre>
+        <h3>With Outlier Filtering</h3>
+        <div class="card">
+          <p>Apply IQR filtering to remove statistical outliers:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --outlier-method iqr \
+  --outlier-k 1.5 \
+  --output temp/Filtered_CPK.xlsx</code></pre>
+        </div>
 
-    <h3>Post-Processing Only</h3>
-    <pre><code>python -m cpkanalysis.cli post-process --workbook temp/CPK_Workbook.xlsx</code></pre>
+        <h3>Custom Template</h3>
+        <div class="card">
+          <p>Use a custom Excel template with specific target sheet:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --template myTemplates/custom_report.xlsx \
+  --template-sheet "Data Summary" \
+  --output temp/Custom_CPK.xlsx</code></pre>
+        </div>
 
-    <h2>Validation Mode Tips</h2>
-    <ul>
-      <li>Temporary outputs are stored under <code>temp/validation_*</code> and deleted automatically.</li>
-      <li>Combine with plugins to spot-check post-processing behaviour without touching production workbooks.</li>
-      <li>The metadata JSON still records action logs even when validation mode is enabled.</li>
-    </ul>
+        <h3>Fast Processing (Skip Charts)</h3>
+        <div class="card">
+          <p>Generate statistics only, skipping time-consuming chart generation:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --no-histogram \
+  --no-cdf \
+  --no-time-series \
+  --output temp/Quick_CPK.xlsx</code></pre>
+        </div>
+
+        <h3>Batch Processing with Manifest</h3>
+        <div class="card">
+          <p>First scan a directory to create manifest, then process:</p>
+          <pre><code># Step 1: Generate manifest
+python -m cpkanalysis.cli scan Sample/ --metadata temp/manifest.json
+
+# Step 2: Process all files from manifest
+python -m cpkanalysis.cli run --metadata temp/manifest.json \
+  --output temp/Batch_CPK.xlsx</code></pre>
+        </div>
+
+        <h3>With Post-Processing</h3>
+        <div class="card">
+          <p>Run analysis and immediately open post-processing menu:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --output temp/CPK_Workbook.xlsx \
+  --postprocess</code></pre>
+        </div>
+
+        <h3>Plugin Validation</h3>
+        <div class="card">
+          <p>Test plugin configuration without creating permanent outputs:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --plugin enable:builtin.summary_logger \
+  --validate-plugins</code></pre>
+        </div>
+
+        <h2>Scan Command Details</h2>
+        <p>The <code>scan</code> command discovers STDF files recursively and creates a JSON manifest for batch processing.</p>
+
+        <h3>Options</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>directory</code></td>
+              <td>Root directory to scan recursively. Default: current directory.</td>
+            </tr>
+            <tr>
+              <td><code>--metadata path.json</code></td>
+              <td>Output JSON file path. Default: <code>stdf_manifest.json</code></td>
+            </tr>
+            <tr>
+              <td><code>--pattern</code></td>
+              <td>File pattern to match. Default: <code>*.stdf</code></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Example</h3>
+        <pre><code>python -m cpkanalysis.cli scan Sample/ --metadata temp/lot_files.json</code></pre>
+
+        <h3>Manifest Format</h3>
+        <pre><code>{
+  "files": [
+    "/absolute/path/to/lot2.stdf",
+    "/absolute/path/to/lot3.stdf"
+  ],
+  "scan_timestamp": "2025-10-11T14:30:00",
+  "directory": "/absolute/path/to/Sample"
+}</code></pre>
+
+        <h2>Post-Process Command Details</h2>
+        <p>Launch the interactive menu to modify limits, regenerate charts, and apply what-if scenarios without re-ingesting STDF data.</p>
+
+        <h3>Options</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Option</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--workbook path.xlsx</code></td>
+              <td>Target workbook path. Required. Associated JSON metadata is loaded automatically.</td>
+            </tr>
+            <tr>
+              <td><code>--debug</code></td>
+              <td>Enable verbose logging for troubleshooting menu operations.</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <h3>Example</h3>
+        <pre><code>python -m cpkanalysis.cli post-process --workbook temp/CPK_Workbook.xlsx</code></pre>
+
+        <div class="info-box">
+          <strong>Automatic Metadata Loading</strong>
+          The command automatically looks for <code>CPK_Workbook.json</code> alongside the workbook. If not found, limited functionality is available.
+        </div>
+
+        <h2>Troubleshooting</h2>
+
+        <div class="card">
+          <h3>Command Not Found</h3>
+          <p><strong>Issue:</strong> <code>python -m cpkanalysis.cli</code> fails with "No module named cpkanalysis"</p>
+          <p><strong>Solution:</strong></p>
+          <ul>
+            <li>Verify you're in the repository root directory</li>
+            <li>Reinstall dependencies: <code>pip install -r requirements.txt</code></li>
+            <li>Check Python version: <code>python --version</code> (must be 3.11+)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>File Not Found Errors</h3>
+          <p><strong>Issue:</strong> STDF files or templates cannot be located</p>
+          <p><strong>Solution:</strong></p>
+          <ul>
+            <li>Use absolute paths: <code>/full/path/to/file.stdf</code></li>
+            <li>Verify file exists: <code>ls examples/lot2.stdf</code></li>
+            <li>Check file permissions (read access required)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Permission Errors</h3>
+          <p><strong>Issue:</strong> Cannot write to output or temp directories</p>
+          <p><strong>Solution:</strong></p>
+          <ul>
+            <li>Ensure write permissions on target directory</li>
+            <li>Use alternative session dir: <code>--session-dir ~/tmp/cpk_session</code></li>
+            <li>Close Excel if workbook is open (file lock conflict)</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Plugin Errors</h3>
+          <p><strong>Issue:</strong> Plugin fails during execution</p>
+          <p><strong>Solution:</strong></p>
+          <ul>
+            <li>Use <code>--validate-plugins</code> to test in isolation</li>
+            <li>Check plugin profile syntax: <code>post_processing_profile.toml</code></li>
+            <li>Enable debug mode: <code>--debug</code> for detailed stack traces</li>
+          </ul>
+        </div>
+
+        <div class="warning-box">
+          <strong>Debug Mode</strong>
+          Add <code>--debug</code> to any command for comprehensive error diagnostics including environment details, stack traces, and internal state information.
+        </div>
+
+        <h2>Best Practices</h2>
+
+        <div class="success-box">
+          <strong>Automation-Friendly</strong>
+          <ul>
+            <li>Use <code>--quiet</code> flag for scripted pipelines</li>
+            <li>Check exit codes: 0 = success, non-zero = error</li>
+            <li>Redirect output for logging: <code>2&gt;&amp;1 | tee analysis.log</code></li>
+            <li>Use <code>--session-dir</code> for parallel processing</li>
+          </ul>
+        </div>
+
+        <div class="info-box">
+          <strong>Performance Tips</strong>
+          <ul>
+            <li>Disable unused charts with <code>--no-*</code> flags</li>
+            <li>Use manifest files for repeated batch processing</li>
+            <li>Keep session directories on fast storage (SSD)</li>
+            <li>Consider outlier filtering for datasets with known anomalies</li>
+          </ul>
+        </div>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="getting_started.html">Getting Started</a> — Installation and first run tutorial</li>
+          <li><a href="gui_reference.html">GUI Guide</a> — Interactive console alternative to CLI</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> — Detailed menu operation guide</li>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> — Understanding STDF parsing and flags</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> — Running automated tests</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
   </body>
 </html>

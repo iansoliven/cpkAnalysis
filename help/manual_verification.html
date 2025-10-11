@@ -2,65 +2,874 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Manual Verification Checklist</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual Verification Checklist - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      ul, ol { margin-left: 1.2rem; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
-      th, td { border: 1px solid #dfe3e8; padding: 0.6rem; text-align: left; }
-      th { background: #f2f4f8; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      .card h4 {
+        margin-top: 0;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 1.5rem 0;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      }
+
+      th, td {
+        border: 1px solid #e1e4e8;
+        padding: 0.8rem;
+        text-align: left;
+      }
+
+      th {
+        background: #667eea;
+        color: white;
+        font-weight: 600;
+      }
+
+      tr:nth-child(even) {
+        background: #f8f9fb;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .checklist-item {
+        background: white;
+        border: 2px solid #e1e4e8;
+        border-radius: 6px;
+        padding: 1rem 1.2rem;
+        margin: 0.8rem 0;
+        transition: all 0.2s;
+      }
+
+      .checklist-item:hover {
+        border-color: #667eea;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.15);
+      }
+
+      .checklist-item h4 {
+        margin: 0 0 0.5rem 0;
+        color: #667eea;
+      }
+
+      .test-phase {
+        background: linear-gradient(135deg, #f8f9fb 0%, #ffffff 100%);
+        border-left: 4px solid #667eea;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .test-phase h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
     </style>
   </head>
   <body>
-    <h1>Manual Verification Checklist</h1>
-    <p>
-      This checklist complements the automated tests and is designed for QA engineers or stakeholders performing hands-on validation of the CPK Analysis solution.
-    </p>
+    <div class="container">
+      <header>
+        <h1>Manual Verification Checklist</h1>
+        <p>QA procedures for hands-on validation and acceptance testing</p>
+      </header>
 
-    <h2>Preparation</h2>
-    <ul>
-      <li>Install prerequisites as described in <a href="getting_started.html">Getting Started</a>.</li>
-      <li>Ensure sample STDF files are available (for example, the <code>examples/</code> directory).</li>
-      <li>Close any open instances of the target workbook before running post-processing actions.</li>
-    </ul>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="gui_reference.html">GUI Guide</a>
+        <a href="testing_guidance.html">Testing Guide</a>
+      </nav>
 
-    <h2>Core Workflow</h2>
-    <ol>
-      <li>Run the pipeline: <code>python -m cpkanalysis.cli run examples/lot2.stdf --output temp/ManualCheck.xlsx --postprocess</code>.</li>
-      <li>When the post-processing menu appears, exercise each action in “all tests” mode and verify workbook cells and charts update as described.</li>
-      <li>Repeat in “single test” mode with target CPK values to confirm calculations affect only the selected test.</li>
-      <li>Inspect the metadata JSON (<code>temp/ManualCheck.json</code>) and confirm the <code>post_processing.runs</code> array records each action with scope, tests, and parameters.</li>
-    </ol>
+      <div class="content">
+        <p>
+          This comprehensive checklist provides structured procedures for QA engineers, test engineers, and stakeholders performing hands-on validation of the CPK Analysis toolkit. These manual verification steps complement automated tests and ensure the solution meets quality standards in real-world scenarios.
+        </p>
 
-    <h2>Console GUI</h2>
-    <ol>
-      <li>Launch <code>python -m cpkanalysis.gui</code> and complete a run using interactive prompts.</li>
-      <li>Accept the prompt to open post-processing immediately, then use the <code>post</code> command to reopen the menu.</li>
-      <li>Verify that <code>post_processing_profile.toml</code> reflects the selected plugin configuration and persists between sessions.</li>
-    </ol>
+        <div class="info-box">
+          <strong>Purpose of Manual Testing</strong>
+          While automated tests validate code correctness, manual verification ensures usability, integration with Excel, chart quality, and end-to-end workflows meet user expectations. This checklist is especially valuable for:
+          <ul>
+            <li>Release qualification before deployment</li>
+            <li>User acceptance testing (UAT)</li>
+            <li>Training new team members on expected behavior</li>
+            <li>Documenting QA activities for regulatory compliance</li>
+          </ul>
+        </div>
 
-    <h2>Workbook Review</h2>
-    <ul>
-      <li>Open the generated workbook in Excel.</li>
-      <li>Confirm that the template sheet reflects updated ATE, Spec/What-If, and Proposed columns as appropriate.</li>
-      <li>Check charts (Histogram, CDF, Time-Series) for new limit markers and CPK text positioned above the title.</li>
-      <li>Review the hidden <code>_PlotAxisRanges</code> sheet for updated axis metadata.</li>
-    </ul>
+        <h2>Prerequisites and Preparation</h2>
 
-    <h2>Error Scenarios</h2>
-    <ul>
-      <li>Intentionally remove a required sheet (for example, “Test List and Limits”) and confirm the menu reports a descriptive error.</li>
-      <li>Open the workbook in Excel to lock the file, then attempt to save from the menu; ensure a warning is displayed.</li>
-      <li>Modify the workbook externally between menu sessions and use the <strong>Reload</strong> option to pick up changes.</li>
-    </ul>
+        <div class="card">
+          <h3>Environment Setup</h3>
+          <ul>
+            <li><span class="badge">Required</span> Complete installation per <a href="getting_started.html">Getting Started</a> guide</li>
+            <li><span class="badge">Required</span> Python 3.11+ with all dependencies from <code>requirements.txt</code></li>
+            <li><span class="badge">Required</span> Sample STDF files available (e.g., <code>examples/</code> directory)</li>
+            <li><span class="badge">Required</span> Microsoft Excel or compatible spreadsheet software</li>
+            <li><span class="badge">Optional</span> Test data with known characteristics for validation</li>
+          </ul>
+        </div>
 
-    <h2>Reporting</h2>
-    <ul>
-      <li>Capture workbook paths, timestamps, and screenshots of updated charts for review.</li>
-      <li>Record console logs (CLI or GUI) highlighting warnings or errors encountered during testing.</li>
-      <li>Summarise findings alongside automated test results when closing a test cycle.</li>
-    </ul>
+        <div class="card">
+          <h3>Pre-Test Verification</h3>
+          <div class="checklist-item">
+            <h4>Check Python Version</h4>
+            <pre><code>python --version  # Should be 3.11 or higher</code></pre>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Verify Module Import</h4>
+            <pre><code>python -c "import cpkanalysis; print('OK')"</code></pre>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Check CLI Help</h4>
+            <pre><code>python -m cpkanalysis.cli --help  # Should display command list</code></pre>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Verify Sample Files Exist</h4>
+            <pre><code>ls examples/*.stdf  # Should list STDF test files</code></pre>
+          </div>
+        </div>
+
+        <div class="warning-box">
+          <strong>Important: Clean State</strong>
+          Before starting each test phase:
+          <ul>
+            <li>Close all Excel workbooks to avoid file locks</li>
+            <li>Clear <code>temp/</code> directory of previous test outputs</li>
+            <li>Ensure sufficient disk space (>1GB for safety)</li>
+          </ul>
+        </div>
+
+        <h2>Phase 1: Core Pipeline Testing</h2>
+
+        <div class="test-phase">
+          <h3>Test 1.1: Basic Analysis Run</h3>
+          <p><strong>Objective:</strong> Verify end-to-end pipeline execution with default settings</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Run pipeline with sample STDF file:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --output temp/ManualTest_Basic.xlsx</code></pre>
+            </li>
+            <li>Observe console output for errors or warnings</li>
+            <li>Verify completion message with output path</li>
+            <li>Check files created:
+              <ul>
+                <li><code>temp/ManualTest_Basic.xlsx</code> (workbook)</li>
+                <li><code>temp/ManualTest_Basic.json</code> (metadata)</li>
+              </ul>
+            </li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Pipeline completes without errors</li>
+            <li>Console shows progress for ingestion, statistics, charts</li>
+            <li>Workbook file size > 100KB (indicates data present)</li>
+            <li>Metadata JSON contains test catalog and statistics</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 1.2: Multiple File Processing</h3>
+          <p><strong>Objective:</strong> Verify batch processing of multiple STDF files</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Run with multiple input files:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf examples/lot3.stdf \
+  --output temp/ManualTest_Multi.xlsx</code></pre>
+            </li>
+            <li>Verify both files are processed (check console)</li>
+            <li>Open workbook and check device counts on CPK Report sheet</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Both files ingested successfully</li>
+            <li>Device count equals sum from both files</li>
+            <li>Test catalog includes all unique tests from both files</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 1.3: Outlier Filtering</h3>
+          <p><strong>Objective:</strong> Verify outlier filtering affects statistics correctly</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Run with IQR filtering:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --outlier-method iqr --outlier-k 1.5 \
+  --output temp/ManualTest_IQR.xlsx</code></pre>
+            </li>
+            <li>Run without filtering:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --output temp/ManualTest_NoFilter.xlsx</code></pre>
+            </li>
+            <li>Open both workbooks side-by-side</li>
+            <li>Compare mean, std dev, CPK values for same tests</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Filtered results show lower std dev (outliers removed)</li>
+            <li>CPK values typically higher with filtering</li>
+            <li>Metadata JSON documents filtering method and parameters</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 1.4: Chart Generation Control</h3>
+          <p><strong>Objective:</strong> Verify chart disabling flags work correctly</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Run with all charts disabled:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --no-histogram --no-cdf --no-time-series \
+  --output temp/ManualTest_NoCharts.xlsx</code></pre>
+            </li>
+            <li>Open workbook and check for chart sheets</li>
+            <li>Run with only histograms:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --no-cdf --no-time-series \
+  --output temp/ManualTest_HistOnly.xlsx</code></pre>
+            </li>
+            <li>Verify only Histogram sheet exists</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>NoCharts workbook has no Histogram/CDF/Time-Series sheets</li>
+            <li>HistOnly workbook has only Histogram sheet</li>
+            <li>CPK Report sheet present in both (statistics unaffected)</li>
+            <li>Processing time reduced when charts disabled</li>
+          </ul>
+        </div>
+
+        <h2>Phase 2: Console GUI Testing</h2>
+
+        <div class="test-phase">
+          <h3>Test 2.1: Interactive Workflow</h3>
+          <p><strong>Objective:</strong> Verify GUI prompts and configuration flow</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Launch GUI: <code>python -m cpkanalysis.gui</code></li>
+            <li>Follow prompts, providing:
+              <ul>
+                <li>STDF file: <code>examples/lot2.stdf</code></li>
+                <li>Template: Press Enter (use default)</li>
+                <li>Outlier method: <code>none</code></li>
+                <li>Charts: Yes to all</li>
+                <li>Plugins: <code>no</code></li>
+                <li>Output: <code>temp/ManualTest_GUI.xlsx</code></li>
+              </ul>
+            </li>
+            <li>Wait for pipeline completion</li>
+            <li>Decline post-processing menu</li>
+            <li>Verify output files created</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>All prompts clear and intuitive</li>
+            <li>Configuration summary displayed before execution</li>
+            <li>Pipeline runs successfully</li>
+            <li>Output matches CLI equivalent</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 2.2: Post-Processing Integration</h3>
+          <p><strong>Objective:</strong> Verify seamless transition to post-processing</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Launch GUI and complete analysis run</li>
+            <li>Accept prompt to open post-processing menu</li>
+            <li>Type <code>help</code> to see available commands</li>
+            <li>Type <code>audit</code> to view (empty) log</li>
+            <li>Type <code>quit</code> to exit</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Post-processing menu opens automatically</li>
+            <li>Commands execute without errors</li>
+            <li>Can exit cleanly back to shell</li>
+          </ul>
+        </div>
+
+        <h2>Phase 3: Post-Processing Menu Testing</h2>
+
+        <div class="test-phase">
+          <h3>Test 3.1: Update STDF Limits (All Tests)</h3>
+          <p><strong>Objective:</strong> Verify bulk limit updates and chart regeneration</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Run pipeline with post-processing:
+              <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --output temp/ManualTest_PP.xlsx --postprocess</code></pre>
+            </li>
+            <li>When menu appears, select option 1 (Update STDF Limits)</li>
+            <li>Choose scope: <strong>All tests</strong></li>
+            <li>Provide target CPK: <strong>1.67</strong></li>
+            <li>Wait for processing completion</li>
+            <li>Save when prompted</li>
+            <li>Exit menu</li>
+            <li>Open <code>temp/ManualTest_PP.xlsx</code> in Excel</li>
+            <li>Review CPK Report sheet: verify CPK values near 1.67</li>
+            <li>Check histogram charts: verify limit markers updated</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Limit columns (LL, UL) updated for all tests</li>
+            <li>CPK values recalculated and close to target 1.67</li>
+            <li>Charts regenerated with new limit markers</li>
+            <li>Metadata JSON logs operation with timestamp and parameters</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 3.2: Single Test Selection</h3>
+          <p><strong>Objective:</strong> Verify test search and single-test operations</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Open post-processing menu for existing workbook</li>
+            <li>Select option 1 (Update STDF Limits)</li>
+            <li>Choose scope: <strong>Single test</strong></li>
+            <li>Search for test by typing partial name (e.g., "VDD")</li>
+            <li>Select test from filtered list</li>
+            <li>Provide target CPK: <strong>2.0</strong></li>
+            <li>Save and exit</li>
+            <li>Open workbook, verify only selected test changed</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Test search filters list correctly</li>
+            <li>Only selected test limits updated</li>
+            <li>Other tests remain unchanged</li>
+            <li>Charts for selected test regenerated</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 3.3: Apply Spec Limits</h3>
+          <p><strong>Objective:</strong> Verify layered limit functionality</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Open post-processing menu</li>
+            <li>Select option 2 (Apply Spec / What-If Limits)</li>
+            <li>Choose scope: All tests</li>
+            <li>Provide target CPK: 1.33</li>
+            <li>Save and exit</li>
+            <li>Open workbook, check CPK Report sheet</li>
+            <li>Verify LL_SPEC, UL_SPEC, CPK_SPEC columns populated</li>
+            <li>Open histogram chart, verify both STDF and Spec limit markers visible</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Spec columns populated with calculated limits</li>
+            <li>STDF columns unchanged (non-destructive)</li>
+            <li>Charts show both limit types with different line styles</li>
+            <li>CPK text shows multiple values (CPK, CPK_SPEC)</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 3.4: Calculate Proposed Limits</h3>
+          <p><strong>Objective:</strong> Verify proposed limit calculation and columns</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Open post-processing menu</li>
+            <li>Select option 3 (Calculate Proposed Limits)</li>
+            <li>Provide target CPK: 1.5</li>
+            <li>Choose scope: All tests</li>
+            <li>Save and exit</li>
+            <li>Open workbook, verify LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP columns</li>
+            <li>Verify CPK_PROP values equal or close to 1.5</li>
+            <li>Check charts for "Proposed" markers</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>All proposed columns populated</li>
+            <li>CPK_PROP matches target (1.5)</li>
+            <li>Yield loss calculated (typically very low for CPK 1.5)</li>
+            <li>Charts include proposed limit markers</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 3.5: Audit Log Verification</h3>
+          <p><strong>Objective:</strong> Verify complete traceability of operations</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Perform several post-processing operations (mix of single/all tests)</li>
+            <li>In menu, select option 6 (View Audit Log)</li>
+            <li>Review console output for all operations</li>
+            <li>Open metadata JSON file, locate <code>post_processing.runs</code></li>
+            <li>Verify all operations logged with timestamps and parameters</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Every operation appears in audit log</li>
+            <li>Timestamps sequential and accurate</li>
+            <li>Parameters (scope, tests, target CPK) recorded</li>
+            <li>Warnings captured if any occurred</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 3.6: Reload Functionality</h3>
+          <p><strong>Objective:</strong> Verify reload discards changes correctly</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Open post-processing menu</li>
+            <li>Make significant change (e.g., update all limits to CPK 2.0)</li>
+            <li>Do NOT save</li>
+            <li>Select option 5 (Reload Workbook)</li>
+            <li>Confirm reload when prompted</li>
+            <li>Make new change and save</li>
+            <li>Open workbook, verify first change was abandoned, second change present</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Unsaved changes discarded</li>
+            <li>Workbook restored to disk state</li>
+            <li>Subsequent changes work normally</li>
+            <li>No audit entries for discarded operations</li>
+          </ul>
+        </div>
+
+        <h2>Phase 4: Workbook Review</h2>
+
+        <div class="card">
+          <h3>Excel Workbook Inspection</h3>
+          <p>Open a completed analysis workbook and verify the following:</p>
+
+          <div class="checklist-item">
+            <h4>CPK Report Sheet</h4>
+            <ul>
+              <li>All columns populated (TEST #, NAME, MEAN, STD DEV, LL, UL, CPK, etc.)</li>
+              <li>No #DIV/0 or #VALUE errors in cells</li>
+              <li>CPK values reasonable (typically 0.5 - 3.0 range)</li>
+              <li>Yield loss percentages make sense (0-100%)</li>
+            </ul>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Test List and Limits Sheet</h4>
+            <ul>
+              <li>Complete test catalog with test numbers and names</li>
+              <li>STDF limits populated where available</li>
+              <li>Spec/Proposed columns populated if post-processing applied</li>
+              <li>Units displayed correctly</li>
+            </ul>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Chart Sheets</h4>
+            <ul>
+              <li><strong>Histogram:</strong> Bell curves visible, bins appropriate, limit markers present</li>
+              <li><strong>CDF:</strong> Smooth S-curves, 0-100% range, limit markers at correct positions</li>
+              <li><strong>Time-Series:</strong> Points vs. device index, trend visible if present</li>
+              <li>All charts have titles with test number and name</li>
+              <li>CPK values displayed above title</li>
+              <li>Legends clear and not overlapping data</li>
+              <li>Axes labeled with units</li>
+            </ul>
+          </div>
+
+          <div class="checklist-item">
+            <h4>Hidden Metadata Sheet</h4>
+            <ul>
+              <li>_PlotAxisRanges sheet exists (may be hidden)</li>
+              <li>Contains axis ranges for all chart types</li>
+              <li>Data structured correctly for automation</li>
+            </ul>
+          </div>
+        </div>
+
+        <h2>Phase 5: Error Scenario Testing</h2>
+
+        <div class="test-phase">
+          <h3>Test 5.1: Missing Required Sheet</h3>
+          <p><strong>Objective:</strong> Verify graceful error handling for corrupted workbooks</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Generate workbook normally</li>
+            <li>Open in Excel, delete "Test List and Limits" sheet</li>
+            <li>Save and close</li>
+            <li>Attempt post-processing on modified workbook</li>
+            <li>Observe error message</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Clear error message identifying missing sheet</li>
+            <li>No crash or stack trace</li>
+            <li>Menu exits gracefully</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 5.2: File Lock Conflict</h3>
+          <p><strong>Objective:</strong> Verify handling of locked workbook files</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Generate workbook</li>
+            <li>Open workbook in Excel (leave open)</li>
+            <li>Attempt post-processing save</li>
+            <li>Observe warning/error</li>
+            <li>Close Excel</li>
+            <li>Retry save</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Warning displayed about file lock</li>
+            <li>User prompted to close Excel and retry</li>
+            <li>Save succeeds after Excel closed</li>
+          </ul>
+        </div>
+
+        <div class="test-phase">
+          <h3>Test 5.3: Invalid STDF File</h3>
+          <p><strong>Objective:</strong> Verify handling of corrupted or invalid input</p>
+
+          <h4>Steps:</h4>
+          <ol>
+            <li>Create dummy file: <code>echo "invalid" > temp/bad.stdf</code></li>
+            <li>Attempt analysis:
+              <pre><code>python -m cpkanalysis.cli run temp/bad.stdf \
+  --output temp/Test_Bad.xlsx</code></pre>
+            </li>
+            <li>Observe error handling</li>
+          </ol>
+
+          <h4>Acceptance Criteria:</h4>
+          <ul>
+            <li>Error message indicates file format problem</li>
+            <li>No crash or incomplete workbook generated</li>
+            <li>Exit code non-zero</li>
+          </ul>
+        </div>
+
+        <h2>Reporting and Documentation</h2>
+
+        <div class="success-box">
+          <strong>Test Report Template</strong>
+          For each test cycle, document:
+          <ul>
+            <li><strong>Environment:</strong> Python version, OS, Excel version</li>
+            <li><strong>Test Date:</strong> When testing performed</li>
+            <li><strong>Tester:</strong> Who performed verification</li>
+            <li><strong>Results:</strong> Pass/Fail for each test phase</li>
+            <li><strong>Issues Found:</strong> Description, severity, reproducibility</li>
+            <li><strong>Screenshots:</strong> Capture key charts, error messages</li>
+            <li><strong>Logs:</strong> Attach console output for failures</li>
+            <li><strong>Files:</strong> Save generated workbooks and metadata</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>Acceptance Criteria Summary</h3>
+          <p>For release approval, all of the following must pass:</p>
+          <ul>
+            <li>Phase 1: All core pipeline tests pass without errors</li>
+            <li>Phase 2: GUI workflow completes successfully</li>
+            <li>Phase 3: All post-processing operations function correctly</li>
+            <li>Phase 4: Workbook structure and charts meet quality standards</li>
+            <li>Phase 5: Error scenarios handled gracefully with clear messages</li>
+            <li>No data corruption or loss observed</li>
+            <li>Metadata audit trails complete and accurate</li>
+            <li>Performance acceptable (typical STDF processes in < 2 minutes)</li>
+          </ul>
+        </div>
+
+        <h2>Tips for Effective Testing</h2>
+
+        <div class="info-box">
+          <strong>Best Practices</strong>
+          <ul>
+            <li><strong>Fresh Environment:</strong> Test on clean Python installation to catch missing dependencies</li>
+            <li><strong>Different Platforms:</strong> Run subset on Windows, macOS, and Linux if possible</li>
+            <li><strong>Real Data:</strong> Include tests with actual production STDF files (anonymized if needed)</li>
+            <li><strong>Edge Cases:</strong> Try empty files, single-device files, thousands of tests</li>
+            <li><strong>Concurrent Access:</strong> Verify behavior when multiple analyses run simultaneously</li>
+            <li><strong>Long Sessions:</strong> Test post-processing menu with many iterations (memory leaks?)</li>
+          </ul>
+        </div>
+
+        <div class="warning-box">
+          <strong>Common Pitfalls to Watch For</strong>
+          <ul>
+            <li>Charts with overlapping legends or unreadable text</li>
+            <li>CPK calculations that don't match manual verification</li>
+            <li>Limit markers not visible on charts (wrong axis range)</li>
+            <li>Metadata JSON not updating after post-processing</li>
+            <li>Performance degradation with large STDF files (>100MB)</li>
+            <li>Memory usage growing unbounded during long sessions</li>
+          </ul>
+        </div>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="getting_started.html">Getting Started</a> — Installation and initial setup</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> — Automated test execution</li>
+          <li><a href="cli_reference.html">CLI Reference</a> — Command-line options</li>
+          <li><a href="gui_reference.html">GUI Guide</a> — Interactive console usage</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> — Detailed operation guide</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
   </body>
 </html>

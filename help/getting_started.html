@@ -2,68 +2,479 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Getting Started</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Getting Started - CPK Analysis</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
-      pre { background: #f8f9fb; border: 1px solid #dde1e6; padding: 1rem; overflow-x: auto; }
-      ul { margin-left: 1.2rem; }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 900px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      pre {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 1.5rem;
+        border-radius: 8px;
+        overflow-x: auto;
+        margin: 1.5rem 0;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      }
+
+      pre code {
+        background: none;
+        padding: 0;
+        border: none;
+        color: #e2e8f0;
+        font-size: 0.95rem;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+
+      .badge {
+        display: inline-block;
+        background: #667eea;
+        color: white;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+      }
+
+      .file-tree {
+        background: #f7fafc;
+        border: 1px solid #e1e4e8;
+        border-radius: 6px;
+        padding: 1rem 1.5rem;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+      }
+
+      .file-tree li {
+        list-style: none;
+        margin: 0.3rem 0;
+      }
     </style>
   </head>
   <body>
-    <h1>Getting Started</h1>
-    <p>
-      This topic explains how to install prerequisites, initialise the repository, and run the CPK analysis pipeline for the first time.
-    </p>
+    <div class="container">
+      <header>
+        <h1>🚀 Getting Started</h1>
+        <p>Install, configure, and run your first CPK analysis in minutes</p>
+      </header>
 
-    <h2>Prerequisites</h2>
-    <ul>
-      <li><strong>Python 3.11+</strong> (3.13 recommended)</li>
-      <li>Windows, macOS, or Linux with permission to create files under <code>temp/</code></li>
-      <li>Git tooling capable of cloning submodules</li>
-    </ul>
+      <nav>
+        <a href="index.html">← Home</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="gui_reference.html">GUI Guide</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+      </nav>
 
-    <h2>Clone and Install</h2>
-    <pre><code>git clone &lt;repository-url&gt;
+      <div class="content">
+        <p>
+          This guide walks you through installing prerequisites, initializing the repository, and executing the CPK analysis pipeline for the first time. You'll be analyzing STDF files and generating Excel reports within minutes.
+        </p>
+
+        <h2>📋 Prerequisites</h2>
+        <ul>
+          <li><span class="badge">Required</span> <strong>Python 3.11+</strong> (Python 3.13 recommended for best performance)</li>
+          <li><span class="badge">Required</span> <strong>Git</strong> with submodule support for cloning dependencies</li>
+          <li><span class="badge">OS</span> Windows, macOS, or Linux with write permissions to <code>temp/</code> directory</li>
+          <li><span class="badge">Optional</span> Excel or compatible spreadsheet software for viewing reports</li>
+        </ul>
+
+        <div class="info-box">
+          <strong>💡 Python Version Check</strong>
+          Verify your Python installation: <code>python --version</code> or <code>python3 --version</code>
+        </div>
+
+        <h2>⚙️ Installation</h2>
+
+        <h3>1. Clone the Repository</h3>
+        <p>Clone the cpkAnalysis repository with all submodules:</p>
+        <pre><code>git clone &lt;repository-url&gt;
 cd cpkAnalysis
-git submodule update --init --recursive
-pip install -r requirements.txt</code></pre>
-    <p>
-      The <code>Submodules/istdf</code> project provides the STDF reader used by the ingestion stage. The <code>pip install</code> step brings in
-      <code>pandas</code>, <code>numpy</code>, <code>pyarrow</code>, <code>openpyxl</code>, and <code>matplotlib</code>.
-    </p>
+git submodule update --init --recursive</code></pre>
 
-    <h2>Directory Layout</h2>
-    <ul>
-      <li><code>cpkanalysis/</code> &mdash; Core pipeline, post-processing engine, GUI, and CLI.</li>
-      <li><code>examples/</code> &mdash; Sample STDF files and plugin templates.</li>
-      <li><code>temp/</code> &mdash; Session directories created for intermediate files.</li>
-      <li><code>help/</code> &mdash; HTML Help sources (this content).</li>
-      <li><code>tests/</code> &mdash; Pytest-based automation, including post-processing regression coverage.</li>
-    </ul>
+        <div class="info-box">
+          <strong>📦 About Submodules</strong>
+          The <code>Submodules/istdf</code> project provides the STDF reader used by the ingestion stage. The <code>--recursive</code> flag ensures all nested dependencies are fetched.
+        </div>
 
-    <h2>Running the Pipeline</h2>
-    <p>To analyse one or more STDF files and produce the Excel workbook:</p>
-    <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf Sample/lot3.stdf \
+        <h3>2. Install Python Dependencies</h3>
+        <p>Install all required packages using pip:</p>
+        <pre><code>pip install -r requirements.txt</code></pre>
+
+        <p>This installs the following key dependencies:</p>
+        <div class="card">
+          <ul>
+            <li><code>pandas</code> — DataFrame operations and statistics</li>
+            <li><code>numpy</code> — Numerical computations</li>
+            <li><code>pyarrow</code> — Parquet file format support</li>
+            <li><code>openpyxl</code> — Excel workbook manipulation</li>
+            <li><code>matplotlib</code> — Chart generation (histograms, CDF, time-series)</li>
+          </ul>
+        </div>
+
+        <h3>3. Verify Installation</h3>
+        <p>Test that the package is accessible:</p>
+        <pre><code>python -m cpkanalysis.cli --help</code></pre>
+
+        <div class="success-box">
+          <strong>✅ Success!</strong>
+          If you see the CLI help text with available commands, installation is complete.
+        </div>
+
+        <h2>📁 Directory Layout</h2>
+        <p>Understanding the project structure:</p>
+        <div class="file-tree">
+          <ul>
+            <li><strong>cpkanalysis/</strong> — Core pipeline, post-processing engine, GUI, and CLI</li>
+            <li><strong>examples/</strong> — Sample STDF files and plugin templates</li>
+            <li><strong>temp/</strong> — Session directories for intermediate Parquet files</li>
+            <li><strong>help/</strong> — HTML documentation sources (this content)</li>
+            <li><strong>docs/</strong> — Markdown technical documentation</li>
+            <li><strong>tests/</strong> — Pytest suite for ingestion and post-processing</li>
+            <li><strong>Submodules/istdf/</strong> — STDF V4 reader library</li>
+            <li><strong>cpkTemplate/</strong> — Excel template workbooks</li>
+          </ul>
+        </div>
+
+        <h2>🎯 Running Your First Analysis</h2>
+
+        <h3>Basic Command</h3>
+        <p>Analyze one or more STDF files and generate an Excel CPK workbook:</p>
+        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf examples/lot3.stdf \
   --output temp/CPK_Workbook.xlsx \
   --template cpkTemplate/cpk_report_output_template.xlsx</code></pre>
-    <p>
-      The command emits console progress for ingest, outlier filtering (if enabled), statistics, chart generation, template population, and metadata output.
-    </p>
 
-    <h2>Outputs</h2>
-    <ul>
-      <li><strong>Workbook</strong>: Excel file containing summary tables, charts, Test List &amp; Limits, and linked CPK template data.</li>
-      <li><strong>Metadata</strong>: JSON sidecar named after the workbook (for example <code>CPK_Workbook.json</code>) capturing configuration, source stats, limit provenance, and post-processing audits.</li>
-      <li><strong>Parquet</strong>: Intermediate measurement stores under a temporary session directory; removed automatically when the pipeline completes.</li>
-    </ul>
+        <h3>What Happens During Execution</h3>
+        <div class="card">
+          <h3>Pipeline Stages</h3>
+          <ol>
+            <li><strong>STDF Ingestion</strong> — Reads PTR/FTR records, extracts measurements and limits</li>
+            <li><strong>Outlier Filtering</strong> — Applies IQR or standard deviation filters (if enabled)</li>
+            <li><strong>Statistics</strong> — Calculates mean, std dev, CPK, yield for each test</li>
+            <li><strong>Chart Generation</strong> — Creates histograms, CDF plots, and time-series charts</li>
+            <li><strong>Template Population</strong> — Writes results to Excel template sheets</li>
+            <li><strong>Metadata Export</strong> — Saves JSON sidecar with configuration and audit log</li>
+          </ol>
+        </div>
 
-    <h2>Next Steps</h2>
-    <ul>
-      <li>Refer to the <a href="cli_reference.html">Command-Line Reference</a> for advanced flags, validation mode, and plugin overrides.</li>
-      <li>Launch the <a href="gui_reference.html">console GUI</a> for an interactive configuration flow.</li>
-      <li>After the workbook is generated, explore the <a href="post_processing.html">post-processing menu</a> to adjust limits and regenerate charts without re-running ingestion.</li>
-    </ul>
+        <div class="info-box">
+          <strong>⏱️ Performance Note</strong>
+          Processing time varies by file size. Typical STDF files (10-50MB) complete in under 60 seconds.
+        </div>
+
+        <h2>📊 Understanding the Outputs</h2>
+
+        <h3>Excel Workbook</h3>
+        <p>The primary output containing:</p>
+        <ul>
+          <li><strong>CPK Report</strong> — Summary table with statistics, limits, and CPK values</li>
+          <li><strong>Test List & Limits</strong> — Complete test catalog with STDF/Spec/Proposed limits</li>
+          <li><strong>Chart Sheets</strong> — Histogram, CDF, and time-series visualizations per test</li>
+          <li><strong>_PlotAxisRanges</strong> — Hidden metadata for chart axis scaling</li>
+        </ul>
+
+        <h3>Metadata JSON</h3>
+        <p>Sidecar file (e.g., <code>CPK_Workbook.json</code>) capturing:</p>
+        <ul>
+          <li>Source STDF file paths and ingestion statistics</li>
+          <li>Outlier filtering method and parameters</li>
+          <li>Test limit provenance (ATE vs. specification)</li>
+          <li>Post-processing action audit log</li>
+          <li>Plugin configuration and execution records</li>
+        </ul>
+
+        <h3>Intermediate Parquet Files</h3>
+        <p>Temporary measurement storage under <code>temp/session_*/</code>:</p>
+        <ul>
+          <li>One Parquet file per test containing all measurements</li>
+          <li>Automatically removed when pipeline completes</li>
+          <li>Can be preserved using <code>--session-dir</code> for debugging</li>
+        </ul>
+
+        <h2>🎨 Customizing Your Analysis</h2>
+
+        <h3>Outlier Filtering</h3>
+        <p>Apply statistical filters to remove outliers before CPK calculation:</p>
+        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --outlier-method iqr \
+  --outlier-k 1.5 \
+  --output temp/Filtered_CPK.xlsx</code></pre>
+
+        <div class="card">
+          <h3>Available Methods</h3>
+          <ul>
+            <li><code>none</code> — No filtering (default)</li>
+            <li><code>iqr</code> — Interquartile range method (Q1 - k·IQR, Q3 + k·IQR)</li>
+            <li><code>stdev</code> — Standard deviation method (μ ± k·σ)</li>
+          </ul>
+        </div>
+
+        <h3>Selective Chart Generation</h3>
+        <p>Disable specific chart types to reduce processing time:</p>
+        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+  --no-time-series \
+  --output temp/Fast_CPK.xlsx</code></pre>
+
+        <div class="info-box">
+          <strong>🚀 Performance Tip</strong>
+          Use <code>--no-histogram</code>, <code>--no-cdf</code>, or <code>--no-time-series</code> flags when charts aren't needed. This can reduce runtime by 40-60% for large datasets.
+        </div>
+
+        <h2>🔄 Next Steps</h2>
+
+        <div class="card">
+          <h3>1. Explore the CLI</h3>
+          <p>Review the <a href="cli_reference.html">Command-Line Reference</a> for advanced options including:</p>
+          <ul>
+            <li>Plugin management and profiles</li>
+            <li>Validation mode for testing</li>
+            <li>Session directory control</li>
+            <li>Template sheet targeting</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>2. Try the GUI</h3>
+          <p>Launch the <a href="gui_reference.html">interactive console GUI</a> for guided configuration:</p>
+          <pre><code>python -m cpkanalysis.gui</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>3. Post-Processing</h3>
+          <p>After generating a workbook, explore the <a href="post_processing.html">post-processing menu</a> to:</p>
+          <ul>
+            <li>Update STDF limits and recalculate CPK</li>
+            <li>Apply specification or what-if limits</li>
+            <li>Calculate proposed limits for new targets</li>
+            <li>Regenerate charts without re-ingesting data</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>4. Learn STDF Ingestion</h3>
+          <p>Read the <a href="stdf_ingestion.html">STDF Ingestion Guide</a> to understand:</p>
+          <ul>
+            <li>OPT_FLAG bit handling and limit defaults</li>
+            <li>TEST_FLG and PARM_FLG filtering logic</li>
+            <li>Real-world ATE conventions</li>
+            <li>Edge cases and troubleshooting</li>
+          </ul>
+        </div>
+
+        <h2>❓ Troubleshooting</h2>
+
+        <h3>Common Issues</h3>
+
+        <div class="card">
+          <h3>ModuleNotFoundError: No module named 'cpkanalysis'</h3>
+          <p><strong>Solution:</strong> Ensure you're running from the repository root and dependencies are installed:</p>
+          <pre><code>pip install -r requirements.txt</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>FileNotFoundError: STDF file not found</h3>
+          <p><strong>Solution:</strong> Use absolute paths or verify relative paths from current directory:</p>
+          <pre><code>python -m cpkanalysis.cli run "$(pwd)/examples/lot2.stdf"</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>PermissionError writing to temp/</h3>
+          <p><strong>Solution:</strong> Ensure write permissions or specify an alternative session directory:</p>
+          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf --session-dir /tmp/cpk_session</code></pre>
+        </div>
+
+        <div class="info-box">
+          <strong>🐛 Debug Mode</strong>
+          Add <code>--debug</code> flag to any command for detailed stack traces and environment information.
+        </div>
+
+        <h2>📚 Additional Resources</h2>
+        <ul>
+          <li><a href="cli_reference.html">CLI Reference</a> — Complete command-line option documentation</li>
+          <li><a href="gui_reference.html">GUI Guide</a> — Interactive console walkthrough</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> — Workbook manipulation guide</li>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> — Deep dive into STDF V4 parsing</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> — Running automated tests</li>
+          <li><a href="manual_verification.html">QA Checklist</a> — Manual verification procedures</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
   </body>
 </html>
