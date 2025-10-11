@@ -99,13 +99,23 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
             existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
             info_low_flag = info.get("has_stdf_lower")
             info_high_flag = info.get("has_stdf_upper")
-            # Only update limits if we have valid limit data (don't overwrite good limits with None)
-            if info_low_flag is True and info.get("stdf_lower") is not None:
+            # Update limits: allow explicit updates and clears based on has_stdf_* flags
+            # If has_stdf_lower is True, update (even if value is None - explicit clear)
+            # If has_stdf_lower is False and value is None, it's an explicit "no limit"
+            if info_low_flag is True:
                 existing["stdf_lower"] = info["stdf_lower"]
-                existing["has_stdf_lower"] = True
-            if info_high_flag is True and info.get("stdf_upper") is not None:
+                existing["has_stdf_lower"] = info["stdf_lower"] is not None
+            elif info_low_flag is False and info.get("stdf_lower") is None:
+                # Explicit "no limit" case
+                existing["stdf_lower"] = None
+                existing["has_stdf_lower"] = False
+            if info_high_flag is True:
                 existing["stdf_upper"] = info["stdf_upper"]
-                existing["has_stdf_upper"] = True
+                existing["has_stdf_upper"] = info["stdf_upper"] is not None
+            elif info_high_flag is False and info.get("stdf_upper") is None:
+                # Explicit "no limit" case
+                existing["stdf_upper"] = None
+                existing["has_stdf_upper"] = False
 
     if all_frames:
         combined = pd.concat(all_frames, ignore_index=True)
@@ -231,52 +241,64 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     test_name_raw = data.get("TEST_TXT")
     if test_num is None and not test_name_raw:
         return
-    
+
     # Extract test metadata (similar to _extract_measurement but without flag checks)
     key = str(test_num) if test_num is not None else f"name:{test_name_raw or ''}"
     metadata = cache.get(key, _TestMetadata())
-    
+
     test_name = _coerce_str(test_name_raw) or metadata.test_name
     if test_name:
         metadata.test_name = test_name
-    
+
     unit_raw = data.get("UNITS")
     unit_value = _coerce_str(unit_raw) or metadata.unit
     if unit_value:
         metadata.unit = unit_value
-    
+
     # Extract OPT_FLG for limit detection - try both field name variants
     opt_flg = data.get("OPT_FLG", data.get("OPT_FLAG", 0))
     if isinstance(opt_flg, bytes):
         opt_flg = opt_flg[0] if opt_flg else 0
-    
+
     res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
-    
+
+    # Process low limit with proper OPT_FLAG semantics
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    no_low_limit = bool(opt_flg & 0x40)
+    no_low_limit = bool(opt_flg & 0x40)        # Bit 6: No low limit exists for this test
+    use_default_low = bool(opt_flg & 0x10)     # Bit 4: Use default from first PTR
+
     if no_low_limit:
+        # Test truly has no lower limit
         metadata.low_limit = None
         metadata.has_low_limit = False
+    elif use_default_low:
+        # Use default - don't update metadata (keep existing value)
+        pass
     elif raw_low_limit is not None:
+        # New limit value provided
         metadata.low_limit = raw_low_limit
         metadata.has_low_limit = True
-    else:
-        metadata.low_limit = None
-        metadata.has_low_limit = False
+    # If none of the above, leave metadata unchanged (don't clear on ambiguous None)
 
+    # Process high limit with proper OPT_FLAG semantics
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    no_high_limit = bool(opt_flg & 0x80)
+    no_high_limit = bool(opt_flg & 0x80)       # Bit 7: No high limit exists for this test
+    use_default_high = bool(opt_flg & 0x20)    # Bit 5: Use default from first PTR
+
     if no_high_limit:
+        # Test truly has no upper limit
         metadata.high_limit = None
         metadata.has_high_limit = False
+    elif use_default_high:
+        # Use default - don't update metadata (keep existing value)
+        pass
     elif raw_high_limit is not None:
+        # New limit value provided
         metadata.high_limit = raw_high_limit
         metadata.has_high_limit = True
-    else:
-        metadata.high_limit = None
-        metadata.has_high_limit = False
+    # If none of the above, leave metadata unchanged (don't clear on ambiguous None)
     
     metadata.scale = res_scale
     cache[key] = metadata
@@ -285,7 +307,7 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
     catalog_name = metadata.test_name or test_name or ""
     catalog_number = str(test_num) if test_num is not None else ""
     catalog_key = (catalog_name, catalog_number)
-    
+
     if catalog_key not in test_catalog:
         test_catalog[catalog_key] = {
             "unit": _compose_unit(metadata.unit, metadata.scale),
@@ -301,13 +323,28 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
         existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
         if existing.get("unit") in ("", None) and metadata.unit:
             existing["unit"] = _compose_unit(metadata.unit, metadata.scale)
-        # Only update limits if we have valid limit data (don't overwrite good limits with None)
-        if metadata.has_low_limit is True and metadata.low_limit is not None:
+
+        # Update limits based on current record's intent
+        # Allow explicit clears when no_low_limit or no_high_limit flags are set
+        if no_low_limit:
+            # Bit 6 set: explicitly clear low limit
+            existing["stdf_lower"] = None
+            existing["has_stdf_lower"] = False
+        elif not use_default_low and metadata.has_low_limit and metadata.low_limit is not None:
+            # New limit provided (not using default): update
             existing["stdf_lower"] = metadata.low_limit
             existing["has_stdf_lower"] = True
-        if metadata.has_high_limit is True and metadata.high_limit is not None:
+        # If use_default_low, don't modify existing limit
+
+        if no_high_limit:
+            # Bit 7 set: explicitly clear high limit
+            existing["stdf_upper"] = None
+            existing["has_stdf_upper"] = False
+        elif not use_default_high and metadata.has_high_limit and metadata.high_limit is not None:
+            # New limit provided (not using default): update
             existing["stdf_upper"] = metadata.high_limit
             existing["has_stdf_upper"] = True
+        # If use_default_high, don't modify existing limit
 
 
 def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[dict[str, Any]]:
@@ -355,32 +392,44 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
     measurement_value = _apply_scale(_coerce_float(data.get("RESULT")), res_scale)
 
+    # Process low limit with proper OPT_FLAG semantics
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
-    no_low_limit = bool(opt_flg & 0x40)
+    no_low_limit = bool(opt_flg & 0x40)        # Bit 6: No low limit exists for this test
+    use_default_low = bool(opt_flg & 0x10)     # Bit 4: Use default from first PTR
+
     if no_low_limit:
+        # Test truly has no lower limit
         metadata.low_limit = None
         metadata.has_low_limit = False
+    elif use_default_low:
+        # Use default - don't update metadata (keep existing value)
+        pass
     elif raw_low_limit is not None:
+        # New limit value provided
         metadata.low_limit = raw_low_limit
         metadata.has_low_limit = True
-    else:
-        metadata.low_limit = None
-        metadata.has_low_limit = False
+    # If none of the above, leave metadata unchanged (don't clear on ambiguous None)
     low_limit = metadata.low_limit if metadata.has_low_limit else None
 
+    # Process high limit with proper OPT_FLAG semantics
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
-    no_high_limit = bool(opt_flg & 0x80)
+    no_high_limit = bool(opt_flg & 0x80)       # Bit 7: No high limit exists for this test
+    use_default_high = bool(opt_flg & 0x20)    # Bit 5: Use default from first PTR
+
     if no_high_limit:
+        # Test truly has no upper limit
         metadata.high_limit = None
         metadata.has_high_limit = False
+    elif use_default_high:
+        # Use default - don't update metadata (keep existing value)
+        pass
     elif raw_high_limit is not None:
+        # New limit value provided
         metadata.high_limit = raw_high_limit
         metadata.has_high_limit = True
-    else:
-        metadata.high_limit = None
-        metadata.has_high_limit = False
+    # If none of the above, leave metadata unchanged (don't clear on ambiguous None)
     high_limit = metadata.high_limit if metadata.has_high_limit else None
 
     metadata.scale = res_scale

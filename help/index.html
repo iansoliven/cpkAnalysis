@@ -1,48 +1,372 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>CPK Analysis Help</title>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPK Analysis - Help Documentation</title>
     <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; line-height: 1.5; color: #1a1a1a; }
-      h1, h2, h3 { color: #004c8c; }
-      nav ul { list-style: none; padding: 0; }
-      nav li { margin: 0.4rem 0; }
-      a { color: #0066cc; text-decoration: none; }
-      a:hover { text-decoration: underline; }
-      code { background: #f2f4f8; padding: 0 0.2rem; border-radius: 3px; }
+        :root {
+            --primary-color: #2c3e50;
+            --secondary-color: #3498db;
+            --success-color: #27ae60;
+            --card-bg: #f8f9fa;
+            --border-color: #dee2e6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+
+        header h1 {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.3rem;
+            opacity: 0.95;
+        }
+
+        .help-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .help-card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+        }
+
+        .help-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+
+        .help-card-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .help-card h2 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+        }
+
+        .help-card p {
+            color: #666;
+            margin-bottom: 20px;
+            min-height: 60px;
+        }
+
+        .help-card .topics {
+            margin-bottom: 20px;
+        }
+
+        .help-card .topics h4 {
+            color: var(--secondary-color);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .help-card ul {
+            list-style: none;
+            color: #666;
+        }
+
+        .help-card li {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .help-card li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--secondary-color);
+        }
+
+        .help-card a {
+            display: inline-block;
+            background: var(--secondary-color);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .help-card a:hover {
+            background: #2980b9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .badge-new {
+            background: var(--success-color);
+            color: white;
+        }
+
+        .badge-critical {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .quick-links {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-top: 40px;
+        }
+
+        .quick-links h3 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+        }
+
+        .link-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .link-item {
+            padding: 15px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+
+        .link-item:hover {
+            background: #e9ecef;
+        }
+
+        .link-item a {
+            color: var(--secondary-color);
+            text-decoration: none;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .link-item a:before {
+            content: "📄";
+            font-size: 1.2rem;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 50px;
+            padding: 20px;
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2rem;
+            }
+
+            .help-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
-  </head>
-  <body>
-    <h1>CPK Analysis Help</h1>
-    <p>
-      Welcome to the compiled help for the CPK Analysis toolkit. Use the navigation links below or the Table of Contents pane to explore topics covering installation, command-line usage, the console GUI, and the post-processing capabilities.
-    </p>
-    <nav>
-      <h2>Topics</h2>
-      <ul>
-        <li><a href="getting_started.html">Getting Started</a></li>
-        <li><a href="cli_reference.html">Command-Line Reference</a></li>
-        <li><a href="post_processing.html">Post-Processing Menu</a></li>
-        <li><a href="gui_reference.html">Console GUI Guide</a></li>
-        <li><a href="testing_guidance.html">Automated Testing</a></li>
-        <li><a href="manual_verification.html">Manual Verification Checklist</a></li>
-      </ul>
-    </nav>
-    <section>
-      <h2>Project Highlights</h2>
-      <ul>
-        <li>High-throughput STDF ingestion with strict flag filtering.</li>
-        <li>Comprehensive Cp/Cpk statistics with configurable limit precedence.</li>
-        <li>Automatic Excel workbook authoring with histogram, CDF, and time-series charts.</li>
-        <li>Extensible post-processing menu for updating limits and refreshing charts after the main pipeline completes.</li>
-      </ul>
-    </section>
-    <section>
-      <h2>Where to Start</h2>
-      <p>
-        If you are new to the solution, read through <a href="getting_started.html">Getting Started</a> to configure prerequisites and run your first analysis. The <a href="post_processing.html">post-processing topic</a> explains how to take advantage of the new menu-driven tooling once a workbook is generated.
-      </p>
-    </section>
-  </body>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 CPK Analysis Help Center</h1>
+            <p>Comprehensive documentation for STDF processing and statistical analysis</p>
+        </header>
+
+        <div class="help-grid">
+            <div class="help-card">
+                <div class="help-card-icon">🔧</div>
+                <h2>STDF Ingestion <span class="badge badge-new">UPDATED</span></h2>
+                <p>Comprehensive guide to STDF V4 file processing, OPT_FLAG handling, and measurement validation.</p>
+
+                <div class="topics">
+                    <h4>Key Topics Covered:</h4>
+                    <ul>
+                        <li>OPT_FLAG bits 4/5 vs 6/7 explained</li>
+                        <li>PARM_FLG & TEST_FLG filtering</li>
+                        <li>Real-world ATE patterns</li>
+                        <li>Metadata caching system</li>
+                        <li>Critical bug fix documentation</li>
+                    </ul>
+                </div>
+
+                <a href="stdf_ingestion.html">Read Documentation →</a>
+            </div>
+
+            <div class="help-card">
+                <div class="help-card-icon">📊</div>
+                <h2>Statistical Analysis <span class="badge" style="background: #95a5a6; color: white;">COMING SOON</span></h2>
+                <p>Understanding CPK calculations, limit precedence, outlier filtering, and yield loss metrics.</p>
+
+                <div class="topics">
+                    <h4>Topics:</h4>
+                    <ul>
+                        <li>CPK, CPL, CPU calculations</li>
+                        <li>Limit precedence (What-If > Spec > STDF)</li>
+                        <li>Outlier filtering methods</li>
+                        <li>Robust statistics (3xIQR)</li>
+                        <li>2.0 CPK projections</li>
+                    </ul>
+                </div>
+
+                <a href="#" style="opacity: 0.5; cursor: not-allowed;">Coming Soon</a>
+            </div>
+
+            <div class="help-card">
+                <div class="help-card-icon">📈</div>
+                <h2>Chart Generation <span class="badge" style="background: #95a5a6; color: white;">COMING SOON</span></h2>
+                <p>Details on histogram, CDF, and time-series chart rendering with limit markers and axis bounds.</p>
+
+                <div class="topics">
+                    <h4>Topics:</h4>
+                    <ul>
+                        <li>Freedman-Diaconis binning</li>
+                        <li>Axis bounds calculation</li>
+                        <li>Limit marker styling</li>
+                        <li>Chart regeneration</li>
+                        <li>Performance optimization</li>
+                    </ul>
+                </div>
+
+                <a href="#" style="opacity: 0.5; cursor: not-allowed;">Coming Soon</a>
+            </div>
+
+            <div class="help-card">
+                <div class="help-card-icon">🔄</div>
+                <h2>Post-Processing <span class="badge" style="background: #95a5a6; color: white;">COMING SOON</span></h2>
+                <p>Interactive limit updates, chart regeneration, and proposed limit calculations for target CPK.</p>
+
+                <div class="topics">
+                    <h4>Topics:</h4>
+                    <ul>
+                        <li>Interactive menu system</li>
+                        <li>Limit update workflows</li>
+                        <li>Chart regeneration triggers</li>
+                        <li>Audit logging</li>
+                        <li>Template integration</li>
+                    </ul>
+                </div>
+
+                <a href="#" style="opacity: 0.5; cursor: not-allowed;">Coming Soon</a>
+            </div>
+
+            <div class="help-card">
+                <div class="help-card-icon">🔌</div>
+                <h2>Plugin System <span class="badge" style="background: #95a5a6; color: white;">COMING SOON</span></h2>
+                <p>Event-driven architecture, plugin development, and custom pipeline extensions.</p>
+
+                <div class="topics">
+                    <h4>Topics:</h4>
+                    <ul>
+                        <li>Event bus architecture</li>
+                        <li>Plugin discovery mechanisms</li>
+                        <li>TOML manifest format</li>
+                        <li>Custom plugin development</li>
+                        <li>Built-in plugins</li>
+                    </ul>
+                </div>
+
+                <a href="#" style="opacity: 0.5; cursor: not-allowed;">Coming Soon</a>
+            </div>
+
+            <div class="help-card">
+                <div class="help-card-icon">📋</div>
+                <h2>Template Integration <span class="badge" style="background: #95a5a6; color: white;">COMING SOON</span></h2>
+                <p>Excel template population, header detection, and CPK report generation.</p>
+
+                <div class="topics">
+                    <h4>Topics:</h4>
+                    <ul>
+                        <li>Template header matching</li>
+                        <li>Multi-row header search</li>
+                        <li>Hyperlink generation</li>
+                        <li>Data preservation</li>
+                        <li>Format compatibility</li>
+                    </ul>
+                </div>
+
+                <a href="#" style="opacity: 0.5; cursor: not-allowed;">Coming Soon</a>
+            </div>
+        </div>
+
+        <div class="quick-links">
+            <h3>📎 Quick Links</h3>
+            <div class="link-grid">
+                <div class="link-item">
+                    <a href="../README.md">Main README</a>
+                </div>
+                <div class="link-item">
+                    <a href="../docs/STDF_INGESTION.md">STDF Ingestion (Markdown)</a>
+                </div>
+                <div class="link-item">
+                    <a href="../tests/test_ingest_limits.py">Ingestion Tests</a>
+                </div>
+                <div class="link-item">
+                    <a href="../cpkanalysis/ingest.py">Ingestion Source Code</a>
+                </div>
+                <div class="link-item">
+                    <a href="http://www.roos.com/roos/documentation.nsf/3d6a93a7e05462cf85256a9c007dcaf3/92102f712ce51df48825783800832332/$FILE/STDF%20Spec%20V4%202007.pdf" target="_blank">STDF V4 Specification</a>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p><strong>CPK Analysis System</strong> - Version 1.0+</p>
+            <p>Last Updated: 2025-10-11</p>
+            <p style="margin-top: 15px; opacity: 0.8;">
+                For issues or questions, refer to the <a href="../README.md" style="color: white; text-decoration: underline;">README</a> or open an issue on the repository.
+            </p>
+        </footer>
+    </div>
+</body>
 </html>

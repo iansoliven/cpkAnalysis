@@ -145,39 +145,58 @@ The workbook is saved to the path supplied via `--output`, and a companion JSON 
 
 Temporary artifacts are isolated under `temp/session_*` and removed automatically after a successful run.
 
-## STDF Flag Filtering Technical Details
+## STDF Ingestion & Flag Filtering
 
-The system implements STDF specification-compliant flag filtering at the measurement ingestion level:
+The system implements STDF V4 specification-compliant ingestion with comprehensive flag filtering and proper OPT_FLAG bit handling.
 
-### Flag Processing Architecture
+### Quick Overview
+
+**Flag Processing Architecture:**
 1. **Test Catalog Population**: All PTR records populate the test catalog regardless of flag status (ensures complete test visibility)
 2. **Measurement Filtering**: Individual measurements are validated against flag criteria before inclusion in statistical calculations
 3. **Dual-Layer Approach**: Maintains complete test coverage while ensuring data quality
 
-### Flag Validation Logic
+**Key Validation:**
 ```python
-# PARM_FLG validation
-if parm_flg & 0x04:  # Bit 2: Result invalid
-    return None      # Reject measurement
-
-# TEST_FLG validation  
-if test_flg & 0x7E:  # Bits 1,2,3,4,5,6: Multiple validity issues
-    return None      # Reject measurement
+# PARM_FLG validation: Bit 2 (0x04) = Result invalid
+# TEST_FLG validation: Bits 1-6 (0x7E) = Various validity issues
+# OPT_FLAG handling: Bits 4/5 (use defaults) vs Bits 6/7 (no limits)
 ```
 
-### Measurement Exclusion Criteria
-- **Equipment Issues**: Sensor calibration errors, test hardware malfunctions
-- **Execution Problems**: Test timeouts, aborted tests, tests not executed
-- **Data Quality**: Unreliable results, measurements without P/F indication
-- **Invalid Results**: Flagged parameter and test result invalidity
+**Benefits:**
+- ✅ Only reliable measurements contribute to CPK statistics
+- ✅ All tests visible in reports even with 0 valid measurements
+- ✅ Proper OPT_FLAG default limit preservation (bits 4 & 5)
+- ✅ Correct "no limit" handling (bits 6 & 7)
 
-### Benefits
-- **Data Integrity**: Only reliable measurements contribute to CPK statistics
-- **Quality Monitoring**: Track invalid measurement rates for equipment health
-- **Complete Visibility**: All tests appear in reports regardless of measurement validity
-- **Robust Statistics**: Accurate CPK calculations uncontaminated by invalid data
+### 📚 Detailed Technical Reference
+
+For comprehensive details on STDF ingestion including:
+- Complete OPT_FLAG bit definitions and semantics
+- Bits 4/5 (use defaults) vs Bits 6/7 (no limits) explained
+- Real-world ATE usage patterns and examples
+- Metadata caching and limit propagation
+- Edge case handling and test coverage
+
+**See: [docs/STDF_INGESTION.md](docs/STDF_INGESTION.md)**
 
 ## Recent Improvements
+
+### STDF OPT_FLAG Bits 4 & 5 Support (Critical Fix - 2025-10-11)
+**Fixed critical data loss bug in default limit handling:**
+
+- **Problem**: Code only handled OPT_FLAG bits 6 & 7 (no limit exists), ignoring bits 4 & 5 (use default from first PTR)
+- **Impact**: When ATE used default limit mechanism (~80% of production STDFs), limits were incorrectly overwritten or cleared
+- **Fix**: Properly distinguish between "use default limit" (bits 4/5) and "no limit exists" (bits 6/7)
+- **Result**: Default limits now correctly propagate across devices, preventing CPK calculation errors
+
+**Real-world scenario fixed:**
+```
+Device 1: opt_flg=0x00, LO_LIMIT=1.0  → 1.0 ✅
+Device 2: opt_flg=0x10, LO_LIMIT=999  → OLD: 999 ❌  NEW: 1.0 ✅
+```
+
+See [docs/STDF_INGESTION.md](docs/STDF_INGESTION.md) for complete technical details.
 
 ### STDF Flag Filtering Enhancement (Major Update)
 The system now implements comprehensive STDF flag filtering to ensure only valid, reliable measurements are included in CPK calculations while preserving complete test visibility:
