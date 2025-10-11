@@ -593,9 +593,16 @@ def _compute_yield_loss(
     values = pd.to_numeric(filtered["Value"], errors="coerce").dropna()
     if values.empty:
         return float("nan")
+
+    # Filter out Inf/-Inf values (dropna() only removes NaN)
+    # Inf values should not be counted as failures - they represent edge cases
+    finite_values = values[np.isfinite(values)]
+    if finite_values.empty:
+        return float("nan")
+
     failures = 0
     if lower is not None:
-        failures += int(np.sum(values < lower))
+        failures += int(np.sum(finite_values < lower))
     if upper is not None:
-        failures += int(np.sum(values > upper))
-    return (failures / len(values)) * 100.0
+        failures += int(np.sum(finite_values > upper))
+    return (failures / len(finite_values)) * 100.0
