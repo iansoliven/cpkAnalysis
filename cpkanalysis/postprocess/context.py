@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -139,16 +140,23 @@ class PostProcessContext:
             self._template_sheet_name = candidate
             return candidate
 
-        excluded_prefixes = ("Measurements",)
-        excluded_exact = {"Summary", "Test List and Limits", "CPK Report", "_PlotAxisRanges"}
         for sheet_name in workbook.sheetnames:
-            if sheet_name in excluded_exact:
-                continue
-            if sheet_name.startswith(excluded_prefixes):
-                continue
-            self._template_sheet_name = sheet_name
-            return sheet_name
-        raise ValueError("Unable to determine template sheet name.")
+            sheet = workbook[sheet_name]
+            first_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ())
+            if any(
+                isinstance(value, str) and value.strip().lower() == "cpk report"
+                for value in first_row
+            ):
+                self._template_sheet_name = sheet_name
+                return sheet_name
+
+        message = "Unable to determine template sheet: no sheet contains 'Cpk Report' in the top row."
+        print(message, file=sys.stderr)
+        try:
+            input("Press Enter to exit...")
+        except EOFError:
+            pass
+        raise SystemExit(1)
 
     # ------------------------------------------------------------------
     # Helpers

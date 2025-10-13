@@ -29,12 +29,13 @@ class PostProcessIO:
             self.warn("Please enter a numeric value.")
             return self.prompt_float(message, default=default)
 
-    def prompt_choice(self, message: str, options: Sequence[str]) -> int:
+    def prompt_choice(self, message: str, options: Sequence[str], *, show_options: bool = True) -> int:
         if not options:
             raise ValueError("No options provided.")
         self.info(message)
-        for index, option in enumerate(options, start=1):
-            self.info(f"  {index}. {option}")
+        if show_options:
+            for index, option in enumerate(options, start=1):
+                self.info(f"  {index}. {option}")
         while True:
             choice = self.prompt("Enter choice number:")
             if not choice:

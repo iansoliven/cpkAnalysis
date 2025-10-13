@@ -51,8 +51,8 @@ def loop(context: PostProcessContext, *, io: PostProcessIO) -> None:
 
         choice = io.prompt_choice(
             "Select an option:",
-            [a.label for a in ACTION_DEFINITIONS]
-            + extra_labels,
+            [a.label for a in ACTION_DEFINITIONS] + extra_labels,
+            show_options=False,
         )
         if choice < len(ACTION_DEFINITIONS):
             action_def = ACTION_DEFINITIONS[choice]

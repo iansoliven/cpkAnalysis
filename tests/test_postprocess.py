@@ -95,6 +95,7 @@ def _build_test_workbook(
         "CPK_PROP",
         "%YLD LOSS_PROP",
     ]
+    template_ws.append(["Cpk Report"])
     template_ws.append(template_headers)
     template_ws.append(
         [

@@ -25,9 +25,15 @@ def create_context(
 ) -> PostProcessContext:
     """Build a :class:`PostProcessContext` from the supplied artefacts."""
     workbook_path = workbook_path.expanduser().resolve()
+    if workbook_path.exists() and workbook_path.is_dir():
+        print(f"Warning: Expected workbook file but received directory: {workbook_path}")
+        raise SystemExit(f"Workbook path must be a file: {workbook_path}")
     metadata_path = (
         metadata_path.expanduser().resolve() if metadata_path is not None else workbook_path.with_suffix(".json")
     )
+    if metadata_path.exists() and metadata_path.is_dir():
+        print(f"Warning: Expected metadata file but received directory: {metadata_path}")
+        raise SystemExit(f"Metadata path must be a file: {metadata_path}")
     metadata = load_metadata(metadata_path)
 
     if analysis_inputs is None:

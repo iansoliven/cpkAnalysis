@@ -15,6 +15,29 @@ from .plugin_profiles import load_plugin_profile, PROFILE_FILENAME
 from . import postprocess
 
 
+def _warn_path_type_mismatch(path: Path, *, expect_file: bool, description: str) -> None:
+    if not path.exists():
+        return
+    if expect_file and path.is_dir():
+        print(f"Warning: {description} should be a file, but a directory was provided: {path}")
+    if not expect_file and path.is_file():
+        print(f"Warning: {description} should be a directory, but a file was provided: {path}")
+
+
+def _prepare_output_path(path: Path) -> Path:
+    path = path.expanduser()
+    if path.exists() and path.is_dir():
+        print(f"Warning: Output path {path} is a directory; writing CPK_Workbook.xlsx inside it.")
+        path = path / "CPK_Workbook.xlsx"
+    if path.suffix:
+        if path.suffix.lower() != ".xlsx":
+            print(f"Warning: Output workbook should use '.xlsx'; replacing extension for {path}.")
+            path = path.with_suffix(".xlsx")
+    else:
+        path = path.with_suffix(".xlsx")
+    return path.resolve()
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="cpkanalysis",
@@ -164,9 +187,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "post-process":
+        workbook_path = args.workbook.expanduser().resolve()
+        if workbook_path.exists() and workbook_path.is_dir():
+            _warn_path_type_mismatch(workbook_path, expect_file=True, description="Workbook path")
+            raise SystemExit(f"Workbook path must be a file: {workbook_path}")
+        metadata_path = args.metadata
+        if metadata_path is not None:
+            metadata_path = metadata_path.expanduser().resolve()
+            if metadata_path.exists() and metadata_path.is_dir():
+                _warn_path_type_mismatch(metadata_path, expect_file=True, description="Metadata path")
+                raise SystemExit(f"Metadata path must be a file: {metadata_path}")
         context = postprocess.create_context(
-            workbook_path=args.workbook,
-            metadata_path=args.metadata,
+            workbook_path=workbook_path,
+            metadata_path=metadata_path,
         )
         postprocess.open_cli_menu(context)
         return 0
@@ -195,11 +228,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise SystemExit(f"Template path not found: {template_path}")
 
         workspace_root = Path.cwd()
-        profile_path = (
-            args.plugin_profile.expanduser().resolve()
-            if args.plugin_profile
-            else workspace_root / PROFILE_FILENAME
-        )
+        if args.plugin_profile:
+            profile_path = args.plugin_profile.expanduser().resolve()
+            if profile_path.exists() and profile_path.is_dir():
+                _warn_path_type_mismatch(profile_path, expect_file=True, description="Plugin profile")
+                profile_path = profile_path / PROFILE_FILENAME
+        else:
+            profile_path = workspace_root / PROFILE_FILENAME
         if args.plugin_profile and not profile_path.exists():
             print(f"Warning: plugin profile {profile_path} not found; using defaults.")
 
@@ -215,7 +250,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         for plugin_id in override_conflicts:
             print(f"Warning: command-line overrides applied to plugin '{plugin_id}' (profile preference superseded).")
 
-        output_path: Path = args.output
+        output_path: Path = _prepare_output_path(args.output)
         temp_template_path: Optional[Path] = None
         if args.validate_plugins:
             temp_dir = workspace_root / "temp"
@@ -266,11 +301,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     if args.command == "move-template":
+        workbook_path = args.workbook.expanduser().resolve()
+        if workbook_path.exists() and workbook_path.is_dir():
+            _warn_path_type_mismatch(workbook_path, expect_file=True, description="Workbook path")
+            raise SystemExit(f"Workbook path must be a file: {workbook_path}")
         target_sheet = run_move_to_template(
-            workbook_path=args.workbook,
+            workbook_path=workbook_path,
             sheet_name=args.sheet,
         )
-        print(f"Copied CPK Report data into sheet '{target_sheet}' in {args.workbook.resolve()}")
+        print(f"Copied CPK Report data into sheet '{target_sheet}' in {workbook_path}")
         return 0
 
     parser.error(f"Unsupported command: {args.command}")
@@ -279,6 +318,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _scan_directory(directory: Path, *, recursive: bool) -> list[Path]:
     directory = directory.expanduser().resolve()
+    if directory.exists() and directory.is_file():
+        _warn_path_type_mismatch(directory, expect_file=False, description="Scan directory")
     if not directory.exists() or not directory.is_dir():
         raise SystemExit(f"Directory not found: {directory}")
     if recursive:
@@ -293,6 +334,9 @@ def _scan_directory(directory: Path, *, recursive: bool) -> list[Path]:
 
 
 def _write_metadata(path: Path, sources: Iterable[Path]) -> None:
+    if path.exists() and path.is_dir():
+        print(f"Warning: Metadata path {path} is a directory; writing stdf_sources.json inside it.")
+        path = path / "stdf_sources.json"
     payload = [{"path": str(Path(src).expanduser().resolve())} for src in sources]
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -300,6 +344,9 @@ def _write_metadata(path: Path, sources: Iterable[Path]) -> None:
 
 def _read_metadata(path: Path) -> list[Path]:
     path = path.expanduser().resolve()
+    if path.exists() and path.is_dir():
+        _warn_path_type_mismatch(path, expect_file=True, description="Metadata path")
+        raise SystemExit(f"Metadata path is a directory, expected a file: {path}")
     if not path.exists():
         raise SystemExit(f"Metadata file not found: {path}")
     data = json.loads(path.read_text(encoding="utf-8"))
