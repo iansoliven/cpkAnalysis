@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from .cli import _select_template
+from .cli import _select_template, _prepare_output_path
 from .models import AnalysisInputs, OutlierOptions, SourceFile, PluginConfig
 from .pipeline import run_analysis
 from .plugins import PluginRegistry, PluginRegistryError
@@ -220,7 +220,7 @@ class CPKAnalysisGUI:
     def _collect_output_path(self) -> None:
         entry = input(f"Output workbook path (default: {self.state.output_path}): ").strip()
         if entry:
-            self.state.output_path = Path(entry).expanduser().resolve()
+            self.state.output_path = _prepare_output_path(Path(entry))
 
     def _open_postprocess_menu(self) -> None:
         if self._post_context is None:
