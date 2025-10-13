@@ -485,7 +485,19 @@ def calculate_proposed_limits(context: PostProcessContext, io: PostProcessIO, pa
     yld_prop_col = _resolve_column(template_headers, ["%YLD LOSS_PROP", "%YLD Loss Proposed"])
 
     if not all([ll_prop_col, ul_prop_col, cpk_prop_col, yld_prop_col]):
-        raise ActionCancelled("Template sheet missing proposed-limit columns.")
+        missing = []
+        if not ll_prop_col:
+            missing.append("LL_PROP")
+        if not ul_prop_col:
+            missing.append("UL_PROP")
+        if not cpk_prop_col:
+            missing.append("CPK_PROP")
+        if not yld_prop_col:
+            missing.append("%YLD LOSS_PROP")
+        raise ActionCancelled(
+            f"Template sheet missing proposed-limit columns: {', '.join(missing)}. "
+            "Please add these columns to your template sheet to use this feature."
+        )
 
     summary_df = context.summary_frame()
     summary_lookup = _summaries_by_key(summary_df)

@@ -104,8 +104,10 @@ def _execute_action(
 ) -> Optional[dict]:
     try:
         result = action_def.handler(context, io, params)
-    except actions.ActionCancelled:
-        io.info("Action cancelled.")
+    except actions.ActionCancelled as exc:
+        # Display the cancellation reason if provided
+        message = str(exc) if str(exc) else "Action cancelled."
+        io.warn(message)
         return None
     except Exception as exc:  # pragma: no cover - defensive
         io.warn(f"{action_def.label} failed: {exc}")
