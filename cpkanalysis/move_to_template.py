@@ -51,11 +51,33 @@ def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
 
 
 def _select_target_sheet(workbook, sheet_name: Optional[str]) -> Worksheet:
+    # Excluded sheets that should never be used as template targets
+    excluded_sheets = {"Summary", "Measurements", "CPK Report", "Test List and Limits"}
+
     if sheet_name:
         if sheet_name not in workbook.sheetnames:
             raise ValueError(f"Target sheet '{sheet_name}' not found in workbook.")
+        if sheet_name in excluded_sheets:
+            raise ValueError(
+                f"Sheet '{sheet_name}' is a generated sheet, not a template sheet. "
+                f"Please specify the actual template sheet name (look for 'Cpk Report' in row 1), "
+                f"or leave blank for auto-detection."
+            )
         return workbook[sheet_name]
 
+    # Auto-detect template sheet by looking for "Cpk Report" in first row
+    for candidate_name in workbook.sheetnames:
+        if candidate_name == SOURCE_SHEET:
+            continue
+        sheet = workbook[candidate_name]
+        first_row = next(sheet.iter_rows(min_row=1, max_row=1, values_only=True), ())
+        if any(
+            isinstance(value, str) and value.strip().lower() == "cpk report"
+            for value in first_row
+        ):
+            return sheet
+
+    # Fallback: use first non-CPK Report sheet
     for candidate in workbook.sheetnames:
         if candidate != SOURCE_SHEET:
             return workbook[candidate]
