@@ -61,6 +61,7 @@ class AnalysisInputs:
     generate_histogram: bool = True
     generate_cdf: bool = True
     generate_time_series: bool = True
+    generate_yield_pareto: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
 

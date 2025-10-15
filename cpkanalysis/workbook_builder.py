@@ -11,11 +11,18 @@ import numpy as np
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.drawing.image import Image as XLImage
+from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
-from .mpl_charts import render_cdf, render_histogram, render_time_series
-from .stats import SUMMARY_COLUMNS
+from .mpl_charts import (
+    render_cdf,
+    render_histogram,
+    render_pareto_chart,
+    render_time_series,
+    render_yield_chart,
+)
+from .stats import SUMMARY_COLUMNS, YIELD_SUMMARY_COLUMNS, PARETO_COLUMNS
 
 _BASE_FALLBACK_DECIMALS = 4
 FALLBACK_DECIMALS = _BASE_FALLBACK_DECIMALS
@@ -263,6 +270,9 @@ def build_workbook(
     include_histogram: bool,
     include_cdf: bool,
     include_time_series: bool,
+    include_yield_pareto: bool = False,
+    yield_summary: Optional[pd.DataFrame] = None,
+    pareto_summary: Optional[pd.DataFrame] = None,
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
 ) -> None:
@@ -285,6 +295,11 @@ def build_workbook(
                 include_time_series=include_time_series,
             )
         _populate_cpk_report(workbook, summary, test_limits, plot_links)
+
+        if include_yield_pareto:
+            yield_df = yield_summary if yield_summary is not None else pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
+            pareto_df = pareto_summary if pareto_summary is not None else pd.DataFrame(columns=PARETO_COLUMNS)
+            _write_yield_pareto_sheet(workbook, yield_df, pareto_df)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         workbook.save(output_path)
@@ -551,6 +566,243 @@ def _create_plot_sheets(
     return plot_links
 
 
+def _write_yield_pareto_sheet(
+    workbook: Workbook,
+    yield_summary: pd.DataFrame,
+    pareto_summary: pd.DataFrame,
+) -> None:
+    sheet_name = "Yield and Pareto"
+    if sheet_name in workbook.sheetnames:
+        del workbook[sheet_name]
+    ws = workbook.create_sheet(sheet_name, index=len(workbook.sheetnames))
+
+    if yield_summary is None or yield_summary.empty:
+        ws.cell(row=1, column=1, value="No yield data available.")
+        return
+
+    row_cursor = _write_yield_summary_table(ws, yield_summary)
+    for index, (_, yield_row) in enumerate(yield_summary.iterrows(), start=1):
+        row_cursor = _write_yield_section(ws, yield_row, pareto_summary, index, row_cursor)
+
+
+def _write_yield_summary_table(ws, yield_summary: pd.DataFrame) -> int:
+    headers = ["File", "Devices Total", "Devices Pass", "Devices Fail", "Yield %"]
+    start_row = 1
+    for col, header in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row, column=col, value=header)
+        cell.font = Font(bold=True)
+
+    current_row = start_row
+    for _, row in yield_summary.iterrows():
+        current_row += 1
+        ws.cell(row=current_row, column=1, value=str(row.get("file", "")))
+        ws.cell(row=current_row, column=2, value=int(row.get("devices_total", 0)))
+        ws.cell(row=current_row, column=3, value=int(row.get("devices_pass", 0)))
+        ws.cell(row=current_row, column=4, value=int(row.get("devices_fail", 0)))
+        yield_percent = row.get("yield_percent")
+        percent_value = None
+        try:
+            value = float(yield_percent)
+            if math.isfinite(value):
+                percent_value = value / 100.0
+        except (TypeError, ValueError):
+            percent_value = None
+        ws.cell(row=current_row, column=5, value=percent_value)
+
+    table_ref = f"A{start_row}:{get_column_letter(len(headers))}{current_row}"
+    table = Table(displayName="YieldSummaryTable", ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+
+    for r in range(start_row + 1, current_row + 1):
+        _set_number_format(ws.cell(row=r, column=2), "0")
+        _set_number_format(ws.cell(row=r, column=3), "0")
+        _set_number_format(ws.cell(row=r, column=4), "0")
+        _set_number_format(ws.cell(row=r, column=5), "0.00%")
+
+    def _ensure_width(column: str, minimum: float) -> None:
+        dim = ws.column_dimensions[column]
+        existing = dim.width or 0
+        if existing < minimum:
+            dim.width = minimum
+
+    _ensure_width("A", 32)
+    _ensure_width("B", 14)
+    _ensure_width("C", 14)
+    _ensure_width("D", 14)
+    _ensure_width("E", 14)
+
+    return current_row + 2
+
+
+def _write_yield_section(
+    ws,
+    yield_row: pd.Series,
+    pareto_summary: pd.DataFrame,
+    section_index: int,
+    start_row: int,
+) -> int:
+    row_cursor = start_row
+    file_name = str(yield_row.get("file", ""))
+    header_cell = ws.cell(row=row_cursor, column=1, value=f"File: {file_name}")
+    header_cell.font = Font(bold=True)
+    row_cursor += 1
+
+    yield_header_row = row_cursor
+    yield_headers = ["Outcome", "Units", "Percent"]
+    for col, header in enumerate(yield_headers, start=1):
+        cell = ws.cell(row=row_cursor, column=col, value=header)
+        cell.font = Font(bold=True)
+
+    pass_units = int(yield_row.get("devices_pass", 0))
+    fail_units = int(yield_row.get("devices_fail", 0))
+    yield_percent = yield_row.get("yield_percent")
+    yield_ratio = None
+    chart_yield = None
+    try:
+        value = float(yield_percent)
+        if math.isfinite(value):
+            chart_yield = value
+            yield_ratio = value / 100.0
+    except (TypeError, ValueError):
+        yield_ratio = None
+        chart_yield = None
+
+    data_rows = [
+        ("Pass", pass_units, yield_ratio),
+        ("Fail", fail_units, None if yield_ratio is None else max(0.0, 1.0 - yield_ratio)),
+    ]
+
+    for outcome, units, percent in data_rows:
+        row_cursor += 1
+        ws.cell(row=row_cursor, column=1, value=outcome)
+        ws.cell(row=row_cursor, column=2, value=int(units))
+        ws.cell(row=row_cursor, column=3, value=percent)
+
+    yield_end_row = row_cursor
+    table_ref = f"A{yield_header_row}:{get_column_letter(3)}{yield_end_row}"
+    table = Table(displayName=f"YieldTable{section_index}", ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+
+    for r in range(yield_header_row + 1, yield_end_row + 1):
+        _set_number_format(ws.cell(row=r, column=2), "0")
+        _set_number_format(ws.cell(row=r, column=3), "0.00%")
+
+    def _ensure_width(column: str, minimum: float) -> None:
+        dim = ws.column_dimensions[column]
+        existing = dim.width or 0
+        if existing < minimum:
+            dim.width = minimum
+
+    _ensure_width("A", 32)
+    _ensure_width("B", 14)
+    _ensure_width("C", 12)
+
+    yield_title = f"{_sanitize_label(file_name)} Yield"
+    chart_bytes = render_yield_chart(pass_units, fail_units, yield_percent=chart_yield, title=yield_title)
+    yield_chart_col = 6
+    _ensure_width(get_column_letter(yield_chart_col), 45)
+    _place_image_at(ws, chart_bytes, yield_header_row, yield_chart_col)
+    _ensure_row_height(ws, yield_header_row)
+
+    next_row = max(yield_end_row + 2, yield_header_row + ROW_STRIDE)
+
+    pareto_section_start = next_row
+    pareto_header_cell = ws.cell(row=pareto_section_start, column=1, value="Pareto")
+    pareto_header_cell.font = Font(bold=True)
+    row_cursor = pareto_section_start + 1
+    pareto_headers = [
+        "Test Name",
+        "Test Number",
+        "Devices Fail",
+        "Fail Rate",
+        "Cumulative",
+        "Lower Limit",
+        "Upper Limit",
+    ]
+    for col, header in enumerate(pareto_headers, start=1):
+        cell = ws.cell(row=row_cursor, column=col, value=header)
+        cell.font = Font(bold=True)
+
+    if pareto_summary is None or pareto_summary.empty or "file" not in pareto_summary.columns:
+        subset = pareto_summary.iloc[0:0] if pareto_summary is not None else pd.DataFrame(columns=PARETO_COLUMNS)
+    else:
+        subset = pareto_summary[pareto_summary["file"] == file_name]
+
+    chart_labels: list[str] = []
+    chart_counts: list[float] = []
+    chart_cumulative: list[float] = []
+
+    if subset.empty:
+        row_cursor += 1
+        ws.cell(row=row_cursor, column=1, value="No failing tests")
+        ws.cell(row=row_cursor, column=2, value="")
+        ws.cell(row=row_cursor, column=3, value=0)
+        ws.cell(row=row_cursor, column=4, value=None)
+        ws.cell(row=row_cursor, column=5, value=None)
+        ws.cell(row=row_cursor, column=6, value=None)
+        ws.cell(row=row_cursor, column=7, value=None)
+    else:
+        for _, pareto_row in subset.iterrows():
+            row_cursor += 1
+            test_name = str(pareto_row.get("test_name", ""))
+            test_number = str(pareto_row.get("test_number", ""))
+            ws.cell(row=row_cursor, column=1, value=test_name)
+            ws.cell(row=row_cursor, column=2, value=test_number)
+            fail_units = int(pareto_row.get("devices_fail", 0))
+            ws.cell(row=row_cursor, column=3, value=fail_units)
+
+            fail_value = None
+            try:
+                candidate = float(pareto_row.get("fail_rate_percent"))
+                if math.isfinite(candidate):
+                    fail_value = candidate
+            except (TypeError, ValueError):
+                fail_value = None
+
+            cumulative_value = None
+            try:
+                candidate = float(pareto_row.get("cumulative_percent"))
+                if math.isfinite(candidate):
+                    cumulative_value = candidate
+            except (TypeError, ValueError):
+                cumulative_value = None
+
+            ws.cell(row=row_cursor, column=4, value=(fail_value / 100.0) if fail_value is not None else None)
+            ws.cell(row=row_cursor, column=5, value=(cumulative_value / 100.0) if cumulative_value is not None else None)
+            ws.cell(row=row_cursor, column=6, value=pareto_row.get("lower_limit"))
+            ws.cell(row=row_cursor, column=7, value=pareto_row.get("upper_limit"))
+
+            label = f"{test_name} ({test_number})".strip()
+            chart_labels.append(_sanitize_label(label) or "(unnamed)")
+            chart_counts.append(float(fail_units))
+            chart_cumulative.append(cumulative_value if cumulative_value is not None else 0.0)
+
+    pareto_end_row = row_cursor
+    table_ref = f"A{pareto_section_start + 1}:{get_column_letter(len(pareto_headers))}{pareto_end_row}"
+    table = Table(displayName=f"ParetoTable{section_index}", ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+
+    for r in range(pareto_section_start + 2, pareto_end_row + 1):
+        _set_number_format(ws.cell(row=r, column=3), "0")
+        _set_number_format(ws.cell(row=r, column=4), "0.00%")
+        _set_number_format(ws.cell(row=r, column=5), "0.00%")
+
+    for column, minimum in zip("ABCDEFG", [32, 18, 14, 12, 12, 14, 14]):
+        dim = ws.column_dimensions[column]
+        existing = dim.width or 0
+        if existing < minimum:
+            dim.width = minimum
+
+    pareto_chart_title = f"{_sanitize_label(file_name)} Pareto"
+    chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
+    _place_image_at(ws, chart_bytes, pareto_section_start + 1, 6)
+    _ensure_row_height(ws, pareto_section_start + 1)
+
+    return max(pareto_end_row + 2, pareto_section_start + ROW_STRIDE)
+
 def _populate_cpk_report(
     workbook: Workbook,
     summary: pd.DataFrame,
@@ -689,6 +941,16 @@ def _place_image(sheet, image_bytes: bytes, anchor_row: int, label: str) -> str:
     img.width = IMAGE_WIDTH
     img.height = IMAGE_HEIGHT
     target_cell = f"{get_column_letter(IMAGE_ANCHOR_COLUMN)}{anchor_row}"
+    sheet.add_image(img, target_cell)
+    return target_cell
+
+
+def _place_image_at(sheet, image_bytes: bytes, anchor_row: int, anchor_column: int) -> str:
+    image_stream = BytesIO(image_bytes)
+    img = XLImage(image_stream)
+    img.width = IMAGE_WIDTH
+    img.height = IMAGE_HEIGHT
+    target_cell = f"{get_column_letter(anchor_column)}{anchor_row}"
     sheet.add_image(img, target_cell)
     return target_cell
 

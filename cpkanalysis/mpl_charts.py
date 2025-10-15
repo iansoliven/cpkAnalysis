@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt  # type: ignore  # noqa: E402
 import numpy as np
+from matplotlib.ticker import MaxNLocator, PercentFormatter
 
 DEFAULT_FIGSIZE = (8, 4)  # Reduced from (9, 4.5) for faster rendering
 DEFAULT_DPI = 100  # Reduced from 140 for faster generation
@@ -24,6 +25,10 @@ CDF_COLOR = "#ff7f0e"
 TIME_SERIES_COLOR = "#2ca02c"
 LIMIT_LOW_COLOR = "#C0504D"
 LIMIT_HIGH_COLOR = "#9BBB59"
+YIELD_PASS_COLOR = "#2ca02c"
+YIELD_FAIL_COLOR = "#d62728"
+PARETO_BAR_COLOR = HIST_COLOR
+PARETO_LINE_COLOR = CDF_COLOR
 
 MarkerOrientation = Literal["vertical", "horizontal"]
 
@@ -340,8 +345,106 @@ def _finalize_chart(
             ha="center",
             va="top",
             fontsize=9,  # Reduced from 10
-        )
+    )
     fig.subplots_adjust(right=0.78, bottom=0.28)
+
+
+def render_yield_chart(
+    pass_count: float,
+    fail_count: float,
+    *,
+    yield_percent: Optional[float] = None,
+    title: str = "",
+) -> bytes:
+    counts = [max(float(pass_count or 0), 0.0), max(float(fail_count or 0), 0.0)]
+    labels = ["Pass", "Fail"]
+    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    bars = ax.bar(labels, counts, color=[YIELD_PASS_COLOR, YIELD_FAIL_COLOR], alpha=0.85)
+    ax.set_ylabel("Units", fontsize=9)
+    ax.set_title(_clean_text(title), fontsize=11)
+    ax.tick_params(axis="both", labelsize=8)
+    ax.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
+    ax.yaxis.set_major_locator(MaxNLocator(integer=True))
+
+    max_count = max(counts) if counts else 0.0
+    if max_count <= 0:
+        ax.set_ylim(0, 1)
+    else:
+        ax.set_ylim(0, max_count * 1.15)
+
+    padding = max(0.02 * max_count, 0.1)
+    for bar, count in zip(bars, counts):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + padding,
+            f"{int(round(count))}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+    if yield_percent is None or not math.isfinite(yield_percent):
+        yield_text = "Yield: n/a"
+    else:
+        yield_text = f"Yield: {yield_percent:.2f}%"
+    ax.text(0.5, 0.92, yield_text, transform=ax.transAxes, ha="center", fontsize=10, fontweight="bold")
+
+    fig.tight_layout()
+    return _figure_to_png(fig)
+
+
+def render_pareto_chart(
+    labels: Sequence[str],
+    counts: Sequence[float],
+    cumulative_percent: Sequence[float],
+    *,
+    title: str = "",
+) -> bytes:
+    if not counts:
+        fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+        ax.axis("off")
+        ax.text(0.5, 0.5, "No failing tests", ha="center", va="center", fontsize=12)
+        return _figure_to_png(fig)
+
+    clean_labels = [_clean_text(label) or "(unnamed)" for label in labels]
+    indices = np.arange(len(counts))
+    fig, ax1 = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    bars = ax1.bar(indices, counts, color=PARETO_BAR_COLOR, alpha=0.85)
+    ax1.set_title(_clean_text(title), fontsize=11)
+    ax1.set_xlabel("Test", fontsize=9)
+    ax1.set_ylabel("Fail Count", fontsize=9)
+    ax1.tick_params(axis="x", labelrotation=45, labelsize=8)
+    ax1.tick_params(axis="y", labelsize=8)
+    ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+    ax1.grid(axis="y", linestyle=":", linewidth=0.6, alpha=0.7)
+
+    max_count = max(counts)
+    padding = max(0.02 * max_count, 0.1)
+    for bar, count in zip(bars, counts):
+        height = bar.get_height()
+        ax1.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + padding,
+            f"{int(round(count))}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+    ax1.set_xticks(indices)
+    ax1.set_xticklabels(clean_labels)
+
+    cumulative = np.clip(np.array(list(cumulative_percent), dtype=float), 0.0, 100.0)
+    ax2 = ax1.twinx()
+    ax2.plot(indices, cumulative, color=PARETO_LINE_COLOR, linewidth=2.0, marker="o", markersize=4)
+    ax2.set_ylabel("Cumulative %", fontsize=9, color=PARETO_LINE_COLOR)
+    ax2.tick_params(axis="y", labelsize=8, colors=PARETO_LINE_COLOR)
+    ax2.set_ylim(0, 110)
+    ax2.yaxis.set_major_formatter(PercentFormatter(100))
+
+    fig.tight_layout()
+    return _figure_to_png(fig)
 
 
 def _figure_to_png(fig) -> bytes:

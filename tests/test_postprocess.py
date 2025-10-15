@@ -394,3 +394,20 @@ def test_calculate_proposed_limits_extends_axis(tmp_path):
 
     assert axis_min <= proposed_lower
     assert axis_max >= proposed_upper
+
+
+def test_metadata_yield_flag_roundtrip(tmp_path):
+    workbook_path, metadata_path, _ = _build_test_workbook(tmp_path)
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata["analysis_options"] = {
+        "generate_histogram": False,
+        "generate_cdf": False,
+        "generate_time_series": False,
+        "generate_yield_pareto": True,
+        "display_decimals": 3,
+    }
+    metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+
+    context = postprocess.create_context(workbook_path=workbook_path, metadata_path=metadata_path)
+    assert context.analysis_inputs.generate_yield_pareto is True
+

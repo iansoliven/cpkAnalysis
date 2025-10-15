@@ -31,6 +31,7 @@ class ApplicationState:
     include_histogram: bool = True
     include_cdf: bool = True
     include_time_series: bool = True
+    generate_yield_pareto: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
 
@@ -68,6 +69,7 @@ class CPKAnalysisGUI:
             generate_histogram=self.state.include_histogram,
             generate_cdf=self.state.include_cdf,
             generate_time_series=self.state.include_time_series,
+            generate_yield_pareto=self.state.generate_yield_pareto,
             display_decimals=self.state.display_decimals,
             plugins=self.state.plugins,
         )
@@ -157,6 +159,7 @@ class CPKAnalysisGUI:
         self.state.include_histogram = _yes_no("Generate histograms? [Y/n]: ", default=True)
         self.state.include_cdf = _yes_no("Generate CDF charts? [Y/n]: ", default=True)
         self.state.include_time_series = _yes_no("Generate time-series charts? [Y/n]: ", default=True)
+        self.state.generate_yield_pareto = _yes_no("Generate Yield & Pareto analysis? [y/N]: ", default=False)
 
     def _collect_format_preferences(self) -> None:
         prompt = f"Fallback decimal places when STDF hints are missing (0-9, default {self.state.display_decimals}): "

@@ -196,6 +196,15 @@ python -m cpkanalysis.cli run Sample/*.stdf --no-time-series
 python -m cpkanalysis.cli run Sample/*.stdf --no-cdf --no-time-series
 ```
 
+### Yield & Pareto Analysis
+
+```bash
+# Create Yield and Pareto tables and charts
+python -m cpkanalysis.cli run Sample/*.stdf --generate-yield-pareto
+```
+
+Generates a `Yield and Pareto` sheet with file-level yield summaries, per-test Pareto tables, and paired charts for each STDF file.
+
 ### Output Formatting
 
 ```bash
@@ -216,7 +225,7 @@ The GUI walks through:
 1. STDF file selection
 2. Template configuration
 3. Outlier settings
-4. Chart preferences
+4. Chart preferences (histogram, CDF, time-series, Yield & Pareto)
 5. Format preferences
 6. Plugin selection
 7. Output path
@@ -246,6 +255,7 @@ python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx
 | **Summary** | Per-file/per-test statistics: COUNT, MEAN, MEDIAN, STDEV, IQR, CPL, CPU, CPK, yield loss variants, 2.0 CPK projections, 3xIQR alternatives |
 | **Measurements** | Flattened measurement table with File, DeviceID, Test Name, Test Number, Value, Units, Timestamp/Index (split into multiple sheets if >1M rows) |
 | **Test List and Limits** | Test catalog with STDF limits, Spec overrides, User What-If limits (priority: What-If > Spec > STDF) |
+| **Yield and Pareto** | File-level yield summary plus per-test Pareto tables and charts |
 | **Histogram_\*** | Matplotlib-rendered histograms per file, arranged by test with limit markers |
 | **CDF_\*** | Cumulative distribution function plots with limit markers |
 | **TimeSeries_\*** | Time-series plots showing measurement progression with limit bands |
@@ -789,3 +799,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 **Made with ❤️ for semiconductor test engineers**
 
 *Last updated: 2025-10-11*
+
+

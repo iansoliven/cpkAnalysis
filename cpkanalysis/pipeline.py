@@ -114,6 +114,12 @@ class SummaryReadyEvent(PipelineEvent):
 
 
 @dataclass(frozen=True)
+class YieldParetoReadyEvent(PipelineEvent):
+    yield_summary: pd.DataFrame
+    pareto_summary: pd.DataFrame
+
+
+@dataclass(frozen=True)
 class WorkbookReadyEvent(PipelineEvent):
     output_path: Path
 
@@ -133,6 +139,7 @@ _EVENT_NAME_MAP: dict[str, Type[PipelineEvent]] = {
     "IngestReadyEvent": IngestReadyEvent,
     "FilteredReadyEvent": FilteredReadyEvent,
     "SummaryReadyEvent": SummaryReadyEvent,
+    "YieldParetoReadyEvent": YieldParetoReadyEvent,
     "WorkbookReadyEvent": WorkbookReadyEvent,
     "TemplateAppliedEvent": TemplateAppliedEvent,
     "MetadataWrittenEvent": MetadataWrittenEvent,
@@ -150,6 +157,8 @@ class PipelineContext:
     outlier_summary: dict[str, Any] | None = None
     summary: pd.DataFrame | None = None
     limit_sources: dict[tuple[str, str, str], dict[str, str]] | None = None
+    yield_summary: pd.DataFrame | None = None
+    pareto_summary: pd.DataFrame | None = None
     template_sheet: str | None = None
     metadata_path: Path | None = None
     stage_timings: dict[str, float] = None  # type: ignore[assignment]
@@ -186,6 +195,7 @@ class Pipeline:
             ("ingest", "Ingesting STDF sources", self._stage_ingest),
             ("outliers", "Applying outlier filters", self._stage_outliers),
             ("statistics", "Computing summary statistics", self._stage_statistics),
+            ("yield_pareto", "Computing yield and Pareto analysis", self._stage_yield_pareto),
             ("workbook", "Building Excel workbook", self._stage_workbook),
             ("template", "Updating template sheet", self._stage_template),
             ("metadata", "Writing metadata sidecar", self._stage_metadata),
@@ -197,6 +207,8 @@ class Pipeline:
         try:
             context = self._install_plugins(context)
             for stage_name, message, handler in self._stage_handlers:
+                if stage_name == "yield_pareto" and not self._config.generate_yield_pareto:
+                    continue
                 if stage_name == "template" and not (self._config.template or self._config.template_sheet):
                     continue
                 context = self._run_stage(stage_name, message, handler, context)
@@ -298,6 +310,16 @@ class Pipeline:
         )
         return context.with_updates(summary=summary_df, limit_sources=limit_sources)
 
+    def _stage_yield_pareto(self, context: PipelineContext) -> PipelineContext:
+        if not context.config.generate_yield_pareto:
+            return context
+        assert context.ingest_result is not None, "Ingest stage must run before yield analysis."
+        assert context.filtered_measurements is not None, "Outlier stage must run before yield analysis."
+        yield_df, pareto_df = stats.compute_yield_pareto(
+            context.filtered_measurements, context.ingest_result.test_catalog
+        )
+        return context.with_updates(yield_summary=yield_df, pareto_summary=pareto_df)
+
     def _stage_workbook(self, context: PipelineContext) -> PipelineContext:
         assert context.ingest_result is not None, "Ingest stage must run before workbook."
         assert context.filtered_measurements is not None, "Outlier stage must run before workbook."
@@ -316,6 +338,9 @@ class Pipeline:
             include_histogram=context.config.generate_histogram,
             include_cdf=context.config.generate_cdf,
             include_time_series=context.config.generate_time_series,
+            include_yield_pareto=context.config.generate_yield_pareto,
+            yield_summary=context.yield_summary,
+            pareto_summary=context.pareto_summary,
             fallback_decimals=context.config.display_decimals,
             temp_dir=context.session_dir,
         )
@@ -337,6 +362,8 @@ class Pipeline:
             outlier_summary=context.outlier_summary,
             limit_sources=context.limit_sources or {},
             summary=context.summary,
+            yield_summary=context.yield_summary,
+            pareto_summary=context.pareto_summary,
             template_sheet=context.template_sheet,
             plugins=context.plugins_metadata,
         )
@@ -377,6 +404,18 @@ class Pipeline:
                 summary=context.summary,
                 limit_sources=context.limit_sources,
             )
+        if (
+            stage_name == "yield_pareto"
+            and context.yield_summary is not None
+            and context.pareto_summary is not None
+        ):
+            return YieldParetoReadyEvent(
+                stage=stage_name,
+                elapsed=elapsed,
+                context=context,
+                yield_summary=context.yield_summary,
+                pareto_summary=context.pareto_summary,
+            )
         if stage_name == "workbook":
             return WorkbookReadyEvent(
                 stage=stage_name,
@@ -413,7 +452,10 @@ class Pipeline:
             "outlier_removed": context.outlier_summary.get("removed", 0),
             "template_sheet": context.template_sheet,
             "plugins": list(context.active_plugins),
+            "yield_pareto_enabled": context.config.generate_yield_pareto,
         }
+        result["yield_rows"] = int(len(context.yield_summary)) if context.yield_summary is not None else 0
+        result["pareto_rows"] = int(len(context.pareto_summary)) if context.pareto_summary is not None else 0
         return result
 
 
@@ -445,6 +487,13 @@ def _build_metadata(
         "summary_counts": {
             "rows": int(len(summary)),
             "tests": int(summary["Test Name"].nunique()) if not summary.empty else 0,
+        },
+        "analysis_options": {
+            "generate_histogram": config.generate_histogram,
+            "generate_cdf": config.generate_cdf,
+            "generate_time_series": config.generate_time_series,
+            "generate_yield_pareto": config.generate_yield_pareto,
+            "display_decimals": config.display_decimals,
         },
         "plugins": [
             {

@@ -35,6 +35,25 @@ SUMMARY_COLUMNS = [
     "%YLD LOSS_3IQR",
 ]
 
+YIELD_SUMMARY_COLUMNS = [
+    "file",
+    "devices_total",
+    "devices_pass",
+    "devices_fail",
+    "yield_percent",
+]
+
+PARETO_COLUMNS = [
+    "file",
+    "test_name",
+    "test_number",
+    "devices_fail",
+    "fail_rate_percent",
+    "cumulative_percent",
+    "lower_limit",
+    "upper_limit",
+]
+
 
 def compute_summary(
     measurements: pd.DataFrame,
@@ -71,6 +90,15 @@ def compute_summary(
         summary = summary[SUMMARY_COLUMNS]
     summary.sort_values(by=["File", "Test Name", "Test Number"], inplace=True, ignore_index=True)
     return summary, limit_sources
+
+
+def compute_yield_pareto(
+    measurements: pd.DataFrame,
+    limits: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    yield_frame = _compute_yield_summary(measurements)
+    pareto_frame = _compute_pareto_details(measurements, limits, yield_frame)
+    return yield_frame, pareto_frame
 
 
 def _build_limit_map(limits: pd.DataFrame) -> dict[tuple[str, str], dict[str, Any]]:
@@ -149,6 +177,149 @@ def _compute_group_statistics(values: np.ndarray, limit_info: dict[str, Any]) ->
     }
 
 
+def _compute_yield_summary(measurements: pd.DataFrame) -> pd.DataFrame:
+    if measurements.empty or "file" not in measurements.columns:
+        return pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
+
+    files = measurements["file"].astype(str)
+    device_keys = _normalise_device_id(measurements)
+    status_series = measurements.get("part_status")
+    if status_series is None:
+        status_series = pd.Series(data="PASS", index=measurements.index, dtype="object")
+    status_values = status_series.astype(str).str.upper()
+    is_pass = status_values == "PASS"
+
+    device_status = pd.DataFrame(
+        {
+            "file": files,
+            "device_key": device_keys,
+            "is_pass": is_pass,
+        },
+        index=measurements.index,
+    )
+    per_device = device_status.groupby(["file", "device_key"], as_index=False)["is_pass"].all()
+    if per_device.empty:
+        return pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
+
+    totals = per_device.groupby("file")["device_key"].count().rename("devices_total")
+    passes = per_device[per_device["is_pass"]].groupby("file")["device_key"].count().rename("devices_pass")
+    result = totals.to_frame().join(passes, how="left").fillna({"devices_pass": 0})
+    result["devices_pass"] = result["devices_pass"].astype(int)
+    result["devices_total"] = result["devices_total"].astype(int)
+    result["devices_fail"] = (result["devices_total"] - result["devices_pass"]).astype(int)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result["yield_percent"] = np.where(
+            result["devices_total"] > 0,
+            (result["devices_pass"] / result["devices_total"]) * 100.0,
+            np.nan,
+        )
+    result.reset_index(inplace=True)
+    result.rename(columns={"index": "file"}, inplace=True)
+    result = result[["file", "devices_total", "devices_pass", "devices_fail", "yield_percent"]]
+    result.sort_values(by="file", inplace=True, ignore_index=True)
+    return result
+
+
+def _compute_pareto_details(
+    measurements: pd.DataFrame,
+    limits: pd.DataFrame,
+    yield_summary: pd.DataFrame,
+) -> pd.DataFrame:
+    required_columns = {"file", "test_name", "test_number", "value"}
+    if not required_columns.issubset(measurements.columns):
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    limit_map = _build_limit_map(limits)
+    if not limit_map:
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    limit_records: list[dict[str, Any]] = []
+    for (test_name, test_number), info in limit_map.items():
+        lower, _ = _select_limit("lower", info)
+        upper, _ = _select_limit("upper", info)
+        if lower is None and upper is None:
+            continue
+        limit_records.append(
+            {
+                "test_name": test_name,
+                "test_number": test_number,
+                "lower_limit": lower,
+                "upper_limit": upper,
+            }
+        )
+
+    if not limit_records:
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    limits_frame = pd.DataFrame(limit_records)
+    limits_frame["test_name"] = limits_frame["test_name"].astype(str)
+    limits_frame["test_number"] = limits_frame["test_number"].astype(str)
+
+    subset = measurements[["file", "test_name", "test_number", "value"]].copy()
+    subset["file"] = subset["file"].astype(str)
+    subset["test_name"] = subset["test_name"].astype(str)
+    subset["test_number"] = subset["test_number"].astype(str)
+    subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
+    subset["device_key"] = _normalise_device_id(measurements)
+
+    merged = subset.merge(limits_frame, on=["test_name", "test_number"], how="left")
+    if merged.empty:
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    valid_limits = merged["lower_limit"].notna() | merged["upper_limit"].notna()
+    merged = merged.loc[valid_limits]
+    if merged.empty:
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    lower_mask = merged["lower_limit"].notna() & (merged["value"] < merged["lower_limit"])
+    upper_mask = merged["upper_limit"].notna() & (merged["value"] > merged["upper_limit"])
+    fail_mask = lower_mask | upper_mask
+    failed = merged.loc[
+        fail_mask, ["file", "test_name", "test_number", "device_key", "lower_limit", "upper_limit"]
+    ]
+    if failed.empty:
+        return pd.DataFrame(columns=PARETO_COLUMNS)
+
+    failed = failed.drop_duplicates(subset=["file", "test_name", "test_number", "device_key"])
+    grouped = failed.groupby(["file", "test_name", "test_number"], as_index=False).agg(
+        devices_fail=("device_key", "size"),
+        lower_limit=("lower_limit", "first"),
+        upper_limit=("upper_limit", "first"),
+    )
+
+    totals_by_file: dict[Any, Any] = {}
+    if not yield_summary.empty:
+        totals_by_file = dict(zip(yield_summary["file"], yield_summary["devices_total"]))
+
+    grouped["devices_total"] = grouped["file"].map(totals_by_file).fillna(0)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        grouped["fail_rate_percent"] = np.where(
+            grouped["devices_total"] > 0,
+            (grouped["devices_fail"] / grouped["devices_total"]) * 100.0,
+            np.nan,
+        )
+    grouped.sort_values(
+        by=["file", "devices_fail", "test_name", "test_number"],
+        ascending=[True, False, True, True],
+        inplace=True,
+    )
+    grouped["cumulative_percent"] = grouped.groupby("file")["fail_rate_percent"].cumsum()
+
+    result = grouped[
+        [
+            "file",
+            "test_name",
+            "test_number",
+            "devices_fail",
+            "fail_rate_percent",
+            "cumulative_percent",
+            "lower_limit",
+            "upper_limit",
+        ]
+    ].reset_index(drop=True)
+    return result
+
+
 def _select_limit(side: str, info: dict[str, Any]) -> tuple[Optional[float], LimitSource]:
     candidates = [
         (info.get(f"what_if_{side}"), "what_if"),
@@ -202,6 +373,20 @@ def _compute_cpk(center: float, sigma: float, lower: Optional[float], upper: Opt
     cpl = _capability_ratio(center - lower, sigma) if lower is not None else None
     cpu = _capability_ratio(upper - center, sigma) if upper is not None else None
     return _merge_capabilities(cpl, cpu)
+
+
+def _normalise_device_id(frame: pd.DataFrame, column: str = "device_id") -> pd.Series:
+    if column not in frame.columns:
+        values = ["__row_" + str(idx) for idx in frame.index]
+        return pd.Series(values, index=frame.index, dtype="object")
+    series = frame[column]
+    text = series.astype(str).str.strip()
+    mask = pd.isna(series) | (text == "") | (text.str.lower() == "nan")
+    if not mask.any():
+        return text
+    fallback = "__row_" + frame.index.astype(str)
+    combined = np.where(mask.to_numpy(), fallback.to_numpy(), text.to_numpy())
+    return pd.Series(combined, index=frame.index, dtype="object")
 
 
 def _yield_loss(values: np.ndarray, lower: Optional[float], upper: Optional[float]) -> float:

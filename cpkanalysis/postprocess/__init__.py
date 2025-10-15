@@ -96,14 +96,33 @@ def _analysis_inputs_from_metadata(workbook_path: Path, metadata: dict) -> Analy
         if record.get("id")
     ]
 
+    options = metadata.get("analysis_options", {})
+    def _bool_option(name: str, default: bool) -> bool:
+        value = options.get(name, default)
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "y"}:
+                return True
+            if lowered in {"false", "0", "no", "n"}:
+                return False
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return default
+
+    display_decimals = options.get("display_decimals", 4)
+
     return AnalysisInputs(
         sources=sources,
         output=output_path,
         template=template_path,
         template_sheet=metadata.get("template_sheet"),
         outliers=OutlierOptions(),
-        generate_histogram=True,
-        generate_cdf=True,
-        generate_time_series=True,
+        generate_histogram=_bool_option("generate_histogram", True),
+        generate_cdf=_bool_option("generate_cdf", True),
+        generate_time_series=_bool_option("generate_time_series", True),
+        generate_yield_pareto=_bool_option("generate_yield_pareto", False),
+        display_decimals=display_decimals,
         plugins=plugin_configs,
     )

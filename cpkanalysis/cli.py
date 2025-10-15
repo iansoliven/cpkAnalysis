@@ -116,6 +116,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip time-series chart generation.",
     )
     run_parser.add_argument(
+        "--generate-yield-pareto",
+        action="store_true",
+        help="Generate the Yield and Pareto analysis sheet with associated charts.",
+    )
+    run_parser.add_argument(
         "--display-decimals",
         type=int,
         help="Override fallback decimal places when STDF formats are absent (0-9, default: 4).",
@@ -276,6 +281,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             generate_histogram=not args.no_histogram,
             generate_cdf=not args.no_cdf,
             generate_time_series=not args.no_time_series,
+            generate_yield_pareto=args.generate_yield_pareto,
             display_decimals=args.display_decimals if args.display_decimals is not None else 4,
             plugins=plugins,
         )
