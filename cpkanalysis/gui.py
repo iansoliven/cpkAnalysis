@@ -29,10 +29,10 @@ class ApplicationState:
     outlier_method: str = "none"
     outlier_k: float = 1.5
     include_histogram: bool = True
-   include_cdf: bool = True
-   include_time_series: bool = True
+    include_cdf: bool = True
+    include_time_series: bool = True
     display_decimals: int = 4
-   plugins: list[PluginConfig] = field(default_factory=list)
+    plugins: list[PluginConfig] = field(default_factory=list)
 
 
 class CPKAnalysisGUI:
