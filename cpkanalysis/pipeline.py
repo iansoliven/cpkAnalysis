@@ -316,6 +316,7 @@ class Pipeline:
             include_histogram=context.config.generate_histogram,
             include_cdf=context.config.generate_cdf,
             include_time_series=context.config.generate_time_series,
+            fallback_decimals=context.config.display_decimals,
             temp_dir=context.session_dir,
         )
         return context

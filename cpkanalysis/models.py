@@ -61,6 +61,7 @@ class AnalysisInputs:
     generate_histogram: bool = True
     generate_cdf: bool = True
     generate_time_series: bool = True
+    display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -71,6 +72,15 @@ class AnalysisInputs:
             self.template_sheet = self.template_sheet.strip()
             if not self.template_sheet:
                 self.template_sheet = None
+        try:
+            decimals = int(self.display_decimals)
+        except (TypeError, ValueError):
+            decimals = 4
+        if decimals < 0:
+            decimals = 0
+        if decimals > 9:
+            decimals = 9
+        self.display_decimals = decimals
 
 
 @dataclass

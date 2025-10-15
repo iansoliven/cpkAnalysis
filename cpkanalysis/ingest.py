@@ -32,6 +32,12 @@ class _TestMetadata:
     has_low_limit: bool = False
     has_high_limit: bool = False
     scale: int | None = None
+    result_format: Optional[str] = None
+    low_format: Optional[str] = None
+    high_format: Optional[str] = None
+    result_scale: Optional[int] = None
+    low_scale: Optional[int] = None
+    high_scale: Optional[int] = None
 
 
 EXPECTED_COLUMNS = [
@@ -45,6 +51,12 @@ EXPECTED_COLUMNS = [
     "value",
     "stdf_lower",
     "stdf_upper",
+    "stdf_result_format",
+    "stdf_lower_format",
+    "stdf_upper_format",
+    "stdf_result_scale",
+    "stdf_lower_scale",
+    "stdf_upper_scale",
     "timestamp",
     "measurement_index",
     "part_status",
@@ -132,6 +144,12 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
             "unit": info.get("unit") or "",
             "stdf_lower": info.get("stdf_lower") if info.get("has_stdf_lower", info.get("stdf_lower") is not None) else None,
             "stdf_upper": info.get("stdf_upper") if info.get("has_stdf_upper", info.get("stdf_upper") is not None) else None,
+            "stdf_result_format": info.get("stdf_result_format") or None,
+            "stdf_lower_format": info.get("stdf_lower_format") or None,
+            "stdf_upper_format": info.get("stdf_upper_format") or None,
+            "stdf_result_scale": info.get("stdf_result_scale"),
+            "stdf_lower_scale": info.get("stdf_lower_scale"),
+            "stdf_upper_scale": info.get("stdf_upper_scale"),
             "spec_lower": None,
             "spec_upper": None,
             "what_if_lower": None,
@@ -213,6 +231,12 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
                             "value": measurement["measurement"],
                             "stdf_lower": measurement["low_limit"],
                             "stdf_upper": measurement["high_limit"],
+                            "stdf_result_format": measurement.get("stdf_result_format"),
+                            "stdf_lower_format": measurement.get("stdf_lower_format"),
+                            "stdf_upper_format": measurement.get("stdf_upper_format"),
+                            "stdf_result_scale": measurement.get("stdf_result_scale"),
+                            "stdf_lower_scale": measurement.get("stdf_lower_scale"),
+                            "stdf_upper_scale": measurement.get("stdf_upper_scale"),
                             "timestamp": timestamp if timestamp is not None else float(measurement_index),
                             "measurement_index": measurement_index,
                             "part_status": status,
@@ -261,9 +285,20 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
         opt_flg = opt_flg[0] if opt_flg else 0
 
     res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
+    metadata.result_scale = res_scale
+
+    res_format = _coerce_str(data.get("C_RESFMT"))
+    if res_format:
+        metadata.result_format = res_format
 
     # Process low limit with proper OPT_FLAG semantics
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
+    metadata.low_scale = llm_scale
+
+    low_format = _coerce_str(data.get("C_LLMFMT"))
+    if low_format:
+        metadata.low_format = low_format
+
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
     no_low_limit = bool(opt_flg & 0x40)        # Bit 6: No low limit exists for this test
     use_default_low = bool(opt_flg & 0x10)     # Bit 4: Use default from first PTR
@@ -283,6 +318,12 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
 
     # Process high limit with proper OPT_FLAG semantics
     hlm_scale = _select_scale(data.get("HLM_SCAL"), res_scale, metadata.scale)
+    metadata.high_scale = hlm_scale
+
+    high_format = _coerce_str(data.get("C_HLMFMT"))
+    if high_format:
+        metadata.high_format = high_format
+
     raw_high_limit = _apply_scale(_coerce_float(data.get("HI_LIMIT")), hlm_scale)
     no_high_limit = bool(opt_flg & 0x80)       # Bit 7: No high limit exists for this test
     use_default_high = bool(opt_flg & 0x20)    # Bit 5: Use default from first PTR
@@ -315,6 +356,12 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
             "stdf_upper": metadata.high_limit if metadata.has_high_limit else None,
             "has_stdf_lower": metadata.has_low_limit,
             "has_stdf_upper": metadata.has_high_limit,
+            "stdf_result_format": metadata.result_format,
+            "stdf_lower_format": metadata.low_format,
+            "stdf_upper_format": metadata.high_format,
+            "stdf_result_scale": metadata.result_scale,
+            "stdf_lower_scale": metadata.low_scale,
+            "stdf_upper_scale": metadata.high_scale,
         }
     else:
         # Update existing entry if we have better information
@@ -323,6 +370,18 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
         existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
         if existing.get("unit") in ("", None) and metadata.unit:
             existing["unit"] = _compose_unit(metadata.unit, metadata.scale)
+        if metadata.result_format:
+            existing["stdf_result_format"] = metadata.result_format
+        if metadata.low_format:
+            existing["stdf_lower_format"] = metadata.low_format
+        if metadata.high_format:
+            existing["stdf_upper_format"] = metadata.high_format
+        if metadata.result_scale is not None:
+            existing["stdf_result_scale"] = metadata.result_scale
+        if metadata.low_scale is not None:
+            existing["stdf_lower_scale"] = metadata.low_scale
+        if metadata.high_scale is not None:
+            existing["stdf_upper_scale"] = metadata.high_scale
 
         # Update limits based on current record's intent
         # Allow explicit clears when no_low_limit or no_high_limit flags are set
@@ -390,10 +449,22 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
         metadata.unit = unit_value
 
     res_scale = _select_scale(data.get("RES_SCAL"), metadata.scale)
+    metadata.result_scale = res_scale
+
+    res_format = _coerce_str(data.get("C_RESFMT"))
+    if res_format:
+        metadata.result_format = res_format
+
     measurement_value = _apply_scale(_coerce_float(data.get("RESULT")), res_scale)
 
     # Process low limit with proper OPT_FLAG semantics
     llm_scale = _select_scale(data.get("LLM_SCAL"), res_scale, metadata.scale)
+    metadata.low_scale = llm_scale
+
+    low_format = _coerce_str(data.get("C_LLMFMT"))
+    if low_format:
+        metadata.low_format = low_format
+
     raw_low_limit = _apply_scale(_coerce_float(data.get("LO_LIMIT")), llm_scale)
     no_low_limit = bool(opt_flg & 0x40)        # Bit 6: No low limit exists for this test
     use_default_low = bool(opt_flg & 0x10)     # Bit 4: Use default from first PTR
@@ -432,6 +503,11 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
     # If none of the above, leave metadata unchanged (don't clear on ambiguous None)
     high_limit = metadata.high_limit if metadata.has_high_limit else None
 
+    metadata.high_scale = hlm_scale
+    high_format = _coerce_str(data.get("C_HLMFMT"))
+    if high_format:
+        metadata.high_format = high_format
+
     metadata.scale = res_scale
     cache[key] = metadata
 
@@ -445,6 +521,12 @@ def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) 
         "high_limit": high_limit,
         "measurement": measurement_value,
         "test_time": _coerce_float(data.get("TEST_TIM")),
+        "stdf_result_format": metadata.result_format,
+        "stdf_lower_format": metadata.low_format,
+        "stdf_upper_format": metadata.high_format,
+        "stdf_result_scale": metadata.result_scale,
+        "stdf_lower_scale": metadata.low_scale,
+        "stdf_upper_scale": metadata.high_scale,
     }
 
 

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import numbers
+import re
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -15,6 +17,143 @@ from openpyxl.worksheet.table import Table, TableStyleInfo
 from .mpl_charts import render_cdf, render_histogram, render_time_series
 from .stats import SUMMARY_COLUMNS
 
+_BASE_FALLBACK_DECIMALS = 4
+FALLBACK_DECIMALS = _BASE_FALLBACK_DECIMALS
+_STDF_FORMAT_RE = re.compile(r"%(?:[-+ #0']*)?(?:\d+)?(?:\.(\d+))?([A-Za-z])")
+
+
+def set_fallback_decimals(value: Optional[int]) -> None:
+    """Configure the default number of decimal places used when STDF hints are absent."""
+    global FALLBACK_DECIMALS
+    if value is None:
+        FALLBACK_DECIMALS = _BASE_FALLBACK_DECIMALS
+        return
+    try:
+        numeric = int(value)
+    except (TypeError, ValueError):
+        FALLBACK_DECIMALS = _BASE_FALLBACK_DECIMALS
+        return
+    FALLBACK_DECIMALS = max(0, min(9, numeric))
+
+
+def _clean_optional_text(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    text = str(value).strip()
+    if not text or text.upper() in {"NAN", "<NA>"}:
+        return None
+    return text
+
+
+def _clean_optional_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _excel_number_format(
+    stdf_format: Any,
+    scale: Any,
+    *,
+    default_decimals: Optional[int] = None,
+) -> str:
+    if default_decimals is None:
+        default_decimals = FALLBACK_DECIMALS
+    fmt_text = _clean_optional_text(stdf_format)
+    if fmt_text:
+        match = _STDF_FORMAT_RE.search(fmt_text)
+        if match:
+            precision_text, spec = match.groups()
+            spec = (spec or "").lower()
+            if spec in {"f"}:
+                decimals = int(precision_text) if precision_text is not None else 0
+                decimals = max(0, min(decimals, 9))
+                if decimals == 0:
+                    return "0"
+                return "0." + "0" * decimals
+            if spec in {"e"}:
+                decimals = int(precision_text) if precision_text is not None else 6
+                decimals = max(0, min(decimals, 9))
+                if decimals == 0:
+                    return "0E+00"
+                return "0." + "0" * decimals + "E+00"
+            if spec in {"g"}:
+                decimals = int(precision_text) if precision_text is not None else default_decimals
+                decimals = max(0, min(decimals, 6))
+                if decimals == 0:
+                    return "General"
+                return "0." + "#" * decimals
+            if spec in {"d", "i"}:
+                return "0"
+    scale_value = _clean_optional_int(scale)
+    if scale_value is not None:
+        decimals = min(6, abs(scale_value))
+        if decimals == 0:
+            return "0"
+        return "0." + "#" * decimals
+    if default_decimals <= 0:
+        return "0"
+    return "0." + "#" * default_decimals
+
+
+def _row_number_format(
+    row: Any,
+    format_fields: Iterable[Optional[str]],
+    scale_fields: Iterable[Optional[str]],
+    *,
+    default_decimals: Optional[int] = None,
+) -> str:
+    if default_decimals is None:
+        default_decimals = FALLBACK_DECIMALS
+    selected_format: Optional[str] = None
+    for field in format_fields:
+        if not field:
+            continue
+        candidate = row.get(field) if hasattr(row, "get") else None
+        cleaned = _clean_optional_text(candidate)
+        if cleaned:
+            selected_format = cleaned
+            break
+    selected_scale: Optional[int] = None
+    for field in scale_fields:
+        if not field:
+            continue
+        candidate = row.get(field) if hasattr(row, "get") else None
+        cleaned_scale = _clean_optional_int(candidate)
+        if cleaned_scale is not None:
+            selected_scale = cleaned_scale
+            break
+    return _excel_number_format(selected_format, selected_scale, default_decimals=default_decimals)
+
+
+def _set_number_format(cell, number_format: str) -> None:
+    value = cell.value
+    if isinstance(value, bool) or value is None:
+        return
+    if isinstance(value, numbers.Real):
+        numeric = float(value)
+    else:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return
+    if math.isnan(numeric):
+        return
+    cell.number_format = number_format
+
+
+def _fixed_decimal_format(decimals: int) -> str:
+    if decimals <= 0:
+        return "0"
+    return "0." + "0" * decimals
+
 MEAS_COLUMNS = [
     ("file", "File"),
     ("device_id", "DeviceID"),
@@ -24,6 +163,10 @@ MEAS_COLUMNS = [
     ("units", "Units"),
     ("timestamp", "Timestamp/Index"),
 ]
+
+MEAS_VALUE_COLUMN_INDEX = next(
+    idx for idx, (source, _) in enumerate(MEAS_COLUMNS, start=1) if source == "value"
+)
 
 TEST_LIMIT_COLUMNS = [
     ("test_name", "Test name"),
@@ -36,6 +179,37 @@ TEST_LIMIT_COLUMNS = [
     ("what_if_upper", "User What-If Upper Limit"),
     ("what_if_lower", "User What-If Lower Limit"),
 ]
+
+TEST_LIMIT_COLUMN_INDEX = {
+    source: idx for idx, (source, _) in enumerate(TEST_LIMIT_COLUMNS, start=1)
+}
+
+def _format_limit_cells(ws, excel_row: int, row: Any) -> None:
+    lower_columns = ("stdf_lower", "spec_lower", "what_if_lower")
+    lower_number_format = _row_number_format(
+        row,
+        format_fields=("stdf_lower_format", "stdf_result_format", "stdf_upper_format"),
+        scale_fields=("stdf_lower_scale", "stdf_result_scale", "stdf_upper_scale"),
+    )
+    for column_name in lower_columns:
+        column_idx = TEST_LIMIT_COLUMN_INDEX.get(column_name)
+        if column_idx is None:
+            continue
+        cell = ws.cell(row=excel_row, column=column_idx)
+        _set_number_format(cell, lower_number_format)
+
+    upper_columns = ("stdf_upper", "spec_upper", "what_if_upper")
+    upper_number_format = _row_number_format(
+        row,
+        format_fields=("stdf_upper_format", "stdf_result_format", "stdf_lower_format"),
+        scale_fields=("stdf_upper_scale", "stdf_result_scale", "stdf_lower_scale"),
+    )
+    for column_name in upper_columns:
+        column_idx = TEST_LIMIT_COLUMN_INDEX.get(column_name)
+        if column_idx is None:
+            continue
+        cell = ws.cell(row=excel_row, column=column_idx)
+        _set_number_format(cell, upper_number_format)
 
 CPK_COLUMNS = [
     "File",
@@ -89,28 +263,34 @@ def build_workbook(
     include_histogram: bool,
     include_cdf: bool,
     include_time_series: bool,
+    fallback_decimals: Optional[int] = None,
     temp_dir: Path,
 ) -> None:
-    workbook = _load_base_workbook(template_path)
-    _write_summary_sheet(workbook, summary)
-    _write_measurements(workbook, measurements)
-    _write_test_limits(workbook, test_limits)
-    plot_links: dict[tuple[str, str, str], str] = {}
-    if include_histogram or include_cdf or include_time_series:
-        plot_links = _create_plot_sheets(
-            workbook,
-            measurements,
-            test_limits,
-            summary,
-            include_histogram=include_histogram,
-            include_cdf=include_cdf,
-            include_time_series=include_time_series,
-        )
-    _populate_cpk_report(workbook, summary, test_limits, plot_links)
+    previous_decimals = FALLBACK_DECIMALS
+    set_fallback_decimals(fallback_decimals)
+    try:
+        workbook = _load_base_workbook(template_path)
+        _write_summary_sheet(workbook, summary)
+        _write_measurements(workbook, measurements)
+        _write_test_limits(workbook, test_limits)
+        plot_links: dict[tuple[str, str, str], str] = {}
+        if include_histogram or include_cdf or include_time_series:
+            plot_links = _create_plot_sheets(
+                workbook,
+                measurements,
+                test_limits,
+                summary,
+                include_histogram=include_histogram,
+                include_cdf=include_cdf,
+                include_time_series=include_time_series,
+            )
+        _populate_cpk_report(workbook, summary, test_limits, plot_links)
 
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    workbook.save(output_path)
-    workbook.close()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        workbook.save(output_path)
+        workbook.close()
+    finally:
+        set_fallback_decimals(previous_decimals)
 
 
 def _load_base_workbook(template_path: Optional[Path]) -> Workbook:
@@ -132,6 +312,24 @@ def _write_summary_sheet(workbook: Workbook, summary: pd.DataFrame) -> None:
         ws.append([row.get(column) for column in SUMMARY_COLUMNS])
 
     last_row = ws.max_row
+    if last_row > 1:
+        column_index = {name: idx for idx, name in enumerate(SUMMARY_COLUMNS, start=1)}
+        percent_columns = {"%YLD LOSS", "%YLD LOSS_2.0", "%YLD LOSS_3IQR"}
+        integer_columns = {"COUNT"}
+        text_columns = {"File", "Test Name", "Test Number", "Unit"}
+        general_format = _fixed_decimal_format(FALLBACK_DECIMALS)
+        for row_idx in range(2, last_row + 1):
+            for name, idx in column_index.items():
+                if name in text_columns:
+                    continue
+                cell = ws.cell(row=row_idx, column=idx)
+                if name in percent_columns:
+                    _set_number_format(cell, "0.00%")
+                elif name in integer_columns:
+                    _set_number_format(cell, "0")
+                else:
+                    _set_number_format(cell, general_format)
+
     table = Table(displayName="SummaryTable", ref=f"A1:{get_column_letter(len(SUMMARY_COLUMNS))}{last_row}")
     table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium9", showRowStripes=True, showColumnStripes=False)
     ws.add_table(table)
@@ -147,24 +345,39 @@ def _write_measurements(workbook: Workbook, measurements: pd.DataFrame) -> None:
         if sheet.startswith("Measurements"):
             del workbook[sheet]
 
-    subset = measurements.copy()
-    subset = subset.loc[:, [source for source, _ in MEAS_COLUMNS]]
-    subset.columns = [target for _, target in MEAS_COLUMNS]
-
     max_rows = 1_048_576
     chunk_size = max_rows - 1
-    total_rows = len(subset)
+    sources = [source for source, _ in MEAS_COLUMNS]
+    headers = [target for _, target in MEAS_COLUMNS]
+    total_rows = len(measurements)
+
+    if total_rows == 0:
+        ws = workbook.create_sheet("Measurements", index=1)
+        ws.append(headers)
+        ws.freeze_panes = "A2"
+        for idx, width in enumerate([18, 20, 36, 18, 18, 16, 18][: len(headers)], start=1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
+        return
+
     for index, start in enumerate(range(0, total_rows, chunk_size)):
         end = min(start + chunk_size, total_rows)
-        chunk = subset.iloc[start:end]
+        chunk = measurements.iloc[start:end]
         suffix = "" if index == 0 else f"_{index + 1}"
         sheet_name = f"Measurements{suffix}"
         sheet_index = 1 + index
         ws = workbook.create_sheet(sheet_name, index=sheet_index)
-        headers = list(chunk.columns)
         ws.append(headers)
-        for row in chunk.itertuples(index=False):
-            ws.append(list(row))
+        for _, row in chunk.iterrows():
+            values = [row.get(source) for source in sources]
+            ws.append(values)
+            excel_row = ws.max_row
+            value_cell = ws.cell(row=excel_row, column=MEAS_VALUE_COLUMN_INDEX)
+            number_format = _row_number_format(
+                row,
+                format_fields=("stdf_result_format",),
+                scale_fields=("stdf_result_scale",),
+            )
+            _set_number_format(value_cell, number_format)
         last_row = ws.max_row
         table_ref = f"A1:{get_column_letter(len(headers))}{last_row}"
         table_name = f"MeasurementsTable{index + 1}"
@@ -183,6 +396,7 @@ def _write_test_limits(workbook: Workbook, test_limits: pd.DataFrame) -> None:
     ws = workbook.create_sheet("Test List and Limits", index=len(workbook.sheetnames))
 
     data_frame = test_limits.copy()
+    original_frame = data_frame.copy()
     if data_frame.empty:
         for _, header in TEST_LIMIT_COLUMNS:
             ws.append([header])
@@ -192,8 +406,11 @@ def _write_test_limits(workbook: Workbook, test_limits: pd.DataFrame) -> None:
     data_frame = data_frame.loc[:, ordered_columns]
     headers = [target for _, target in TEST_LIMIT_COLUMNS]
     ws.append(headers)
-    for _, row in data_frame.iterrows():
+    for offset, (_, row) in enumerate(data_frame.iterrows()):
         ws.append([row.get(source) for source, _ in TEST_LIMIT_COLUMNS])
+        excel_row = ws.max_row
+        original_row = original_frame.iloc[offset]
+        _format_limit_cells(ws, excel_row, original_row)
 
     last_row = ws.max_row
     table = Table(displayName="LimitsTable", ref=f"A1:{get_column_letter(len(headers))}{last_row}")
@@ -367,6 +584,7 @@ def _populate_cpk_report(
     if ws.max_row > 1:
         ws.delete_rows(2, ws.max_row - 1)
 
+    general_format = _fixed_decimal_format(FALLBACK_DECIMALS)
     for _, row in summary.iterrows():
         excel_row_index = ws.max_row + 1
         ws.append([None] * len(header))
@@ -406,6 +624,40 @@ def _populate_cpk_report(
                 cell.value = limits_data.get("stdf_upper", "")
             else:
                 cell.value = row.get(column, "")
+
+        ll_index = column_map.get("LL_ATE")
+        if ll_index is not None:
+            ll_cell = ws.cell(row=excel_row_index, column=ll_index)
+            ll_format = _row_number_format(
+                limits_data,
+                format_fields=("stdf_lower_format", "stdf_result_format", "stdf_upper_format"),
+                scale_fields=("stdf_lower_scale", "stdf_result_scale", "stdf_upper_scale"),
+            )
+            _set_number_format(ll_cell, ll_format)
+        ul_index = column_map.get("UL_ATE")
+        if ul_index is not None:
+            ul_cell = ws.cell(row=excel_row_index, column=ul_index)
+            ul_format = _row_number_format(
+                limits_data,
+                format_fields=("stdf_upper_format", "stdf_result_format", "stdf_lower_format"),
+                scale_fields=("stdf_upper_scale", "stdf_result_scale", "stdf_lower_scale"),
+            )
+            _set_number_format(ul_cell, ul_format)
+
+        text_columns = {"File", "TEST NAME", "TEST NUM", "UNITS", "PLOTS", "Proposal", "Lot Qual"}
+        percent_columns = {"%YLD LOSS", "%YLD LOSS_2.0", "%YLD LOSS_3IQR"}
+        integer_columns = {"COUNT"}
+        limit_columns = {"LL_ATE", "UL_ATE"}
+        for column, cell_index in column_map.items():
+            if column in text_columns or column in limit_columns:
+                continue
+            cell = ws.cell(row=excel_row_index, column=cell_index)
+            if column in percent_columns:
+                _set_number_format(cell, "0.00%")
+            elif column in integer_columns:
+                _set_number_format(cell, "0")
+            else:
+                _set_number_format(cell, general_format)
 
     for idx in range(1, len(header) + 1):
         ws.column_dimensions[get_column_letter(idx)].width = 18

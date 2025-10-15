@@ -29,9 +29,10 @@ class ApplicationState:
     outlier_method: str = "none"
     outlier_k: float = 1.5
     include_histogram: bool = True
-    include_cdf: bool = True
-    include_time_series: bool = True
-    plugins: list[PluginConfig] = field(default_factory=list)
+   include_cdf: bool = True
+   include_time_series: bool = True
+    display_decimals: int = 4
+   plugins: list[PluginConfig] = field(default_factory=list)
 
 
 class CPKAnalysisGUI:
@@ -51,6 +52,7 @@ class CPKAnalysisGUI:
             self._collect_template()
             self._collect_outlier_settings()
             self._collect_chart_preferences()
+            self._collect_format_preferences()
             self._collect_plugins()
             self._collect_output_path()
         except (EOFError, KeyboardInterrupt):
@@ -66,6 +68,7 @@ class CPKAnalysisGUI:
             generate_histogram=self.state.include_histogram,
             generate_cdf=self.state.include_cdf,
             generate_time_series=self.state.include_time_series,
+            display_decimals=self.state.display_decimals,
             plugins=self.state.plugins,
         )
 
@@ -154,6 +157,22 @@ class CPKAnalysisGUI:
         self.state.include_histogram = _yes_no("Generate histograms? [Y/n]: ", default=True)
         self.state.include_cdf = _yes_no("Generate CDF charts? [Y/n]: ", default=True)
         self.state.include_time_series = _yes_no("Generate time-series charts? [Y/n]: ", default=True)
+
+    def _collect_format_preferences(self) -> None:
+        prompt = f"Fallback decimal places when STDF hints are missing (0-9, default {self.state.display_decimals}): "
+        entry = input(prompt).strip()
+        if not entry:
+            return
+        try:
+            value = int(entry)
+        except ValueError:
+            print("  ! Invalid integer; keeping existing setting.")
+            return
+        if value < 0:
+            value = 0
+        if value > 9:
+            value = 9
+        self.state.display_decimals = value
 
     def _collect_plugins(self) -> None:
         try:

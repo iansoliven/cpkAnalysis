@@ -18,16 +18,25 @@ def _build_ptr_record(
     lo_limit: float | None = 1.0,
     hi_limit: float | None = 2.0,
     opt_flg: int = 0,
+    res_scal: int = 0,
+    llm_scal: int = 0,
+    hlm_scal: int = 0,
+    res_fmt: str | None = None,
+    llm_fmt: str | None = None,
+    hlm_fmt: str | None = None,
 ) -> dict:
     return {
         "TEST_NUM": test_num,
         "TEST_TXT": test_name,
         "UNITS": "V",
-        "RES_SCAL": 0,
+        "RES_SCAL": res_scal,
+        "C_RESFMT": res_fmt,
         "RESULT": result,
-        "LLM_SCAL": 0,
+        "LLM_SCAL": llm_scal,
+        "C_LLMFMT": llm_fmt,
         "LO_LIMIT": lo_limit,
-        "HLM_SCAL": 0,
+        "HLM_SCAL": hlm_scal,
+        "C_HLMFMT": hlm_fmt,
         "HI_LIMIT": hi_limit,
         "OPT_FLG": opt_flg,
         "TEST_FLG": 0,
@@ -145,3 +154,36 @@ def test_extract_measurement_preserves_defaults_with_bit4_bit5():
     second = ingest._extract_measurement(_build_ptr_record(lo_limit=999.0, hi_limit=888.0, opt_flg=0x30), cache)
     assert second["low_limit"] == pytest.approx(0.5)  # Should use default, not 999.0
     assert second["high_limit"] == pytest.approx(1.5)  # Should use default, not 888.0
+
+
+def test_format_fields_propagate_to_measurement_and_catalog():
+    cache: dict[str, ingest._TestMetadata] = {}
+    test_catalog: dict[tuple[str, str], dict] = {}
+
+    record = _build_ptr_record(
+        res_scal=-2,
+        llm_scal=-2,
+        hlm_scal=-2,
+        res_fmt="%8.3f",
+        llm_fmt="%8.1f",
+        hlm_fmt="%8.1f",
+    )
+    ingest._populate_test_catalog_from_ptr(record, cache, test_catalog)
+    measurement = ingest._extract_measurement(record, cache)
+
+    assert measurement is not None
+    assert measurement["stdf_result_format"] == "%8.3f"
+    assert measurement["stdf_lower_format"] == "%8.1f"
+    assert measurement["stdf_upper_format"] == "%8.1f"
+    assert measurement["stdf_result_scale"] == -2
+    assert measurement["stdf_lower_scale"] == -2
+    assert measurement["stdf_upper_scale"] == -2
+
+    key = ("VDD", "1")
+    catalog_entry = test_catalog[key]
+    assert catalog_entry["stdf_result_format"] == "%8.3f"
+    assert catalog_entry["stdf_lower_format"] == "%8.1f"
+    assert catalog_entry["stdf_upper_format"] == "%8.1f"
+    assert catalog_entry["stdf_result_scale"] == -2
+    assert catalog_entry["stdf_lower_scale"] == -2
+    assert catalog_entry["stdf_upper_scale"] == -2

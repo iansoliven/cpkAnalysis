@@ -196,6 +196,15 @@ python -m cpkanalysis.cli run Sample/*.stdf --no-time-series
 python -m cpkanalysis.cli run Sample/*.stdf --no-cdf --no-time-series
 ```
 
+### Output Formatting
+
+```bash
+# Limit fallback decimals to two places when STDF format hints are absent
+python -m cpkanalysis.cli run Sample/*.stdf --display-decimals 2
+```
+
+When available, STDF `C_RESFMT`, `C_LLMFMT`, and `C_HLMFMT` strings drive Excel number formats. The `--display-decimals` option (also available in the console GUI) only applies when no format hint is provided and defaults to four decimal places.
+
 ### Interactive GUI
 
 ```bash
@@ -208,8 +217,9 @@ The GUI walks through:
 2. Template configuration
 3. Outlier settings
 4. Chart preferences
-5. Plugin selection
-6. Output path
+5. Format preferences
+6. Plugin selection
+7. Output path
 
 ### Post-Processing Existing Workbook
 
