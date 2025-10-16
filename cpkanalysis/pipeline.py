@@ -456,6 +456,9 @@ class Pipeline:
         }
         result["yield_rows"] = int(len(context.yield_summary)) if context.yield_summary is not None else 0
         result["pareto_rows"] = int(len(context.pareto_summary)) if context.pareto_summary is not None else 0
+        stage_timings = dict(context.stage_timings)
+        result["stage_timings"] = stage_timings
+        result["elapsed_seconds"] = float(sum(stage_timings.values()))
         return result
 
 

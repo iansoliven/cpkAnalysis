@@ -300,6 +300,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Metadata captured at {result['metadata']}")
             if result.get('template_sheet'):
                 print(f"Template sheet updated: {result['template_sheet']}")
+            elapsed = result.get("elapsed_seconds")
+            if isinstance(elapsed, (int, float)):
+                print(f"Total elapsed time: {elapsed:.2f}s")
         if result.get("plugins"):
             print(f"Post-processing plugins: {', '.join(result['plugins'])}")
         if args.postprocess:
