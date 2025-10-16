@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import math
 import numbers
+import os
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -446,35 +448,24 @@ def _create_plot_sheets(
     }
     plot_links: dict[tuple[str, str, str], str] = {}
     axis_ranges: dict[tuple[str, str, str], dict[str, float | None]] = {}
-    grouped = measurements.groupby(["file", "test_name", "test_number"], sort=False)
+    prepared_measurements = _prepare_measurements_for_plots(measurements)
+    grouped = prepared_measurements.groupby(["file", "test_name", "test_number"], sort=False)
 
     hist_sheets: dict[str, Any] = {}
     cdf_sheets: dict[str, Any] = {}
     time_sheets: dict[str, Any] = {}
     _remove_axis_tracking_sheet(workbook)
 
+    plot_tasks: list[dict[str, Any]] = []
+
     for (file_name, test_name, test_number), group in grouped:
         limit_info = limit_map.get((test_name, test_number), {})
-        numeric_values = pd.to_numeric(group["value"], errors="coerce")
-        valid_mask = numeric_values.notna() & np.isfinite(numeric_values)
-        if not bool(valid_mask.any()):
+        finite_mask = group["_value_finite"].to_numpy(copy=False)
+        if not bool(np.any(finite_mask)):
             continue
-        filtered_group = group.loc[valid_mask].copy()
-        if "device_sequence" in filtered_group.columns:
-            serial_series = pd.to_numeric(filtered_group["device_sequence"], errors="coerce")
-            serial_numbers = serial_series.to_numpy(dtype=float, na_value=np.nan)
-        else:
-            serial_numbers = np.full(len(filtered_group), np.nan, dtype=float)
-        fallback_serials = np.arange(1, len(filtered_group) + 1, dtype=float)
-        serial_numbers = np.where(np.isfinite(serial_numbers), serial_numbers, fallback_serials)
-        filtered_group["_serial_number"] = serial_numbers
-        sort_keys = ["_serial_number"]
-        if "measurement_index" in filtered_group.columns:
-            sort_keys.append("measurement_index")
-        filtered_group.sort_values(by=sort_keys, kind="mergesort", inplace=True)
-        serial_numbers = filtered_group["_serial_number"].to_numpy()
-        values = pd.to_numeric(filtered_group["value"], errors="coerce").to_numpy()
-        filtered_group.drop(columns="_serial_number", inplace=True)
+        filtered_group = group.loc[finite_mask]
+        values = filtered_group["_value_numeric"].to_numpy(copy=False)
+        serial_numbers = filtered_group["_serial_number"].to_numpy(copy=False)
         lower_limit = limit_info.get("active_lower")
         upper_limit = limit_info.get("active_upper")
         unit_label = _sanitize_label(str(limit_info.get("unit") or ""))
@@ -504,58 +495,187 @@ def _create_plot_sheets(
         test_label = _sanitize_label(test_label)
         cpk_value = summary_map.get((str(file_name), str(test_name), str(test_number)))
 
+        plot_tasks.append(
+            {
+                "key": (file_name, test_name, test_number),
+                "file_name": file_name,
+                "test_name": test_name,
+                "test_number": test_number,
+                "values": values,
+                "serial_numbers": serial_numbers,
+                "lower_limit": lower_limit,
+                "upper_limit": upper_limit,
+                "x_range": x_range,
+                "axis_min": axis_min,
+                "axis_max": axis_max,
+                "test_label": test_label,
+                "cpk_value": cpk_value,
+                "unit_label": unit_label,
+            }
+        )
+
+    rendered_images: dict[tuple[str, str, str], dict[str, Optional[bytes]]] = {}
+    if plot_tasks:
+        max_workers = min(32, (os.cpu_count() or 1))
+        if max_workers > 1:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_map = {
+                    executor.submit(
+                        _render_plot_images,
+                        task,
+                        include_histogram,
+                        include_cdf,
+                        include_time_series,
+                    ): task["key"]
+                    for task in plot_tasks
+                }
+                for future in as_completed(future_map):
+                    key = future_map[future]
+                    rendered_images[key] = future.result()
+        else:
+            for task in plot_tasks:
+                rendered_images[task["key"]] = _render_plot_images(
+                    task,
+                    include_histogram,
+                    include_cdf,
+                    include_time_series,
+                )
+
+    for task in plot_tasks:
+        key = task["key"]
+        file_name = task["file_name"]
+        test_name = task["test_name"]
+        test_number = task["test_number"]
+        test_label = task["test_label"]
+        cpk_value = task["cpk_value"]
+        unit_label = task["unit_label"]
+        axis_min = task["axis_min"]
+        axis_max = task["axis_max"]
+        lower_limit = task["lower_limit"]
+        upper_limit = task["upper_limit"]
+        image_bundle = rendered_images.get(key, {})
+
         if include_histogram:
             anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
             row, sheet = anchor["row"], anchor["sheet"]
-            image_bytes = render_histogram(
-                values,
-                lower_limit=lower_limit,
-                upper_limit=upper_limit,
-                x_range=x_range,
-                test_label=test_label,
-                cpk=cpk_value,
-                unit_label=unit_label,
-            )
-            cell = _place_image(sheet, image_bytes, row, label=test_label)
-            sheet_ref = sheet.title.replace("'", "''")
-            plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
-            _ensure_row_height(sheet, row)
+            image_bytes = image_bundle.get("histogram")
+            if image_bytes is not None:
+                cell = _place_image(sheet, image_bytes, row, label=test_label)
+                sheet_ref = sheet.title.replace("'", "''")
+                plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
+                _ensure_row_height(sheet, row)
             hist_sheets[file_name]["row"] += ROW_STRIDE
 
         if include_cdf:
             anchor_cdf = _ensure_plot_anchor(cdf_sheets, workbook, file_name, "CDF")
-            image_bytes = render_cdf(
-                values,
-                lower_limit=lower_limit,
-                upper_limit=upper_limit,
-                x_range=x_range,
-                test_label=test_label,
-                cpk=cpk_value,
-                unit_label=unit_label,
-            )
-            _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
-            _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
+            image_bytes = image_bundle.get("cdf")
+            if image_bytes is not None:
+                _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
+                _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
             cdf_sheets[file_name]["row"] += ROW_STRIDE
 
         if include_time_series:
             anchor_ts = _ensure_plot_anchor(time_sheets, workbook, file_name, "TimeSeries")
-            image_bytes = render_time_series(
-                x=serial_numbers,
-                y=values,
-                lower_limit=lower_limit,
-                upper_limit=upper_limit,
-                y_range=(axis_min, axis_max),
-                test_label=test_label,
-                cpk=cpk_value,
-                unit_label=unit_label,
-                x_label="Device Sequence",
-            )
-            _place_image(anchor_ts["sheet"], image_bytes, anchor_ts["row"], label=test_label)
-            _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
+            image_bytes = image_bundle.get("time_series")
+            if image_bytes is not None:
+                _place_image(
+                    anchor_ts["sheet"],
+                    image_bytes,
+                    anchor_ts["row"],
+                    label=test_label,
+                )
+                _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
             time_sheets[file_name]["row"] += ROW_STRIDE
 
     _write_axis_ranges(workbook, axis_ranges)
     return plot_links
+
+
+def _prepare_measurements_for_plots(measurements: pd.DataFrame) -> pd.DataFrame:
+    prepared = measurements.copy()
+    prepared["_value_numeric"] = pd.to_numeric(prepared["value"], errors="coerce")
+    prepared["_value_finite"] = np.isfinite(prepared["_value_numeric"])
+
+    if "device_sequence" in prepared.columns:
+        sequence_numeric = pd.to_numeric(prepared["device_sequence"], errors="coerce")
+    else:
+        sequence_numeric = pd.Series(np.nan, index=prepared.index, dtype=float)
+
+    fallback = prepared.groupby(["file", "test_name", "test_number"]).cumcount() + 1
+    fallback = fallback.astype(float)
+    prepared["_serial_number"] = np.where(np.isfinite(sequence_numeric), sequence_numeric, fallback.to_numpy())
+
+    if "measurement_index" in prepared.columns:
+        measurement_numeric = (
+            pd.to_numeric(prepared["measurement_index"], errors="coerce").fillna(0.0).astype(float)
+        )
+    else:
+        measurement_numeric = pd.Series(0.0, index=prepared.index, dtype=float)
+    prepared["_measurement_index_numeric"] = measurement_numeric
+
+    prepared.sort_values(
+        ["file", "test_name", "test_number", "_serial_number", "_measurement_index_numeric"],
+        kind="mergesort",
+        inplace=True,
+    )
+    return prepared
+
+
+def _render_plot_images(
+    task: dict[str, Any],
+    include_histogram: bool,
+    include_cdf: bool,
+    include_time_series: bool,
+) -> dict[str, Optional[bytes]]:
+    values = task["values"]
+    serial_numbers = task["serial_numbers"]
+    lower_limit = task["lower_limit"]
+    upper_limit = task["upper_limit"]
+    x_range = task["x_range"]
+    axis_min = task["axis_min"]
+    axis_max = task["axis_max"]
+    test_label = task["test_label"]
+    cpk_value = task["cpk_value"]
+    unit_label = task["unit_label"]
+
+    results: dict[str, Optional[bytes]] = {"histogram": None, "cdf": None, "time_series": None}
+
+    if include_histogram:
+        results["histogram"] = render_histogram(
+            values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            x_range=x_range,
+            test_label=test_label,
+            cpk=cpk_value,
+            unit_label=unit_label,
+        )
+
+    if include_cdf:
+        results["cdf"] = render_cdf(
+            values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            x_range=x_range,
+            test_label=test_label,
+            cpk=cpk_value,
+            unit_label=unit_label,
+        )
+
+    if include_time_series:
+        results["time_series"] = render_time_series(
+            x=serial_numbers,
+            y=values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            y_range=(axis_min, axis_max),
+            test_label=test_label,
+            cpk=cpk_value,
+            unit_label=unit_label,
+            x_label="Device Sequence",
+        )
+
+    return results
 
 
 def _write_yield_pareto_sheet(
