@@ -470,9 +470,23 @@ def _build_metadata(
     outlier_summary: dict[str, Any],
     limit_sources: dict[tuple[str, str, str], dict[str, str]],
     summary: pd.DataFrame,
+    yield_summary: pd.DataFrame | None = None,
+    pareto_summary: pd.DataFrame | None = None,
     template_sheet: str | None = None,
     plugins: Iterable[PluginExecutionRecord] = (),
 ) -> dict[str, Any]:
+    yield_info: dict[str, Any] | None = None
+    if yield_summary is not None:
+        yield_info = {
+            "rows": int(len(yield_summary)),
+        }
+
+    pareto_info: dict[str, Any] | None = None
+    if pareto_summary is not None:
+        pareto_info = {
+            "rows": int(len(pareto_summary)),
+        }
+
     return {
         "output": str(config.output),
         "template": str(config.template) if config.template else None,
@@ -495,6 +509,8 @@ def _build_metadata(
             "generate_yield_pareto": config.generate_yield_pareto,
             "display_decimals": config.display_decimals,
         },
+        "yield_summary": yield_info,
+        "pareto_summary": pareto_info,
         "plugins": [
             {
                 "id": record.plugin_id,
