@@ -52,20 +52,20 @@ def test_compute_yield_pareto_basic() -> None:
     assert lot1_row["devices_total"] == 3
     assert lot1_row["devices_pass"] == 2
     assert lot1_row["devices_fail"] == 1
-    assert lot1_row["yield_percent"] == pytest.approx(66.666, rel=1e-3)
+    assert lot1_row["yield_percent"] == pytest.approx(2 / 3, rel=1e-3)
 
     lot2_row = yield_df[yield_df["file"] == "lot2"].iloc[0]
     assert lot2_row["devices_total"] == 1
     assert lot2_row["devices_pass"] == 1
     assert lot2_row["devices_fail"] == 0
-    assert lot2_row["yield_percent"] == pytest.approx(100.0)
+    assert lot2_row["yield_percent"] == pytest.approx(1.0)
 
     lot1_pareto = pareto_df[pareto_df["file"] == "lot1"].reset_index(drop=True)
     assert len(lot1_pareto) == 2
     assert list(lot1_pareto["devices_fail"]) == [1, 1]
     assert list(lot1_pareto["test_name"]) == ["T1", "T2"]
-    assert lot1_pareto.loc[0, "fail_rate_percent"] == pytest.approx(33.333, rel=1e-3)
-    assert lot1_pareto.loc[1, "cumulative_percent"] == pytest.approx(66.666, rel=1e-3)
+    assert lot1_pareto.loc[0, "fail_rate_percent"] == pytest.approx(1 / 3, rel=1e-3)
+    assert lot1_pareto.loc[1, "cumulative_percent"] == pytest.approx(2 / 3, rel=1e-3)
 
     assert pareto_df[pareto_df["file"] == "lot2"].empty
 

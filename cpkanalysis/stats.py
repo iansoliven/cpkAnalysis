@@ -210,7 +210,7 @@ def _compute_yield_summary(measurements: pd.DataFrame) -> pd.DataFrame:
     with np.errstate(divide="ignore", invalid="ignore"):
         result["yield_percent"] = np.where(
             result["devices_total"] > 0,
-            (result["devices_pass"] / result["devices_total"]) * 100.0,
+            result["devices_pass"] / result["devices_total"],
             np.nan,
         )
     result.reset_index(inplace=True)
@@ -295,7 +295,7 @@ def _compute_pareto_details(
     with np.errstate(divide="ignore", invalid="ignore"):
         grouped["fail_rate_percent"] = np.where(
             grouped["devices_total"] > 0,
-            (grouped["devices_fail"] / grouped["devices_total"]) * 100.0,
+            grouped["devices_fail"] / grouped["devices_total"],
             np.nan,
         )
     grouped.sort_values(

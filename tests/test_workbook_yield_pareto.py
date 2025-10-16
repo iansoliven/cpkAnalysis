@@ -48,8 +48,8 @@ def test_build_workbook_creates_yield_pareto_sheet(tmp_path: Path) -> None:
 
     yield_summary = pd.DataFrame(
         [
-            {"file": "lot1", "devices_total": 3, "devices_pass": 2, "devices_fail": 1, "yield_percent": 66.666},
-            {"file": "lot2", "devices_total": 1, "devices_pass": 1, "devices_fail": 0, "yield_percent": 100.0},
+            {"file": "lot1", "devices_total": 3, "devices_pass": 2, "devices_fail": 1, "yield_percent": 2 / 3},
+            {"file": "lot2", "devices_total": 1, "devices_pass": 1, "devices_fail": 0, "yield_percent": 1.0},
         ]
     )
 
@@ -60,8 +60,8 @@ def test_build_workbook_creates_yield_pareto_sheet(tmp_path: Path) -> None:
                 "test_name": "T1",
                 "test_number": "1",
                 "devices_fail": 1,
-                "fail_rate_percent": 33.333,
-                "cumulative_percent": 33.333,
+                "fail_rate_percent": 1 / 3,
+                "cumulative_percent": 1 / 3,
                 "lower_limit": 0.0,
                 "upper_limit": 1.0,
             }
@@ -96,7 +96,7 @@ def test_build_workbook_creates_yield_pareto_sheet(tmp_path: Path) -> None:
     assert sheet["A1"].value == "File"
     assert sheet["A2"].value == "lot1"
 
-    assert sheet.cell(row=2, column=5).value == pytest.approx(0.666, rel=1e-3)
+    assert sheet.cell(row=2, column=5).value == pytest.approx(2 / 3, rel=1e-3)
 
     found_file_header = any(cell.value == "File: lot1" for cell in sheet[
         "A"

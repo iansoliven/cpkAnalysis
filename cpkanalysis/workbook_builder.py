@@ -596,7 +596,7 @@ def _write_yield_summary_table(ws, yield_summary: pd.DataFrame) -> int:
         try:
             value = float(yield_percent)
             if math.isfinite(value):
-                percent_value = value / 100.0
+                percent_value = value
         except (TypeError, ValueError):
             percent_value = None
         ws.cell(row=current_row, column=5, value=percent_value)
@@ -654,8 +654,8 @@ def _write_yield_section(
     try:
         value = float(yield_percent)
         if math.isfinite(value):
-            chart_yield = value
-            yield_ratio = value / 100.0
+            yield_ratio = value
+            chart_yield = value * 100.0
     except (TypeError, ValueError):
         yield_ratio = None
         chart_yield = None
@@ -761,15 +761,17 @@ def _write_yield_section(
             except (TypeError, ValueError):
                 cumulative_value = None
 
-            ws.cell(row=row_cursor, column=4, value=(fail_value / 100.0) if fail_value is not None else None)
-            ws.cell(row=row_cursor, column=5, value=(cumulative_value / 100.0) if cumulative_value is not None else None)
+            ws.cell(row=row_cursor, column=4, value=fail_value if fail_value is not None else None)
+            ws.cell(row=row_cursor, column=5, value=cumulative_value if cumulative_value is not None else None)
             ws.cell(row=row_cursor, column=6, value=pareto_row.get("lower_limit"))
             ws.cell(row=row_cursor, column=7, value=pareto_row.get("upper_limit"))
 
             label = f"{test_name} ({test_number})".strip()
             chart_labels.append(_sanitize_label(label) or "(unnamed)")
             chart_counts.append(float(fail_units))
-            chart_cumulative.append(cumulative_value if cumulative_value is not None else 0.0)
+            chart_cumulative.append(
+                (cumulative_value * 100.0) if cumulative_value is not None else 0.0
+            )
 
     pareto_end_row = row_cursor
     table_ref = f"A{pareto_section_start + 1}:{get_column_letter(len(pareto_headers))}{pareto_end_row}"
