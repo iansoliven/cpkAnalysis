@@ -367,17 +367,9 @@ def _write_measurements(workbook: Workbook, measurements: pd.DataFrame) -> None:
         sheet_index = 1 + index
         ws = workbook.create_sheet(sheet_name, index=sheet_index)
         ws.append(headers)
-        for _, row in chunk.iterrows():
-            values = [row.get(source) for source in sources]
-            ws.append(values)
-            excel_row = ws.max_row
-            value_cell = ws.cell(row=excel_row, column=MEAS_VALUE_COLUMN_INDEX)
-            number_format = _row_number_format(
-                row,
-                format_fields=("stdf_result_format",),
-                scale_fields=("stdf_result_scale",),
-            )
-            _set_number_format(value_cell, number_format)
+        data_view = chunk.loc[:, sources]
+        for row_values in data_view.itertuples(index=False, name=None):
+            ws.append(row_values)
         last_row = ws.max_row
         table_ref = f"A1:{get_column_letter(len(headers))}{last_row}"
         table_name = f"MeasurementsTable{index + 1}"
