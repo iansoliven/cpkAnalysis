@@ -617,4 +617,4 @@ def _compute_yield_loss(
         failures += int(np.sum(finite_values < lower))
     if upper is not None:
         failures += int(np.sum(finite_values > upper))
-    return (failures / len(finite_values)) * 100.0
+    return failures / len(finite_values)

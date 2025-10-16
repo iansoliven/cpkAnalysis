@@ -397,7 +397,7 @@ def _yield_loss(values: np.ndarray, lower: Optional[float], upper: Optional[floa
         failures += int(np.sum(values < lower))
     if upper is not None:
         failures += int(np.sum(values > upper))
-    return (failures / values.size) * 100 if values.size else math.nan
+    return (failures / values.size) if values.size else math.nan
 
 
 def _first_not_empty(series: Iterable[Any]) -> Optional[str]:
