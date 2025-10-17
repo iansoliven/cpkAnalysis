@@ -350,6 +350,7 @@ class Pipeline:
             fallback_decimals=context.config.display_decimals,
             temp_dir=context.session_dir,
             timing_collector=workbook_timings,
+            max_render_processes=context.config.max_render_processes,
         )
         if workbook_timings:
             details = dict(context.stage_details)

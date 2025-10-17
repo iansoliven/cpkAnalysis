@@ -4,6 +4,7 @@ import argparse
 import json
 import time
 import shutil
+import os
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
@@ -36,6 +37,19 @@ def _prepare_output_path(path: Path) -> Path:
     else:
         path = path.with_suffix(".xlsx")
     return path.resolve()
+
+
+def _resolve_render_process_limit(cli_value: Optional[int]) -> Optional[int]:
+    if cli_value is not None:
+        return cli_value if cli_value > 0 else None
+    env_value = os.environ.get("CPKANALYSIS_MAX_RENDER_PROCS")
+    if env_value:
+        try:
+            value = int(env_value)
+        except ValueError:
+            return None
+        return value if value > 0 else None
+    return None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,6 +128,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-time-series",
         action="store_true",
         help="Skip time-series chart generation.",
+    )
+    run_parser.add_argument(
+        "--max-render-procs",
+        type=int,
+        help="Maximum parallel processes for chart rendering (default leaves 2 cores free).",
     )
     run_parser.add_argument(
         "--generate-yield-pareto",
@@ -284,6 +303,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             generate_yield_pareto=args.generate_yield_pareto,
             display_decimals=args.display_decimals if args.display_decimals is not None else 4,
             plugins=plugins,
+            max_render_processes=_resolve_render_process_limit(args.max_render_procs),
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:

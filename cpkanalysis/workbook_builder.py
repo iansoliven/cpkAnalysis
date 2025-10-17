@@ -5,7 +5,7 @@ import numbers
 import os
 import re
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import multiprocessing
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
@@ -279,6 +279,7 @@ def build_workbook(
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
     timing_collector: Optional[dict[str, float]] = None,
+    max_render_processes: Optional[int] = None,
 ) -> None:
     previous_decimals = FALLBACK_DECIMALS
     set_fallback_decimals(fallback_decimals)
@@ -299,6 +300,7 @@ def build_workbook(
                 include_cdf=include_cdf,
                 include_time_series=include_time_series,
                 timings=timing_collector,
+                max_render_processes=max_render_processes,
             )
             if timing_collector is not None:
                 timing_collector["charts.total"] = timing_collector.get("charts.total", 0.0) + (
@@ -454,6 +456,7 @@ def _create_plot_sheets(
     include_cdf: bool,
     include_time_series: bool,
     timings: Optional[dict[str, float]] = None,
+    max_render_processes: Optional[int] = None,
 ) -> dict[tuple[str, str, str], str]:
     limit_map = _limit_lookup(test_limits)
     summary_map = {
@@ -533,23 +536,27 @@ def _create_plot_sheets(
 
     rendered_images: dict[tuple[str, str, str], dict[str, Optional[bytes]]] = {}
     if plot_tasks:
-        max_workers = min(32, (os.cpu_count() or 1))
         render_start = time.perf_counter()
+        available_cpus = os.cpu_count() or 1
+        if max_render_processes is not None:
+            max_workers = max(1, min(int(max_render_processes), available_cpus))
+        elif available_cpus <= 2:
+            max_workers = 1
+        else:
+            max_workers = max(1, min(available_cpus - 2, 4))
         if max_workers > 1:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_map = {
-                    executor.submit(
-                        _render_plot_images,
+            with multiprocessing.get_context("spawn").Pool(processes=max_workers) as pool:
+                args_iter = (
+                    (
                         task,
                         include_histogram,
                         include_cdf,
                         include_time_series,
-                    ): task["key"]
+                    )
                     for task in plot_tasks
-                }
-                for future in as_completed(future_map):
-                    key = future_map[future]
-                    rendered_images[key] = future.result()
+                )
+                for result, key in pool.imap_unordered(_render_plot_images_process, args_iter):
+                    rendered_images[key] = result
         else:
             for task in plot_tasks:
                 rendered_images[task["key"]] = _render_plot_images(
@@ -645,6 +652,18 @@ def _prepare_measurements_for_plots(measurements: pd.DataFrame) -> pd.DataFrame:
         inplace=True,
     )
     return prepared
+
+
+def _render_plot_images_process(args: tuple[dict[str, Any], bool, bool, bool]) -> tuple[dict[str, Optional[bytes]], tuple[str, str, str]]:
+    task, include_histogram, include_cdf, include_time_series = args
+    key = task["key"]
+    result = _render_plot_images(
+        task,
+        include_histogram,
+        include_cdf,
+        include_time_series,
+    )
+    return result, key
 
 
 def _render_plot_images(

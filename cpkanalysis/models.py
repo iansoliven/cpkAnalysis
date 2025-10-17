@@ -64,6 +64,7 @@ class AnalysisInputs:
     generate_yield_pareto: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
+    max_render_processes: int | None = None
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
@@ -82,6 +83,15 @@ class AnalysisInputs:
         if decimals > 9:
             decimals = 9
         self.display_decimals = decimals
+        if self.max_render_processes is not None:
+            try:
+                value = int(self.max_render_processes)
+            except (TypeError, ValueError):
+                value = None
+            else:
+                if value <= 0:
+                    value = None
+            self.max_render_processes = value
 
 
 @dataclass
