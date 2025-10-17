@@ -4,11 +4,19 @@ import importlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+import warnings
 
 try:  # pragma: no cover - stdlib name in 3.11+
     import tomllib  # type: ignore[attr-defined]
 except ModuleNotFoundError:  # pragma: no cover - fallback for <3.11
-    tomllib = None  # type: ignore[assignment]
+    try:
+        import tomli as tomllib  # type: ignore[assignment]
+    except ImportError:
+        tomllib = None  # type: ignore[assignment]
+        warnings.warn(
+            "TOML support requires Python 3.11+ or the 'tomli' package. Plugin profiles may not load.",
+            RuntimeWarning,
+        )
 
 try:  # pragma: no cover - Python 3.10+
     from importlib.metadata import entry_points, EntryPoint

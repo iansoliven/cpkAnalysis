@@ -10,6 +10,7 @@ from dataclasses import dataclass, replace
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Protocol, List, Type
+import logging
 
 import pandas as pd
 
@@ -18,6 +19,8 @@ from .models import AnalysisInputs, IngestResult
 from .plugins import PluginRegistry, PluginRegistryError
 from .move_to_template import run as move_to_template, apply_template
 from openpyxl import Workbook
+
+logger = logging.getLogger(__name__)
 
 StageHandler = Callable[["PipelineContext"], "PipelineContext"]
 
@@ -576,9 +579,11 @@ def _create_session_dir() -> Path:
 
 def _cleanup_session_dir(path: Path) -> None:
     try:
-        shutil.rmtree(path, ignore_errors=True)
-    except Exception:
-        pass
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        logger.warning("Failed to remove session directory '%s': %s", path, exc)
 
 
 class _Spinner:
@@ -635,7 +640,7 @@ def _spinner(message: str):
     spinner.start()
     try:
         yield
-    except Exception:
+    except BaseException:
         spinner.stop(spinner.failure_text(message))
         raise
     else:
@@ -647,5 +652,5 @@ def _supports_output(sample: str) -> bool:
     try:
         sample.encode(encoding)
         return True
-    except Exception:
+    except (UnicodeEncodeError, LookupError):
         return False

@@ -5,6 +5,7 @@ import json
 import time
 import shutil
 import os
+import logging
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
@@ -428,8 +429,8 @@ def _cleanup_file(path_str: str) -> None:
     try:
         if path.exists():
             path.unlink()
-    except Exception:
-        pass
+    except (PermissionError, OSError) as exc:
+        logging.getLogger(__name__).warning("Failed to remove temporary file '%s': %s", path, exc)
 
 
 def _prepare_plugin_configs(

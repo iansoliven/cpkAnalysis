@@ -15,7 +15,9 @@ venv/
 /Sample/
 *.xlsx
 *.stdf
-*.json
+/cpkworkbook.json
+/temp/*.json
+nul
 
 # Root folder test files
 /*.xlsx

@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import math
 import sys
+import warnings
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, Tuple, TypedDict
 
 import pandas as pd
 import pyarrow as pa
@@ -13,17 +14,45 @@ import pyarrow.parquet as pq
 
 from .models import IngestResult, SourceFile
 
-ISTDF_SRC = Path(__file__).resolve().parents[1] / "Submodules" / "istdf" / "src"
-if ISTDF_SRC.exists() and str(ISTDF_SRC) not in sys.path:  # pragma: no cover - runtime path injection
-    sys.path.insert(0, str(ISTDF_SRC))
-
 try:  # pragma: no cover - dependency injection based on submodule availability
     from istdf import STDFReader  # type: ignore
 except ImportError:  # pragma: no cover - handled at runtime
     STDFReader = None  # type: ignore[assignment]
+    ISTDF_SRC = Path(__file__).resolve().parents[1] / "Submodules" / "istdf" / "src"
+    if ISTDF_SRC.exists() and str(ISTDF_SRC) not in sys.path:
+        sys.path.insert(0, str(ISTDF_SRC))
+        try:
+            from istdf import STDFReader  # type: ignore
+        except ImportError:
+            warnings.warn(
+                "Unable to import the 'istdf' submodule. STDF ingestion features will be unavailable.",
+                RuntimeWarning,
+            )
+            STDFReader = None  # type: ignore[assignment]
+    else:
+        warnings.warn(
+            "istdf submodule not available; STDF ingestion features will be unavailable.",
+            RuntimeWarning,
+        )
 
 
 @dataclass
+class MeasurementRecord(TypedDict, total=False):
+    test_number: str
+    test_name: str
+    test_unit: str
+    low_limit: Optional[float]
+    high_limit: Optional[float]
+    measurement: Optional[float]
+    test_time: Optional[float]
+    stdf_result_format: Optional[str]
+    stdf_lower_format: Optional[str]
+    stdf_upper_format: Optional[str]
+    stdf_result_scale: Optional[int]
+    stdf_lower_scale: Optional[int]
+    stdf_upper_scale: Optional[int]
+
+
 class _TestMetadata:
     test_name: str = ""
     unit: str = ""
@@ -406,7 +435,7 @@ def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _Test
         # If use_default_high, don't modify existing limit
 
 
-def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[dict[str, Any]]:
+def _extract_measurement(data: Dict[str, Any], cache: Dict[str, _TestMetadata]) -> Optional[MeasurementRecord]:
     test_num = data.get("TEST_NUM")
     test_name_raw = data.get("TEST_TXT")
     if test_num is None and not test_name_raw:
