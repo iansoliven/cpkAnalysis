@@ -19,7 +19,7 @@ import numpy as np
 from matplotlib.ticker import MaxNLocator, PercentFormatter
 
 DEFAULT_FIGSIZE = (8, 4)  # Reduced from (9, 4.5) for faster rendering
-DEFAULT_DPI = 100  # Reduced from 140 for faster generation
+DEFAULT_DPI = 65  # Lower DPI for faster rendering with acceptable clarity
 HIST_COLOR = "#1f77b4"
 CDF_COLOR = "#ff7f0e"
 TIME_SERIES_COLOR = "#2ca02c"
