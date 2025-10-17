@@ -351,6 +351,7 @@ class Pipeline:
             temp_dir=context.session_dir,
             timing_collector=workbook_timings,
             max_render_processes=context.config.max_render_processes,
+            histogram_rug=context.config.generate_histogram and context.config.histogram_rug,
         )
         if workbook_timings:
             details = dict(context.stage_details)

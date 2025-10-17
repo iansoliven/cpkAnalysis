@@ -135,6 +135,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum parallel processes for chart rendering (default leaves 2 cores free).",
     )
     run_parser.add_argument(
+        "--histogram-rug",
+        action="store_true",
+        help="Add rug markers beneath histograms (may increase processing time).",
+    )
+    run_parser.add_argument(
         "--generate-yield-pareto",
         action="store_true",
         help="Generate the Yield and Pareto analysis sheet with associated charts.",
@@ -291,6 +296,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                 shutil.copy2(template_path, temp_template_path)
                 template_path = temp_template_path
 
+        if args.histogram_rug and args.no_histogram:
+            print("Warning: --histogram-rug ignored because histograms are disabled.")
+            histogram_rug = False
+        else:
+            histogram_rug = bool(args.histogram_rug and not args.no_histogram)
+            if histogram_rug:
+                print("Warning: Rug plots may significantly increase processing time on large datasets.")
+
         config = AnalysisInputs(
             sources=sources,
             output=output_path,
@@ -304,6 +317,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             display_decimals=args.display_decimals if args.display_decimals is not None else 4,
             plugins=plugins,
             max_render_processes=_resolve_render_process_limit(args.max_render_procs),
+            histogram_rug=histogram_rug,
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:

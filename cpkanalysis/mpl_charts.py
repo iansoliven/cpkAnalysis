@@ -20,6 +20,9 @@ from matplotlib.ticker import MaxNLocator, PercentFormatter
 
 DEFAULT_FIGSIZE = (8, 4)  # Reduced from (9, 4.5) for faster rendering
 DEFAULT_DPI = 65  # Lower DPI for faster rendering with acceptable clarity
+RUG_MAX_POINTS = 5000
+RUG_COLOR = "#404040"
+RUG_ALPHA = 0.45
 HIST_COLOR = "#1f77b4"
 CDF_COLOR = "#ff7f0e"
 TIME_SERIES_COLOR = "#2ca02c"
@@ -44,6 +47,16 @@ class ChartMarker:
     alpha: float = 1.0
 
 
+def _sample_for_rug(values: np.ndarray, max_points: int = RUG_MAX_POINTS) -> np.ndarray:
+    if values.size == 0:
+        return np.array([], dtype=float)
+    sorted_vals = np.sort(values)
+    if sorted_vals.size <= max_points:
+        return sorted_vals
+    indices = np.linspace(0, sorted_vals.size - 1, max_points, dtype=int)
+    return sorted_vals[indices]
+
+
 def render_histogram(
     values: np.ndarray,
     *,
@@ -57,6 +70,7 @@ def render_histogram(
     title_font_size: int = 11,
     cpk_font_size: int = 9,
     cpk_position: Optional[Tuple[float, float]] = None,
+    rug: bool = False,
 ) -> bytes:
     """Render a histogram PNG for the supplied measurements."""
     clean = values[np.isfinite(values)]
@@ -107,6 +121,24 @@ def render_histogram(
     if upper_limit is not None and np.isfinite(upper_limit):
         markers.append(ChartMarker("Upper Limit", float(upper_limit), "vertical", LIMIT_HIGH_COLOR))
     _draw_markers(ax, markers)
+
+    if rug:
+        rug_values = _sample_for_rug(clean, RUG_MAX_POINTS)
+        if rug_values.size:
+            y_min, y_max = ax.get_ylim()
+            span = y_max - y_min
+            offset = span * 0.02 if span > 0 else 0.1
+            baseline = y_min + offset
+            ax.scatter(
+                rug_values,
+                np.full(rug_values.shape, baseline),
+                marker="|",
+                color=RUG_COLOR,
+                s=12,
+                linewidths=1,
+                alpha=RUG_ALPHA,
+            )
+            ax.set_ylim(y_min, y_max)
 
     if x_range:
         xmin, xmax = x_range

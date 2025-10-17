@@ -279,6 +279,7 @@ def build_workbook(
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
     timing_collector: Optional[dict[str, float]] = None,
+    histogram_rug: bool = False,
     max_render_processes: Optional[int] = None,
 ) -> None:
     previous_decimals = FALLBACK_DECIMALS
@@ -300,6 +301,7 @@ def build_workbook(
                 include_cdf=include_cdf,
                 include_time_series=include_time_series,
                 timings=timing_collector,
+                include_rug=histogram_rug,
                 max_render_processes=max_render_processes,
             )
             if timing_collector is not None:
@@ -456,6 +458,7 @@ def _create_plot_sheets(
     include_cdf: bool,
     include_time_series: bool,
     timings: Optional[dict[str, float]] = None,
+    include_rug: bool = False,
     max_render_processes: Optional[int] = None,
 ) -> dict[tuple[str, str, str], str]:
     limit_map = _limit_lookup(test_limits)
@@ -477,6 +480,8 @@ def _create_plot_sheets(
 
     overall_start = time.perf_counter()
     render_elapsed = 0.0
+
+    rug_active = include_rug and include_histogram
 
     for (file_name, test_name, test_number), group in grouped:
         limit_info = limit_map.get((test_name, test_number), {})
@@ -531,6 +536,7 @@ def _create_plot_sheets(
                 "test_label": test_label,
                 "cpk_value": cpk_value,
                 "unit_label": unit_label,
+                "include_rug": rug_active,
             }
         )
 
@@ -552,6 +558,7 @@ def _create_plot_sheets(
                         include_histogram,
                         include_cdf,
                         include_time_series,
+                        task.get("include_rug", False),
                     )
                     for task in plot_tasks
                 )
@@ -564,6 +571,7 @@ def _create_plot_sheets(
                     include_histogram,
                     include_cdf,
                     include_time_series,
+                    task.get("include_rug", False),
                 )
         render_elapsed = time.perf_counter() - render_start
 
@@ -654,14 +662,15 @@ def _prepare_measurements_for_plots(measurements: pd.DataFrame) -> pd.DataFrame:
     return prepared
 
 
-def _render_plot_images_process(args: tuple[dict[str, Any], bool, bool, bool]) -> tuple[dict[str, Optional[bytes]], tuple[str, str, str]]:
-    task, include_histogram, include_cdf, include_time_series = args
+def _render_plot_images_process(args: tuple[dict[str, Any], bool, bool, bool, bool]) -> tuple[dict[str, Optional[bytes]], tuple[str, str, str]]:
+    task, include_histogram, include_cdf, include_time_series, include_rug = args
     key = task["key"]
     result = _render_plot_images(
         task,
         include_histogram,
         include_cdf,
         include_time_series,
+        include_rug,
     )
     return result, key
 
@@ -671,6 +680,7 @@ def _render_plot_images(
     include_histogram: bool,
     include_cdf: bool,
     include_time_series: bool,
+    include_rug: bool,
 ) -> dict[str, Optional[bytes]]:
     values = task["values"]
     serial_numbers = task["serial_numbers"]
@@ -686,6 +696,7 @@ def _render_plot_images(
     results: dict[str, Optional[bytes]] = {"histogram": None, "cdf": None, "time_series": None}
 
     if include_histogram:
+        rug_enabled = include_rug and task.get("include_rug", False)
         results["histogram"] = render_histogram(
             values,
             lower_limit=lower_limit,
@@ -694,6 +705,7 @@ def _render_plot_images(
             test_label=test_label,
             cpk=cpk_value,
             unit_label=unit_label,
+            rug=rug_enabled,
         )
 
     if include_cdf:

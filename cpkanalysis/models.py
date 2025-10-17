@@ -65,6 +65,7 @@ class AnalysisInputs:
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
     max_render_processes: int | None = None
+    histogram_rug: bool = False
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
@@ -92,6 +93,7 @@ class AnalysisInputs:
                 if value <= 0:
                     value = None
             self.max_render_processes = value
+        self.histogram_rug = bool(self.histogram_rug)
 
 
 @dataclass
