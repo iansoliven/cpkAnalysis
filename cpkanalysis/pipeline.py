@@ -162,18 +162,23 @@ class PipelineContext:
     template_sheet: str | None = None
     metadata_path: Path | None = None
     stage_timings: dict[str, float] = None  # type: ignore[assignment]
+    stage_details: dict[str, dict[str, float]] = None  # type: ignore[assignment]
     active_plugins: tuple[str, ...] = ()
     plugins_metadata: tuple[PluginExecutionRecord, ...] = ()
 
     def __post_init__(self) -> None:
         if self.stage_timings is None:
             object.__setattr__(self, "stage_timings", {})
+        if self.stage_details is None:
+            object.__setattr__(self, "stage_details", {})
 
     def with_updates(self, **changes: Any) -> "PipelineContext":
         """Return a new context with the supplied field updates."""
         if "stage_timings" in changes and changes["stage_timings"] is None:
             # Prevent accidental None assignment; force callers to supply a mapping.
             changes["stage_timings"] = {}
+        if "stage_details" in changes and changes["stage_details"] is None:
+            changes["stage_details"] = {}
         return replace(self, **changes)
 
 
@@ -326,6 +331,7 @@ class Pipeline:
         assert context.summary is not None, "Statistics stage must run before workbook."
         assert context.limit_sources is not None, "Statistics stage must run before workbook."
         assert context.outlier_summary is not None, "Outlier stage must run before workbook."
+        workbook_timings: dict[str, float] = {}
         workbook_builder.build_workbook(
             summary=context.summary,
             measurements=context.filtered_measurements,
@@ -343,7 +349,12 @@ class Pipeline:
             pareto_summary=context.pareto_summary,
             fallback_decimals=context.config.display_decimals,
             temp_dir=context.session_dir,
+            timing_collector=workbook_timings,
         )
+        if workbook_timings:
+            details = dict(context.stage_details)
+            details["workbook"] = workbook_timings
+            return context.with_updates(stage_details=details)
         return context
 
     def _stage_template(self, context: PipelineContext) -> PipelineContext:
@@ -458,6 +469,9 @@ class Pipeline:
         result["pareto_rows"] = int(len(context.pareto_summary)) if context.pareto_summary is not None else 0
         stage_timings = dict(context.stage_timings)
         result["stage_timings"] = stage_timings
+        stage_details = {name: dict(values) for name, values in context.stage_details.items()}
+        if stage_details:
+            result["stage_details"] = stage_details
         result["elapsed_seconds"] = float(sum(stage_timings.values()))
         return result
 

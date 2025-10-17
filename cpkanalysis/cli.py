@@ -303,6 +303,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             elapsed = result.get("elapsed_seconds")
             if isinstance(elapsed, (int, float)):
                 print(f"Total elapsed time: {elapsed:.2f}s")
+            stage_details = result.get("stage_details") or {}
+            workbook_details = stage_details.get("workbook") if isinstance(stage_details, dict) else None
+            if isinstance(workbook_details, dict) and workbook_details:
+                print("Workbook timing breakdown:")
+                if "charts.render" in workbook_details:
+                    print(f"  Chart rendering: {workbook_details['charts.render']:.2f}s")
+                if "charts.embed" in workbook_details:
+                    print(f"  Chart embedding: {workbook_details['charts.embed']:.2f}s")
+                if "charts.total" in workbook_details:
+                    print(f"  Chart stage total: {workbook_details['charts.total']:.2f}s")
+                if "workbook.save" in workbook_details:
+                    print(f"  Workbook save: {workbook_details['workbook.save']:.2f}s")
         if result.get("plugins"):
             print(f"Post-processing plugins: {', '.join(result['plugins'])}")
         if args.postprocess:

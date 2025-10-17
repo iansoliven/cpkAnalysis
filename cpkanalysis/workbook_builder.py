@@ -4,6 +4,7 @@ import math
 import numbers
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from pathlib import Path
@@ -277,6 +278,7 @@ def build_workbook(
     pareto_summary: Optional[pd.DataFrame] = None,
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
+    timing_collector: Optional[dict[str, float]] = None,
 ) -> None:
     previous_decimals = FALLBACK_DECIMALS
     set_fallback_decimals(fallback_decimals)
@@ -287,6 +289,7 @@ def build_workbook(
         _write_test_limits(workbook, test_limits)
         plot_links: dict[tuple[str, str, str], str] = {}
         if include_histogram or include_cdf or include_time_series:
+            charts_start = time.perf_counter()
             plot_links = _create_plot_sheets(
                 workbook,
                 measurements,
@@ -295,7 +298,12 @@ def build_workbook(
                 include_histogram=include_histogram,
                 include_cdf=include_cdf,
                 include_time_series=include_time_series,
+                timings=timing_collector,
             )
+            if timing_collector is not None:
+                timing_collector["charts.total"] = timing_collector.get("charts.total", 0.0) + (
+                    time.perf_counter() - charts_start
+                )
         _populate_cpk_report(workbook, summary, test_limits, plot_links)
 
         if include_yield_pareto:
@@ -304,7 +312,12 @@ def build_workbook(
             _write_yield_pareto_sheet(workbook, yield_df, pareto_df)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
+        save_start = time.perf_counter()
         workbook.save(output_path)
+        if timing_collector is not None:
+            timing_collector["workbook.save"] = timing_collector.get("workbook.save", 0.0) + (
+                time.perf_counter() - save_start
+            )
         workbook.close()
     finally:
         set_fallback_decimals(previous_decimals)
@@ -440,6 +453,7 @@ def _create_plot_sheets(
     include_histogram: bool,
     include_cdf: bool,
     include_time_series: bool,
+    timings: Optional[dict[str, float]] = None,
 ) -> dict[tuple[str, str, str], str]:
     limit_map = _limit_lookup(test_limits)
     summary_map = {
@@ -457,6 +471,9 @@ def _create_plot_sheets(
     _remove_axis_tracking_sheet(workbook)
 
     plot_tasks: list[dict[str, Any]] = []
+
+    overall_start = time.perf_counter()
+    render_elapsed = 0.0
 
     for (file_name, test_name, test_number), group in grouped:
         limit_info = limit_map.get((test_name, test_number), {})
@@ -517,6 +534,7 @@ def _create_plot_sheets(
     rendered_images: dict[tuple[str, str, str], dict[str, Optional[bytes]]] = {}
     if plot_tasks:
         max_workers = min(32, (os.cpu_count() or 1))
+        render_start = time.perf_counter()
         if max_workers > 1:
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 future_map = {
@@ -540,6 +558,7 @@ def _create_plot_sheets(
                     include_cdf,
                     include_time_series,
                 )
+        render_elapsed = time.perf_counter() - render_start
 
     for task in plot_tasks:
         key = task["key"]
@@ -588,6 +607,13 @@ def _create_plot_sheets(
             time_sheets[file_name]["row"] += ROW_STRIDE
 
     _write_axis_ranges(workbook, axis_ranges)
+    total_elapsed = time.perf_counter() - overall_start
+    if timings is not None:
+        if render_elapsed > 0:
+            timings["charts.render"] = timings.get("charts.render", 0.0) + render_elapsed
+        embed_elapsed = total_elapsed - render_elapsed
+        if embed_elapsed > 0:
+            timings["charts.embed"] = timings.get("charts.embed", 0.0) + embed_elapsed
     return plot_links
 
 
