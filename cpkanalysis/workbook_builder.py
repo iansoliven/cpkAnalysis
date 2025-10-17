@@ -1171,6 +1171,9 @@ def _sanitize_label(label: str) -> str:
         return ""
     cleaned = []
     for ch in label:
+        if ch == "\x96":
+            cleaned.append("-")
+            continue
         code = ord(ch)
         if code < 32 or ch in {"\t", "\r", "\n"}:
             cleaned.append(" ")
