@@ -12,21 +12,15 @@ from copy import copy
 from pathlib import Path
 from typing import Dict, Iterable, Optional
 
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 SOURCE_SHEET = "CPK Report"
 
 
-def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
-    """Copy CPK Report contents into the template sheet and return the target sheet name."""
-    resolved = workbook_path.expanduser().resolve()
-    if not resolved.exists():
-        raise FileNotFoundError(f"Workbook not found: {resolved}")
-
-    workbook = load_workbook(resolved)
+def apply_template(workbook: Workbook, sheet_name: Optional[str] = None) -> str:
     if SOURCE_SHEET not in workbook.sheetnames:
-        raise ValueError(f"Source sheet '{SOURCE_SHEET}' not found in {resolved}")
+        raise ValueError(f"Source sheet '{SOURCE_SHEET}' not found in workbook.")
     source_ws = workbook[SOURCE_SHEET]
 
     target_ws = _select_target_sheet(workbook, sheet_name)
@@ -45,8 +39,21 @@ def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
         tgt_col = target_headers[header]
         _copy_column(source_ws, target_ws, src_col, tgt_col, max_row, source_header_row, target_header_row)
 
-    workbook.save(resolved)
-    workbook.close()
+    return target_sheetname
+
+
+def run(workbook_path: Path, sheet_name: Optional[str] = None) -> str:
+    """Copy CPK Report contents into the template sheet and return the target sheet name."""
+    resolved = workbook_path.expanduser().resolve()
+    if not resolved.exists():
+        raise FileNotFoundError(f"Workbook not found: {resolved}")
+
+    workbook = load_workbook(resolved)
+    try:
+        target_sheetname = apply_template(workbook, sheet_name)
+        workbook.save(resolved)
+    finally:
+        workbook.close()
     return target_sheetname
 
 
@@ -119,20 +126,28 @@ def _copy_column(
     source_header_row: int,
     target_header_row: int,
 ) -> None:
-    # Copy data starting from the row after headers
-    for source_row in range(source_header_row + 1, source_max_row + 1):
-        target_row = target_header_row + (source_row - source_header_row)
-        
-        src_cell = source.cell(row=source_row, column=source_column)
-        tgt_cell = target.cell(row=target_row, column=target_column)
-        
-        # Copy value
+    data_rows = list(
+        source.iter_rows(
+            min_row=source_header_row + 1,
+            max_row=source_max_row,
+            min_col=source_column,
+            max_col=source_column,
+        )
+    )
+    if not data_rows:
+        return
+
+    start_row = target_header_row + 1
+
+    # First pass: assign values
+    for offset, (src_cell,) in enumerate(data_rows):
+        tgt_cell = target.cell(row=start_row + offset, column=target_column)
         tgt_cell.value = src_cell.value
-        
-        # Copy number format if it exists
+
+    # Second pass: reapply number formats and hyperlinks
+    for offset, (src_cell,) in enumerate(data_rows):
+        tgt_cell = target.cell(row=start_row + offset, column=target_column)
         if src_cell.number_format:
             tgt_cell.number_format = src_cell.number_format
-        
-        # Copy hyperlink if it exists
         if src_cell.hyperlink:
-            tgt_cell.hyperlink = src_cell.hyperlink
+            tgt_cell.hyperlink = copy(src_cell.hyperlink)

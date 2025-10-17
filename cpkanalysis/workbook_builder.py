@@ -281,11 +281,13 @@ def build_workbook(
     timing_collector: Optional[dict[str, float]] = None,
     histogram_rug: bool = False,
     max_render_processes: Optional[int] = None,
-) -> None:
+    defer_save: bool = False,
+    workbook_obj: Optional[Workbook] = None,
+) -> Workbook:
     previous_decimals = FALLBACK_DECIMALS
     set_fallback_decimals(fallback_decimals)
+    workbook = workbook_obj if workbook_obj is not None else _load_base_workbook(template_path)
     try:
-        workbook = _load_base_workbook(template_path)
         _write_summary_sheet(workbook, summary)
         _write_measurements(workbook, measurements)
         _write_test_limits(workbook, test_limits)
@@ -316,15 +318,16 @@ def build_workbook(
             _write_yield_pareto_sheet(workbook, yield_df, pareto_df)
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        save_start = time.perf_counter()
-        workbook.save(output_path)
-        if timing_collector is not None:
-            timing_collector["workbook.save"] = timing_collector.get("workbook.save", 0.0) + (
-                time.perf_counter() - save_start
-            )
-        workbook.close()
+        if not defer_save:
+            save_start = time.perf_counter()
+            workbook.save(output_path)
+            if timing_collector is not None:
+                timing_collector["workbook.save"] = timing_collector.get("workbook.save", 0.0) + (
+                    time.perf_counter() - save_start
+                )
     finally:
         set_fallback_decimals(previous_decimals)
+    return workbook
 
 
 def _load_base_workbook(template_path: Optional[Path]) -> Workbook:

@@ -16,7 +16,8 @@ import pandas as pd
 from . import ingest, outliers, stats, workbook_builder
 from .models import AnalysisInputs, IngestResult
 from .plugins import PluginRegistry, PluginRegistryError
-from .move_to_template import run as move_to_template
+from .move_to_template import run as move_to_template, apply_template
+from openpyxl import Workbook
 
 StageHandler = Callable[["PipelineContext"], "PipelineContext"]
 
@@ -165,6 +166,7 @@ class PipelineContext:
     stage_details: dict[str, dict[str, float]] = None  # type: ignore[assignment]
     active_plugins: tuple[str, ...] = ()
     plugins_metadata: tuple[PluginExecutionRecord, ...] = ()
+    workbook_obj: Workbook | None = None
 
     def __post_init__(self) -> None:
         if self.stage_timings is None:
@@ -332,7 +334,7 @@ class Pipeline:
         assert context.limit_sources is not None, "Statistics stage must run before workbook."
         assert context.outlier_summary is not None, "Outlier stage must run before workbook."
         workbook_timings: dict[str, float] = {}
-        workbook_builder.build_workbook(
+        workbook_obj = workbook_builder.build_workbook(
             summary=context.summary,
             measurements=context.filtered_measurements,
             test_limits=context.ingest_result.test_catalog,
@@ -352,18 +354,37 @@ class Pipeline:
             timing_collector=workbook_timings,
             max_render_processes=context.config.max_render_processes,
             histogram_rug=context.config.generate_histogram and context.config.histogram_rug,
+            workbook_obj=context.workbook_obj,
+            defer_save=True,
         )
         if workbook_timings:
             details = dict(context.stage_details)
             details["workbook"] = workbook_timings
-            return context.with_updates(stage_details=details)
-        return context
+            return context.with_updates(stage_details=details, workbook_obj=workbook_obj)
+        return context.with_updates(workbook_obj=workbook_obj)
 
     def _stage_template(self, context: PipelineContext) -> PipelineContext:
         template_sheet_used: str | None = None
+        workbook_obj = context.workbook_obj
+
+        if workbook_obj is not None:
+            if context.config.template or context.config.template_sheet:
+                template_sheet_used = apply_template(workbook_obj, context.config.template_sheet)
+            save_start = time.perf_counter()
+            workbook_obj.save(context.config.output)
+            save_elapsed = time.perf_counter() - save_start
+
+            stage_details = dict(context.stage_details)
+            workbook_detail = dict(stage_details.get("workbook", {}))
+            workbook_detail["workbook.save"] = workbook_detail.get("workbook.save", 0.0) + save_elapsed
+            stage_details["workbook"] = workbook_detail
+
+            workbook_obj.close()
+            return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None, stage_details=stage_details)
+
         if context.config.template or context.config.template_sheet:
             template_sheet_used = move_to_template(context.config.output, context.config.template_sheet)
-        return context.with_updates(template_sheet=template_sheet_used)
+        return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None)
 
     def _stage_metadata(self, context: PipelineContext) -> PipelineContext:
         assert context.ingest_result is not None, "Ingest stage must run before metadata."
