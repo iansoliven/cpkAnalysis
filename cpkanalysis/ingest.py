@@ -71,8 +71,6 @@ def _resolve_stdf_reader() -> Any:
 
 STDFReader = _resolve_stdf_reader()
 
-
-@dataclass
 class MeasurementRecord(TypedDict, total=False):
     test_number: str
     test_name: str
