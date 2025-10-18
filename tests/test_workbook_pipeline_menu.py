@@ -130,6 +130,47 @@ def test_pipeline_metadata_failure_triggers_cleanup(monkeypatch: pytest.MonkeyPa
     assert cleanup_calls and cleanup_calls[0] == pipe._session_dir
 
 
+def test_pipeline_event_listener_failure_triggers_cleanup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    config = _make_analysis_inputs(tmp_path)
+
+    frame = pd.DataFrame({"file": ["lot"], "test_name": ["T"], "test_number": ["1"], "value": [1.0], "units": ["V"], "timestamp": [0.0]})
+    limits = pd.DataFrame({"test_name": ["T"], "test_number": ["1"], "unit": ["V"]})
+    ingest_result = IngestResult(frame=frame, test_catalog=limits, per_file_stats=[{"file": "lot"}], raw_store_path=tmp_path / "raw.parquet")
+
+    monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
+    monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k: (frame, {"removed": 0}))
+    summary_df = pd.DataFrame({"File": ["lot"], "Test Name": ["T"], "Test Number": ["1"], "Unit": ["V"], "COUNT": [1], "MEAN": [1.0], "STDEV": [0.0]})
+    monkeypatch.setattr(pipeline.stats, "compute_summary", lambda measurements, limits: (summary_df, {}))
+    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (pd.DataFrame(), pd.DataFrame()))
+
+    class DummyWorkbook:
+        def save(self, path: Path) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    monkeypatch.setattr(workbook_builder, "build_workbook", lambda **kwargs: DummyWorkbook())
+
+    cleanup_calls: list[Path] = []
+    monkeypatch.setattr(pipeline, "_cleanup_session_dir", lambda path: cleanup_calls.append(path))
+
+    event_bus = pipeline.EventBus()
+
+    class FailingListener:
+        def handle(self, event):
+            raise RuntimeError("listener error")
+
+    event_bus.register(pipeline.SummaryReadyEvent, FailingListener())  # type: ignore[arg-type]
+
+    pipe = pipeline.Pipeline(config, event_bus=event_bus)
+
+    with pytest.raises(RuntimeError):
+        pipe.run()
+
+    assert cleanup_calls and cleanup_calls[0] == pipe._session_dir
+
+
 # ---------------------------------------------------------------------------
 # Post-process menu tests
 # ---------------------------------------------------------------------------

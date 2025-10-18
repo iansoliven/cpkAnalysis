@@ -163,6 +163,14 @@ def test_cli_post_process_calls_menu(monkeypatch: pytest.MonkeyPatch, tmp_path: 
     assert captured["menu_context"] == {"workbook": workbook_path.resolve()}
 
 
+def _make_metadata(tmp_path: Path) -> tuple[Path, Path]:
+    source = tmp_path / "input.stdf"
+    source.write_text("stdf")
+    metadata = tmp_path / "meta.json"
+    metadata.write_text(json.dumps([{"path": str(source.resolve())}]), encoding="utf-8")
+    return metadata, source
+
+
 def test_cli_move_template_invokes_runner(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     workbook_path = tmp_path / "out.xlsx"
     workbook_path.write_text("wb")
@@ -186,3 +194,63 @@ def test_cli_move_template_invokes_runner(monkeypatch: pytest.MonkeyPatch, tmp_p
     )
     assert exit_code == 0
     assert called["args"] == (workbook_path.resolve(), "Template Sheet")
+
+
+def test_cli_run_invalid_plugin_directive_exits(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    metadata_path, _ = _make_metadata(tmp_path)
+
+    descriptor = plugins.PluginDescriptor(
+        plugin_id="plugin.a",
+        name="Plugin A",
+        description="Test plugin",
+        factory=lambda params: object(),
+    )
+
+    def fake_registry(*, workspace_dir: Path | None = None) -> DummyRegistry:
+        return DummyRegistry({"plugin.a": descriptor})
+
+    monkeypatch.setattr(cli, "PluginRegistry", fake_registry)
+    monkeypatch.setattr(cli, "run_analysis", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("run_analysis should not execute")))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(
+            [
+                "run",
+                "--metadata",
+                str(metadata_path),
+                "--plugin",
+                "param:plugin.a",
+            ]
+        )
+    assert exc.value.code == 2
+    stderr = capsys.readouterr().err
+    assert "Invalid parameter directive" in stderr
+
+
+def test_cli_run_template_directory_without_xlsx(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    metadata_path, _ = _make_metadata(tmp_path)
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+
+    monkeypatch.setattr(cli, "PluginRegistry", lambda **kwargs: DummyRegistry({}))
+    monkeypatch.setattr(cli, "run_analysis", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("run_analysis should not execute")))
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(
+            [
+                "run",
+                "--metadata",
+                str(metadata_path),
+                "--template",
+                str(template_dir),
+            ]
+        )
+    assert "No .xlsx template found under" in str(exc.value)
+
+
+def test_cli_help_displays_usage(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+    assert exc.value.code == 0
+    out = capsys.readouterr().out
+    assert "usage: cpkanalysis" in out

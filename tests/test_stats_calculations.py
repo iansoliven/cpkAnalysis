@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -73,3 +74,83 @@ def test_yield_loss_without_limits_returns_nan() -> None:
 
 def test_yield_loss_empty_array_returns_nan() -> None:
     assert math.isnan(stats._yield_loss(np.array([]), lower=0.0, upper=1.0))
+
+
+def test_compute_summary_respects_limit_precedence_and_skips_empty_groups() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot1", "test_name": "T1", "test_number": "1", "value": 0.9, "units": ""},
+            {"file": "lot1", "test_name": "T1", "test_number": "1", "value": 1.1, "units": "V"},
+            {"file": "lot1", "test_name": "T1", "test_number": "1", "value": float("nan"), "units": "ignored"},
+            {"file": "lot2", "test_name": "T2", "test_number": "1", "value": float("nan"), "units": "A"},
+        ]
+    )
+    limits = pd.DataFrame(
+        [
+            {
+                "test_name": "T1",
+                "test_number": "1",
+                "unit": "V",
+                "what_if_lower": 0.5,
+                "spec_lower": 0.2,
+                "stdf_lower": 0.1,
+                "what_if_upper": 1.5,
+                "spec_upper": 1.2,
+                "stdf_upper": 1.1,
+            }
+        ]
+    )
+
+    summary, sources = stats.compute_summary(measurements, limits)
+
+    assert len(summary) == 1
+    row = summary.iloc[0]
+    assert row["File"] == "lot1"
+    assert row["Test Name"] == "T1"
+    assert row["Unit"] == "V"
+    assert row["COUNT"] == 2
+    assert sources[("lot1", "T1", "1")] == {"lower": "what_if", "upper": "what_if"}
+
+
+def test_compute_summary_all_nan_returns_empty() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot", "test_name": "T", "test_number": "1", "value": float("nan"), "units": "V"},
+        ]
+    )
+    limits = pd.DataFrame()
+    summary, sources = stats.compute_summary(measurements, limits)
+    assert summary.empty
+    assert sources == {}
+
+
+def test_compute_yield_pareto_handles_all_pass_and_all_fail() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot1", "device_id": "D1", "test_name": "T1", "test_number": "1", "value": 1.0, "units": "V", "part_status": "PASS"},
+            {"file": "lot1", "device_id": "D2", "test_name": "T1", "test_number": "1", "value": 1.1, "units": "V", "part_status": "PASS"},
+            {"file": "lot2", "device_id": "D3", "test_name": "T1", "test_number": "1", "value": 2.0, "units": "V", "part_status": "FAIL"},
+            {"file": "lot2", "device_id": "D3", "test_name": "T2", "test_number": "2", "value": 5.0, "units": "V", "part_status": "FAIL"},
+        ]
+    )
+    limits = pd.DataFrame(
+        [
+            {"test_name": "T1", "test_number": "1", "unit": "V", "spec_lower": 0.5, "spec_upper": 1.5},
+            {"test_name": "T2", "test_number": "2", "unit": "V", "spec_lower": 0.5, "spec_upper": 1.5},
+        ]
+    )
+
+    yield_df, pareto_df = stats.compute_yield_pareto(measurements, limits)
+
+    lot1 = yield_df.loc[yield_df["file"] == "lot1"].iloc[0]
+    assert lot1["devices_pass"] == 2
+    assert lot1["devices_fail"] == 0
+    assert lot1["yield_percent"] == pytest.approx(1.0)
+
+    lot2 = yield_df.loc[yield_df["file"] == "lot2"].iloc[0]
+    assert lot2["devices_pass"] == 0
+    assert lot2["devices_fail"] == 1
+    assert lot2["yield_percent"] == pytest.approx(0.0)
+
+    assert not pareto_df.empty
+    assert set(pareto_df["test_name"]) == {"T1", "T2"}
