@@ -87,6 +87,7 @@ def test_cli_run_invokes_pipeline_with_overrides(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(cli, "PluginRegistry", fake_registry)
     monkeypatch.setattr(cli, "run_analysis", fake_run_analysis)
+    monkeypatch.setattr(cli.ingest, "detect_site_support", lambda sources: (False, None))
 
     profile_path = tmp_path / "profile.toml"
     profile_path.write_text(
@@ -128,6 +129,132 @@ def test_cli_run_invokes_pipeline_with_overrides(monkeypatch: pytest.MonkeyPatch
 
     captured = capsys.readouterr().out
     assert "command-line overrides applied to plugin 'plugin.a'" in captured
+
+
+def _stub_registry(*, workspace_dir: Path | None = None) -> DummyRegistry:
+    return DummyRegistry({})
+
+
+def _stub_run_analysis(recorded: dict[str, Any]) -> callable:
+    def _runner(config: AnalysisInputs, *, registry: Any | None = None) -> dict[str, Any]:
+        recorded["config"] = config
+        recorded["registry"] = registry
+        return {
+            "output": str(config.output),
+            "metadata": str(config.output) + ".json",
+            "summary_rows": 0,
+            "measurement_rows": 0,
+            "outlier_removed": 0,
+            "yield_rows": 0,
+            "pareto_rows": 0,
+            "stage_timings": {},
+            "plugins": [],
+        }
+
+    return _runner
+
+
+def test_cli_site_detection_enables_when_user_accepts(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    metadata_path, _ = _make_metadata(tmp_path)
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+    (template_dir / "demo.xlsx").write_text("template")
+
+    recorded: dict[str, Any] = {}
+    monkeypatch.setattr(cli, "PluginRegistry", _stub_registry)
+    monkeypatch.setattr(cli, "load_plugin_profile", lambda path: {})
+    monkeypatch.setattr(cli, "run_analysis", _stub_run_analysis(recorded))
+    monkeypatch.setattr(cli.ingest, "detect_site_support", lambda sources: (True, None))
+
+    def fake_prompt(prompt: str, *, default: bool) -> bool:
+        assert "Generate per-site aggregates" in prompt
+        return True
+
+    monkeypatch.setattr(cli, "_prompt_yes_no", fake_prompt)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--metadata",
+            str(metadata_path),
+            "--output",
+            str(tmp_path / "out.xlsx"),
+            "--template",
+            str(template_dir),
+        ]
+    )
+    assert exit_code == 0
+    config: AnalysisInputs = recorded["config"]
+    assert config.enable_site_breakdown is True
+    assert config.site_data_status == "available"
+
+
+def test_cli_site_detection_aborts_when_user_declines(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    metadata_path, _ = _make_metadata(tmp_path)
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+    (template_dir / "demo.xlsx").write_text("template")
+
+    monkeypatch.setattr(cli, "PluginRegistry", _stub_registry)
+    monkeypatch.setattr(cli, "load_plugin_profile", lambda path: {})
+    monkeypatch.setattr(cli, "run_analysis", lambda *args, **kwargs: {})  # pragma: no cover - should not be reached
+    monkeypatch.setattr(cli.ingest, "detect_site_support", lambda sources: (False, "SITE_NUM not present"))
+
+    def fake_prompt(prompt: str, *, default: bool) -> bool:
+        assert "proceed without per-site aggregation" in prompt
+        return False
+
+    monkeypatch.setattr(cli, "_prompt_yes_no", fake_prompt)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(
+            [
+                "run",
+                "--metadata",
+                str(metadata_path),
+                "--output",
+                str(tmp_path / "out.xlsx"),
+                "--template",
+                str(template_dir),
+                "--site-breakdown",
+            ]
+        )
+    assert "SITE_NUM data is unavailable" in str(exc.value)
+
+
+def test_cli_no_site_breakdown_flag_skips_prompt(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    metadata_path, _ = _make_metadata(tmp_path)
+    template_dir = tmp_path / "templates"
+    template_dir.mkdir()
+    (template_dir / "demo.xlsx").write_text("template")
+
+    recorded: dict[str, Any] = {}
+    monkeypatch.setattr(cli, "PluginRegistry", _stub_registry)
+    monkeypatch.setattr(cli, "load_plugin_profile", lambda path: {})
+    monkeypatch.setattr(cli, "run_analysis", _stub_run_analysis(recorded))
+    monkeypatch.setattr(cli.ingest, "detect_site_support", lambda sources: (True, None))
+
+    def fail_prompt(prompt: str, *, default: bool) -> bool:  # pragma: no cover - should not be hit
+        raise AssertionError("Prompt should not be displayed when --no-site-breakdown is provided.")
+
+    monkeypatch.setattr(cli, "_prompt_yes_no", fail_prompt)
+
+    exit_code = cli.main(
+        [
+            "run",
+            "--metadata",
+            str(metadata_path),
+            "--output",
+            str(tmp_path / "out.xlsx"),
+            "--template",
+            str(template_dir),
+            "--no-site-breakdown",
+        ]
+    )
+    assert exit_code == 0
+    config: AnalysisInputs = recorded["config"]
+    assert config.enable_site_breakdown is False
+    assert config.site_data_status == "available"
 
 
 def test_cli_post_process_calls_menu(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

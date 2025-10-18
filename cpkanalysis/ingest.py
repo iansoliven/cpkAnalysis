@@ -705,3 +705,55 @@ def _coerce_int(value: Any) -> Optional[int]:
         return int(value)
     except (TypeError, ValueError):
         return None
+
+
+def detect_site_support(
+    sources: Sequence[SourceFile],
+    *,
+    sample_records: int = 500,
+) -> tuple[bool, str | None]:
+    """Probe the supplied STDF sources to determine whether SITE_NUM is available.
+
+    Returns a tuple of (has_site_data, warning_message). When the second element is not None,
+    it captures the reason site detection failed.
+    """
+    if not sources:
+        return False, "No STDF sources provided."
+    if STDFReader is None:
+        return False, "STDF reader unavailable; unable to inspect SITE_NUM data."
+
+    for source in sources:
+        try:
+            with STDFReader(source.path, ignore_unknown=True) as reader:
+                for index, record in enumerate(reader, start=1):
+                    if index > sample_records:
+                        break
+                    payload = record.to_dict()
+                    if "SITE_NUM" not in payload:
+                        continue
+                    site_value = _coerce_int(payload.get("SITE_NUM"))
+                    if site_value is None:
+                        return False, f"Invalid SITE_NUM value encountered in {source.file_name}."
+                    return True, None
+        except FileNotFoundError:
+            continue  # Allow higher layers to report missing files separately.
+        except Exception as exc:  # pragma: no cover - defensive guard
+            return False, f"Failed to inspect {source.file_name}: {exc}"
+    return False, "SITE_NUM not present in sampled STDF records."
+
+
+def has_site_data(frame: pd.DataFrame) -> bool:
+    """Check whether a measurements frame contains at least one valid site identifier."""
+    if "site" not in frame.columns or frame.empty:
+        return False
+    series = frame["site"]
+    if hasattr(series, "isna"):
+        mask = ~series.isna()
+        if not mask.any():
+            return False
+        series = series[mask]
+    try:
+        numeric = pd.to_numeric(series, errors="coerce")
+    except Exception:  # pragma: no cover - fallback path
+        return bool(len(series))
+    return bool(numeric.notna().any())

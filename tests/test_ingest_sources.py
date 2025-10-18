@@ -153,3 +153,32 @@ def test_ingest_sources_tracks_indices_and_status(monkeypatch: pytest.MonkeyPatc
     # Device IDs should reuse the serial when present and fall back to SITE-based name when absent
     assert result.frame["device_id"].tolist()[0:2] == ["DUP", "DUP"]
     assert result.frame["device_id"].tolist()[2].startswith("SITE2_")
+
+
+def test_detect_site_support_positive(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    records = [
+        _FakeRecord("PIR", {"PART_ID": "OK", "SITE_NUM": 2}),
+        _FakeRecord("PRR", {"PART_ID": "OK", "SITE_NUM": 2, "PART_FLG": 0}),
+    ]
+    source = _make_source(tmp_path, "site.stdf", records)
+
+    has_site, message = ingest.detect_site_support([source])
+    assert has_site is True
+    assert message is None
+
+
+def test_detect_site_support_reports_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    records = [
+        _FakeRecord("PIR", {"PART_ID": "NO_SITE"}),
+        _FakeRecord("PRR", {"PART_ID": "NO_SITE", "PART_FLG": 0}),
+    ]
+    source = _make_source(tmp_path, "nosite.stdf", records)
+
+    has_site, message = ingest.detect_site_support([source])
+    assert has_site is False
+    assert isinstance(message, str)
+    assert "SITE_NUM" in message

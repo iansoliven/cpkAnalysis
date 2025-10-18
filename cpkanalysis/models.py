@@ -9,6 +9,7 @@ if TYPE_CHECKING:  # pragma: no cover - import for typing only
 
 LimitSource = Literal["what_if", "spec", "stdf", "unset"]
 OutlierMethod = Literal["none", "iqr", "stdev"]
+SiteDataStatus = Literal["available", "unavailable", "unknown"]
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,8 @@ class AnalysisInputs:
     plugins: list[PluginConfig] = field(default_factory=list)
     max_render_processes: int | None = None
     histogram_rug: bool = False
+    enable_site_breakdown: bool = False
+    site_data_status: SiteDataStatus = "unknown"
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
@@ -94,6 +97,9 @@ class AnalysisInputs:
                     value = None
             self.max_render_processes = value
         self.histogram_rug = bool(self.histogram_rug)
+        self.enable_site_breakdown = bool(self.enable_site_breakdown)
+        if self.site_data_status not in ("available", "unavailable", "unknown"):
+            self.site_data_status = "unknown"
 
 
 @dataclass

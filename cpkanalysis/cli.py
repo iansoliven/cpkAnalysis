@@ -6,6 +6,7 @@ import time
 import shutil
 import os
 import logging
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Set
 
@@ -14,7 +15,7 @@ from .pipeline import run_analysis
 from .move_to_template import run as run_move_to_template
 from .plugins import PluginRegistry, PluginRegistryError, PluginDescriptor
 from .plugin_profiles import load_plugin_profile, PROFILE_FILENAME
-from . import postprocess
+from . import ingest, postprocess
 
 
 def _warn_path_type_mismatch(path: Path, *, expect_file: bool, description: str) -> None:
@@ -144,6 +145,16 @@ def build_parser() -> argparse.ArgumentParser:
         "--generate-yield-pareto",
         action="store_true",
         help="Generate the Yield and Pareto analysis sheet with associated charts.",
+    )
+    run_parser.add_argument(
+        "--site-breakdown",
+        action="store_true",
+        help="Generate per-site aggregates when SITE_NUM data is available.",
+    )
+    run_parser.add_argument(
+        "--no-site-breakdown",
+        action="store_true",
+        help="Skip per-site aggregation even if SITE_NUM data is available.",
     )
     run_parser.add_argument(
         "--display-decimals",
@@ -305,6 +316,42 @@ def main(argv: Sequence[str] | None = None) -> int:
             if histogram_rug:
                 print("Warning: Rug plots may significantly increase processing time on large datasets.")
 
+        if args.site_breakdown and args.no_site_breakdown:
+            parser.error("--site-breakdown and --no-site-breakdown cannot be used together.")
+
+        site_status = "unknown"
+        enable_site_breakdown = False
+        site_available = False
+        site_message: Optional[str] = None
+        try:
+            site_available, site_message = ingest.detect_site_support(sources)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            site_available = False
+            site_message = f"Site detection failed: {exc}"
+        site_status = "available" if site_available else "unavailable"
+        if site_message:
+            print(f"Site detection: {site_message}")
+
+        if site_available:
+            if args.no_site_breakdown:
+                enable_site_breakdown = False
+            elif args.site_breakdown:
+                enable_site_breakdown = True
+            else:
+                enable_site_breakdown = _prompt_yes_no(
+                    "SITE_NUM detected. Generate per-site aggregates? [y/N]: ",
+                    default=False,
+                )
+        else:
+            if args.site_breakdown:
+                proceed = _prompt_yes_no(
+                    "SITE_NUM data unavailable; proceed without per-site aggregation? [y/N]: ",
+                    default=False,
+                )
+                if not proceed:
+                    raise SystemExit("Aborted: per-site aggregation requested but SITE_NUM data is unavailable.")
+            enable_site_breakdown = False
+
         config = AnalysisInputs(
             sources=sources,
             output=output_path,
@@ -319,6 +366,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             plugins=plugins,
             max_render_processes=_resolve_render_process_limit(args.max_render_procs),
             histogram_rug=histogram_rug,
+            enable_site_breakdown=enable_site_breakdown,
+            site_data_status=site_status,
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:
@@ -377,6 +426,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.error(f"Unsupported command: {args.command}")
     return 1
 
+
+def _prompt_yes_no(prompt: str, *, default: bool) -> bool:
+    if not sys.stdin or not sys.stdin.isatty():
+        return default
+    try:
+        response = input(prompt)
+    except EOFError:
+        return default
+    if response is None:
+        return default
+    response = response.strip().lower()
+    if not response:
+        return default
+    return response in {"y", "yes"}
 
 def _scan_directory(directory: Path, *, recursive: bool) -> list[Path]:
     directory = directory.expanduser().resolve()

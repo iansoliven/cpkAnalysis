@@ -11,7 +11,7 @@ from .models import AnalysisInputs, OutlierOptions, SourceFile, PluginConfig
 from .pipeline import run_analysis
 from .plugins import PluginRegistry, PluginRegistryError
 from .plugin_profiles import load_plugin_profile, save_plugin_profile, PROFILE_FILENAME
-from . import postprocess
+from . import ingest, postprocess
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from .postprocess.context import PostProcessContext
@@ -35,6 +35,8 @@ class ApplicationState:
     generate_yield_pareto: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
+    enable_site_breakdown: bool = False
+    site_data_status: str = "unknown"
 
 
 class CPKAnalysisGUI:
@@ -51,6 +53,7 @@ class CPKAnalysisGUI:
         print("=== CPK Analysis Console ===")
         try:
             self._collect_sources()
+            self._collect_site_preference()
             self._collect_template()
             self._collect_outlier_settings()
             self._collect_chart_preferences()
@@ -74,6 +77,8 @@ class CPKAnalysisGUI:
             display_decimals=self.state.display_decimals,
             plugins=self.state.plugins,
             histogram_rug=self.state.include_histogram and self.state.include_histogram_rug,
+            enable_site_breakdown=self.state.enable_site_breakdown,
+            site_data_status=self.state.site_data_status,
         )
 
         result = run_analysis(config, registry=self.registry)
@@ -130,6 +135,30 @@ class CPKAnalysisGUI:
         if not sources:
             raise SystemExit("At least one STDF file is required.")
         self.state.sources = sources
+
+    def _collect_site_preference(self) -> None:
+        source_files = [SourceFile(path=path) for path in self.state.sources]
+        try:
+            available, message = ingest.detect_site_support(source_files)
+        except Exception as exc:  # pragma: no cover - defensive guard
+            available = False
+            message = f"Site detection failed: {exc}"
+        self.state.site_data_status = "available" if available else "unavailable"
+        if message:
+            print(f"[Site Detection] {message}")
+        if available:
+            self.state.enable_site_breakdown = _yes_no(
+                "SITE_NUM detected. Generate per-site aggregates? [y/N]: ",
+                default=False,
+            )
+        else:
+            proceed = _yes_no(
+                "SITE_NUM data unavailable; proceed without per-site aggregation? [Y/n]: ",
+                default=True,
+            )
+            if not proceed:
+                raise SystemExit("Aborted: SITE_NUM data is unavailable.")
+            self.state.enable_site_breakdown = False
 
     def _collect_template(self) -> None:
         entry = input("Template directory (optional): ").strip()
