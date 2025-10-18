@@ -108,6 +108,7 @@ EXPECTED_COLUMNS = [
     "file_path",
     "device_id",
     "device_sequence",
+    "site",
     "test_name",
     "test_number",
     "units",
@@ -297,6 +298,7 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
                     column_data["file_path"].append(str(source.path))
                     column_data["device_id"].append(part_id)
                     column_data["device_sequence"].append(device_sequence)
+                    column_data["site"].append(current_site)
                     column_data["test_name"].append(measurement["test_name"])
                     column_data["test_number"].append(measurement["test_number"])
                     column_data["units"].append(measurement["test_unit"])

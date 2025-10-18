@@ -111,6 +111,7 @@ def test_ingest_sources_combines_files_and_writes_parquet(monkeypatch: pytest.Mo
     assert len(result.frame) == 2
     assert result.frame["file"].tolist() == ["first.stdf", "second.stdf"]
     assert result.frame["test_name"].tolist() == ["VDD", "IOUT"]
+    assert result.frame["site"].tolist() == [1, 3]
 
     # Per-file stats track measurement counts and invalid measurement filtering
     stats_by_file = {entry["file"]: entry for entry in result.per_file_stats}
@@ -149,6 +150,7 @@ def test_ingest_sources_tracks_indices_and_status(monkeypatch: pytest.MonkeyPatc
     assert result.frame["test_name"].tolist() == ["GAIN", "GAIN", "OFFSET"]
     assert result.frame["part_status"].tolist() == ["PASS", "FAIL", "PASS"]
     assert result.frame["measurement_index"].tolist() == [1, 2, 1]
+    assert result.frame["site"].tolist() == [1, 1, 2]
 
     # Device IDs should reuse the serial when present and fall back to SITE-based name when absent
     assert result.frame["device_id"].tolist()[0:2] == ["DUP", "DUP"]
