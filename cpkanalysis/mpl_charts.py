@@ -79,7 +79,17 @@ def render_histogram(
 
     bins = _freedman_diaconis_bins(clean)
 
-    fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    rug_values = _sample_for_rug(clean, RUG_MAX_POINTS) if rug else np.array([], dtype=float)
+    use_rug_panel = rug and rug_values.size > 0
+
+    if use_rug_panel:
+        fig = plt.figure(figsize=DEFAULT_FIGSIZE)
+        gs = fig.add_gridspec(2, 1, height_ratios=[0.85, 0.15], hspace=0.05)
+        ax = fig.add_subplot(gs[0])
+        rug_ax = fig.add_subplot(gs[1], sharex=ax)
+    else:
+        fig, ax = plt.subplots(figsize=DEFAULT_FIGSIZE)
+        rug_ax = None
     
     # Adaptive styling based on data size and bin count to improve visibility
     if clean.size <= 10:
@@ -122,23 +132,26 @@ def render_histogram(
         markers.append(ChartMarker("Upper Limit", float(upper_limit), "vertical", LIMIT_HIGH_COLOR))
     _draw_markers(ax, markers)
 
-    if rug:
-        rug_values = _sample_for_rug(clean, RUG_MAX_POINTS)
-        if rug_values.size:
-            y_min, y_max = ax.get_ylim()
-            span = y_max - y_min
-            offset = span * 0.02 if span > 0 else 0.1
-            baseline = y_min + offset
-            ax.scatter(
-                rug_values,
-                np.full(rug_values.shape, baseline),
-                marker="|",
-                color=RUG_COLOR,
-                s=12,
-                linewidths=1,
-                alpha=RUG_ALPHA,
-            )
-            ax.set_ylim(y_min, y_max)
+    if use_rug_panel and rug_ax is not None:
+        rug_ax.vlines(
+            rug_values,
+            0.0,
+            0.6,
+            colors=RUG_COLOR,
+            linewidth=1.0,
+            alpha=RUG_ALPHA,
+        )
+        rug_ax.set_ylim(0, 1)
+        rug_ax.set_yticks([])
+        rug_ax.set_ylabel("")
+        rug_ax.tick_params(axis="y", left=False)
+        rug_ax.tick_params(axis="x", labelsize=8)
+        rug_ax.spines["left"].set_visible(False)
+        rug_ax.spines["right"].set_visible(False)
+        rug_ax.spines["top"].set_visible(False)
+        rug_ax.grid(False)
+        ax.tick_params(axis="x", labelbottom=False)
+        rug_ax.set_xlabel("Measurement Value", fontsize=9)
 
     if x_range:
         xmin, xmax = x_range
@@ -155,7 +168,8 @@ def render_histogram(
         cpk_font_size=cpk_font_size,
         cpk_position=cpk_position,
     )
-    fig.tight_layout(rect=(0, 0.2, 0.75, 1))
+    tight_bottom = 0.12 if use_rug_panel else 0.2
+    fig.tight_layout(rect=(0, tight_bottom, 0.75, 1))
     return _figure_to_png(fig)
 
 
