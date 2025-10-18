@@ -10,9 +10,35 @@ import pandas as pd
 from .models import LimitSource
 
 GROUP_KEYS = ["file", "test_name", "test_number"]
+GROUP_KEYS_SITE = ["file", "site", "test_name", "test_number"]
 
 SUMMARY_COLUMNS = [
     "File",
+    "Test Name",
+    "Test Number",
+    "Unit",
+    "COUNT",
+    "MEAN",
+    "MEDIAN",
+    "STDEV",
+    "IQR",
+    "CPL",
+    "CPU",
+    "CPK",
+    "%YLD LOSS",
+    "LL_2CPK",
+    "UL_2CPK",
+    "CPK_2.0",
+    "%YLD LOSS_2.0",
+    "LL_3IQR",
+    "UL_3IQR",
+    "CPK_3IQR",
+    "%YLD LOSS_3IQR",
+]
+
+SUMMARY_COLUMNS_SITE = [
+    "File",
+    "Site",
     "Test Name",
     "Test Number",
     "Unit",
@@ -43,8 +69,29 @@ YIELD_SUMMARY_COLUMNS = [
     "yield_percent",
 ]
 
+YIELD_SUMMARY_COLUMNS_SITE = [
+    "file",
+    "site",
+    "devices_total",
+    "devices_pass",
+    "devices_fail",
+    "yield_percent",
+]
+
 PARETO_COLUMNS = [
     "file",
+    "test_name",
+    "test_number",
+    "devices_fail",
+    "fail_rate_percent",
+    "cumulative_percent",
+    "lower_limit",
+    "upper_limit",
+]
+
+PARETO_COLUMNS_SITE = [
+    "file",
+    "site",
     "test_name",
     "test_number",
     "devices_fail",
@@ -59,36 +106,12 @@ def compute_summary(
     measurements: pd.DataFrame,
     limits: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict[tuple[str, str, str], dict[str, LimitSource]]]:
-    if measurements.empty:
-        empty = pd.DataFrame(columns=SUMMARY_COLUMNS)
-        return empty, {}
-
-    limit_map = _build_limit_map(limits)
-    records: list[dict[str, Any]] = []
-    limit_sources: dict[tuple[str, str, str], dict[str, LimitSource]] = {}
-
-    grouped = measurements.groupby(GROUP_KEYS, dropna=False, sort=False)
-    for (file_name, test_name, test_number), group in grouped:
-        values = pd.to_numeric(group["value"], errors="coerce").dropna()
-        if values.empty:
-            continue
-        unit = _first_not_empty(group["units"])
-        limit_info = limit_map.get((test_name, test_number), {})
-        stats = _compute_group_statistics(values.to_numpy(), limit_info)
-        stats["File"] = file_name
-        stats["Test Name"] = test_name
-        stats["Test Number"] = test_number
-        stats["Unit"] = unit or limit_info.get("unit", "")
-        records.append(stats)
-        limit_sources[(file_name, test_name, test_number)] = {
-            "lower": stats.get("_LOWER_SRC", "unset"),
-            "upper": stats.get("_UPPER_SRC", "unset"),
-        }
-
-    summary = pd.DataFrame(records, columns=SUMMARY_COLUMNS + ["_LOWER_SRC", "_UPPER_SRC"])
-    if "_LOWER_SRC" in summary.columns:
-        summary = summary[SUMMARY_COLUMNS]
-    summary.sort_values(by=["File", "Test Name", "Test Number"], inplace=True, ignore_index=True)
+    summary, limit_sources = _compute_summary_table(
+        measurements,
+        limits,
+        group_keys=GROUP_KEYS,
+        include_site=False,
+    )
     return summary, limit_sources
 
 
@@ -96,9 +119,92 @@ def compute_yield_pareto(
     measurements: pd.DataFrame,
     limits: pd.DataFrame,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    yield_frame = _compute_yield_summary(measurements)
-    pareto_frame = _compute_pareto_details(measurements, limits, yield_frame)
+    yield_frame = _compute_yield_summary(measurements, ["file"])
+    pareto_frame = _compute_pareto_details(measurements, limits, yield_frame, ["file"])
     return yield_frame, pareto_frame
+
+
+def compute_summary_by_site(
+    measurements: pd.DataFrame,
+    limits: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[tuple[Any, Any, Any, Any], dict[str, LimitSource]]]:
+    if "site" not in measurements.columns:
+        empty = pd.DataFrame(columns=SUMMARY_COLUMNS_SITE)
+        return empty, {}
+    return _compute_summary_table(
+        measurements,
+        limits,
+        group_keys=GROUP_KEYS_SITE,
+        include_site=True,
+    )
+
+
+def compute_yield_pareto_by_site(
+    measurements: pd.DataFrame,
+    limits: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    if "site" not in measurements.columns:
+        empty_yield = pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS_SITE)
+        empty_pareto = pd.DataFrame(columns=PARETO_COLUMNS_SITE)
+        return empty_yield, empty_pareto
+    yield_frame = _compute_yield_summary(measurements, ["file", "site"])
+    pareto_frame = _compute_pareto_details(
+        measurements,
+        limits,
+        yield_frame,
+        ["file", "site"],
+    )
+    return yield_frame, pareto_frame
+
+
+def _compute_summary_table(
+    measurements: pd.DataFrame,
+    limits: pd.DataFrame,
+    *,
+    group_keys: Sequence[str],
+    include_site: bool,
+) -> tuple[pd.DataFrame, dict[tuple[Any, ...], dict[str, LimitSource]]]:
+    columns = SUMMARY_COLUMNS_SITE if include_site else SUMMARY_COLUMNS
+    required_columns = set(group_keys) | {"value"}
+    if measurements.empty or not required_columns.issubset(measurements.columns):
+        return pd.DataFrame(columns=columns), {}
+
+    limit_map = _build_limit_map(limits)
+    records: list[dict[str, Any]] = []
+    limit_sources: dict[tuple[Any, ...], dict[str, LimitSource]] = {}
+
+    grouped = measurements.groupby(list(group_keys), dropna=False, sort=False)
+    for key_tuple, group in grouped:
+        if not isinstance(key_tuple, tuple):
+            key_tuple = (key_tuple,)
+        key_map = {name: value for name, value in zip(group_keys, key_tuple)}
+        values = pd.to_numeric(group["value"], errors="coerce").dropna()
+        if values.empty:
+            continue
+        unit = _first_not_empty(group["units"]) if "units" in group.columns else None
+        test_name = key_map.get("test_name")
+        test_number = key_map.get("test_number")
+        limit_info = limit_map.get((str(test_name), str(test_number)), {})
+        stats_row = _compute_group_statistics(values.to_numpy(), limit_info)
+        stats_row["File"] = key_map.get("file")
+        if include_site:
+            stats_row["Site"] = key_map.get("site")
+        stats_row["Test Name"] = test_name
+        stats_row["Test Number"] = test_number
+        stats_row["Unit"] = unit or limit_info.get("unit", "")
+        records.append(stats_row)
+        limit_key = tuple(key_map.get(name) for name in group_keys)
+        limit_sources[limit_key] = {
+            "lower": stats_row.get("_LOWER_SRC", "unset"),
+            "upper": stats_row.get("_UPPER_SRC", "unset"),
+        }
+
+    summary = pd.DataFrame(records, columns=columns + ["_LOWER_SRC", "_UPPER_SRC"])
+    if "_LOWER_SRC" in summary.columns:
+        summary = summary[columns]
+    sort_keys = ["File", "Site", "Test Name", "Test Number"] if include_site else ["File", "Test Name", "Test Number"]
+    summary.sort_values(by=sort_keys, inplace=True, ignore_index=True)
+    return summary, limit_sources
 
 
 def _build_limit_map(limits: pd.DataFrame) -> dict[tuple[str, str], dict[str, Any]]:
@@ -177,11 +283,35 @@ def _compute_group_statistics(values: np.ndarray, limit_info: dict[str, Any]) ->
     }
 
 
-def _compute_yield_summary(measurements: pd.DataFrame) -> pd.DataFrame:
-    if measurements.empty or "file" not in measurements.columns:
-        return pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
+def _yield_columns(group_keys: Sequence[str]) -> list[str]:
+    if list(group_keys) == ["file", "site"]:
+        return YIELD_SUMMARY_COLUMNS_SITE
+    if list(group_keys) == ["file"]:
+        return YIELD_SUMMARY_COLUMNS
+    return list(group_keys) + ["devices_total", "devices_pass", "devices_fail", "yield_percent"]
 
-    files = measurements["file"].astype(str)
+
+def _pareto_columns(group_keys: Sequence[str]) -> list[str]:
+    if list(group_keys) == ["file", "site"]:
+        return PARETO_COLUMNS_SITE
+    if list(group_keys) == ["file"]:
+        return PARETO_COLUMNS
+    return list(group_keys) + [
+        "test_name",
+        "test_number",
+        "devices_fail",
+        "fail_rate_percent",
+        "cumulative_percent",
+        "lower_limit",
+        "upper_limit",
+    ]
+
+
+def _compute_yield_summary(measurements: pd.DataFrame, group_keys: Sequence[str]) -> pd.DataFrame:
+    required = set(group_keys)
+    if measurements.empty or not required.issubset(measurements.columns):
+        return pd.DataFrame(columns=_yield_columns(group_keys))
+
     device_keys = _normalise_device_id(measurements)
     status_series = measurements.get("part_status")
     if status_series is None:
@@ -189,23 +319,28 @@ def _compute_yield_summary(measurements: pd.DataFrame) -> pd.DataFrame:
     status_values = status_series.astype(str).str.upper()
     is_pass = status_values == "PASS"
 
-    device_status = pd.DataFrame(
-        {
-            "file": files,
-            "device_key": device_keys,
-            "is_pass": is_pass,
-        },
-        index=measurements.index,
-    )
-    per_device = device_status.groupby(["file", "device_key"], as_index=False)["is_pass"].all()
-    if per_device.empty:
-        return pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
+    device_status = pd.DataFrame(index=measurements.index)
+    for key in group_keys:
+        device_status[key] = measurements[key]
+    device_status["device_key"] = device_keys
+    device_status["is_pass"] = is_pass
 
-    totals = per_device.groupby("file")["device_key"].count().rename("devices_total")
-    passes = per_device[per_device["is_pass"]].groupby("file")["device_key"].count().rename("devices_pass")
+    grouping_keys = list(group_keys) + ["device_key"]
+    per_device = device_status.groupby(grouping_keys, dropna=False, sort=False)["is_pass"].all().reset_index()
+    if per_device.empty:
+        return pd.DataFrame(columns=_yield_columns(group_keys))
+
+    base_group = per_device.groupby(list(group_keys), dropna=False, sort=False)
+    totals = base_group["device_key"].count().rename("devices_total")
+    passes = (
+        per_device[per_device["is_pass"]]
+        .groupby(list(group_keys), dropna=False, sort=False)["device_key"]
+        .count()
+        .rename("devices_pass")
+    )
     result = totals.to_frame().join(passes, how="left").fillna({"devices_pass": 0})
-    result["devices_pass"] = result["devices_pass"].astype(int)
     result["devices_total"] = result["devices_total"].astype(int)
+    result["devices_pass"] = result["devices_pass"].astype(int)
     result["devices_fail"] = (result["devices_total"] - result["devices_pass"]).astype(int)
     with np.errstate(divide="ignore", invalid="ignore"):
         result["yield_percent"] = np.where(
@@ -214,9 +349,9 @@ def _compute_yield_summary(measurements: pd.DataFrame) -> pd.DataFrame:
             np.nan,
         )
     result.reset_index(inplace=True)
-    result.rename(columns={"index": "file"}, inplace=True)
-    result = result[["file", "devices_total", "devices_pass", "devices_fail", "yield_percent"]]
-    result.sort_values(by="file", inplace=True, ignore_index=True)
+    column_order = list(group_keys) + ["devices_total", "devices_pass", "devices_fail", "yield_percent"]
+    result = result[column_order]
+    result.sort_values(by=list(group_keys), inplace=True, ignore_index=True)
     return result
 
 
@@ -224,14 +359,15 @@ def _compute_pareto_details(
     measurements: pd.DataFrame,
     limits: pd.DataFrame,
     yield_summary: pd.DataFrame,
+    group_keys: Sequence[str],
 ) -> pd.DataFrame:
-    required_columns = {"file", "test_name", "test_number", "value"}
+    required_columns = set(group_keys) | {"test_name", "test_number", "value"}
     if not required_columns.issubset(measurements.columns):
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
     limit_map = _build_limit_map(limits)
     if not limit_map:
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
     limit_records: list[dict[str, Any]] = []
     for (test_name, test_number), info in limit_map.items():
@@ -249,14 +385,14 @@ def _compute_pareto_details(
         )
 
     if not limit_records:
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
     limits_frame = pd.DataFrame(limit_records)
     limits_frame["test_name"] = limits_frame["test_name"].astype(str)
     limits_frame["test_number"] = limits_frame["test_number"].astype(str)
 
-    subset = measurements[["file", "test_name", "test_number", "value"]].copy()
-    subset["file"] = subset["file"].astype(str)
+    subset_columns = list(group_keys) + ["test_name", "test_number", "value"]
+    subset = measurements[subset_columns].copy()
     subset["test_name"] = subset["test_name"].astype(str)
     subset["test_number"] = subset["test_number"].astype(str)
     subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
@@ -264,59 +400,59 @@ def _compute_pareto_details(
 
     merged = subset.merge(limits_frame, on=["test_name", "test_number"], how="left")
     if merged.empty:
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
     valid_limits = merged["lower_limit"].notna() | merged["upper_limit"].notna()
     merged = merged.loc[valid_limits]
     if merged.empty:
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
     lower_mask = merged["lower_limit"].notna() & (merged["value"] < merged["lower_limit"])
     upper_mask = merged["upper_limit"].notna() & (merged["value"] > merged["upper_limit"])
     fail_mask = lower_mask | upper_mask
-    failed = merged.loc[
-        fail_mask, ["file", "test_name", "test_number", "device_key", "lower_limit", "upper_limit"]
-    ]
+    selected_columns = list(group_keys) + ["test_name", "test_number", "device_key", "lower_limit", "upper_limit"]
+    failed = merged.loc[fail_mask, selected_columns]
     if failed.empty:
-        return pd.DataFrame(columns=PARETO_COLUMNS)
+        return pd.DataFrame(columns=_pareto_columns(group_keys))
 
-    failed = failed.drop_duplicates(subset=["file", "test_name", "test_number", "device_key"])
-    grouped = failed.groupby(["file", "test_name", "test_number"], as_index=False).agg(
+    dedupe_columns = list(group_keys) + ["test_name", "test_number", "device_key"]
+    failed = failed.drop_duplicates(subset=dedupe_columns)
+    agg_keys = list(group_keys) + ["test_name", "test_number"]
+    grouped = failed.groupby(agg_keys, dropna=False, sort=False).agg(
         devices_fail=("device_key", "size"),
         lower_limit=("lower_limit", "first"),
         upper_limit=("upper_limit", "first"),
     )
+    grouped.reset_index(inplace=True)
 
-    totals_by_file: dict[Any, Any] = {}
     if not yield_summary.empty:
-        totals_by_file = dict(zip(yield_summary["file"], yield_summary["devices_total"]))
+        totals_frame = yield_summary[list(group_keys) + ["devices_total"]].copy()
+        grouped = grouped.merge(totals_frame, on=list(group_keys), how="left")
+    else:
+        grouped["devices_total"] = 0
+    grouped["devices_total"] = grouped["devices_total"].fillna(0)
 
-    grouped["devices_total"] = grouped["file"].map(totals_by_file).fillna(0)
     with np.errstate(divide="ignore", invalid="ignore"):
         grouped["fail_rate_percent"] = np.where(
             grouped["devices_total"] > 0,
             grouped["devices_fail"] / grouped["devices_total"],
             np.nan,
         )
-    grouped.sort_values(
-        by=["file", "devices_fail", "test_name", "test_number"],
-        ascending=[True, False, True, True],
-        inplace=True,
-    )
-    grouped["cumulative_percent"] = grouped.groupby("file")["fail_rate_percent"].cumsum()
+    sort_columns = list(group_keys) + ["devices_fail", "test_name", "test_number"]
+    sort_order = [True] * len(group_keys) + [False, True, True]
+    grouped.sort_values(by=sort_columns, ascending=sort_order, inplace=True)
+    grouped["cumulative_percent"] = grouped.groupby(list(group_keys))["fail_rate_percent"].cumsum()
 
-    result = grouped[
-        [
-            "file",
-            "test_name",
-            "test_number",
-            "devices_fail",
-            "fail_rate_percent",
-            "cumulative_percent",
-            "lower_limit",
-            "upper_limit",
-        ]
-    ].reset_index(drop=True)
+    result_columns = list(group_keys) + [
+        "test_name",
+        "test_number",
+        "devices_fail",
+        "fail_rate_percent",
+        "cumulative_percent",
+        "lower_limit",
+        "upper_limit",
+    ]
+    result = grouped[result_columns].reset_index(drop=True)
     return result
 
 

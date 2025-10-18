@@ -162,6 +162,31 @@ def test_none_method_returns_original():
     assert summary['removed'] == 0
 
 
+def test_group_keys_include_site_column():
+    """Ensure grouping can include the site identifier without merging across sites."""
+    data = pd.DataFrame(
+        {
+            "file": ["a"] * 8,
+            "site": [1, 1, 1, 1, 2, 2, 2, 2],
+            "test_name": ["VDD"] * 8,
+            "test_number": ["1"] * 8,
+            "value": [1.0, 1.1, 1.2, 1.3, 10.0, 10.2, 10.4, 100.0],
+        }
+    )
+
+    filtered, summary = apply_outlier_filter(
+        data,
+        "iqr",
+        1.5,
+        group_keys=["file", "site", "test_name", "test_number"],
+    )
+
+    # Only the extreme value in site 2 should be removed; site 1 data remains untouched.
+    assert summary["removed"] == 1
+    assert len(filtered) == len(data) - summary["removed"]
+    assert not ((filtered["site"] == 2) & (filtered["value"] == 100.0)).any()
+
+
 def test_empty_dataframe():
     """Test that empty DataFrames are handled gracefully."""
     data = pd.DataFrame({

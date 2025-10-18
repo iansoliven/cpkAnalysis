@@ -154,3 +154,41 @@ def test_compute_yield_pareto_handles_all_pass_and_all_fail() -> None:
 
     assert not pareto_df.empty
     assert set(pareto_df["test_name"]) == {"T1", "T2"}
+
+
+def test_compute_summary_by_site_returns_site_column() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot", "site": 1, "test_name": "T1", "test_number": "1", "value": 1.0, "units": "V"},
+            {"file": "lot", "site": 1, "test_name": "T1", "test_number": "1", "value": 1.1, "units": "V"},
+            {"file": "lot", "site": 2, "test_name": "T1", "test_number": "1", "value": 0.9, "units": "V"},
+        ]
+    )
+    limits = pd.DataFrame(
+        [
+            {"test_name": "T1", "test_number": "1", "unit": "V", "spec_lower": 0.5, "spec_upper": 1.5},
+        ]
+    )
+    summary, sources = stats.compute_summary_by_site(measurements, limits)
+    assert len(summary) == 2
+    assert list(summary["Site"]) == [1, 2]
+    assert sources[("lot", 1, "T1", "1")]["lower"] in {"spec", "what_if", "stdf", "unset"}
+
+
+def test_compute_yield_pareto_by_site_includes_site_dimension() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot", "site": 1, "device_id": "D1", "test_name": "T1", "test_number": "1", "value": 1.0, "part_status": "PASS"},
+            {"file": "lot", "site": 2, "device_id": "D2", "test_name": "T1", "test_number": "1", "value": 2.0, "part_status": "FAIL"},
+        ]
+    )
+    limits = pd.DataFrame(
+        [
+            {"test_name": "T1", "test_number": "1", "spec_lower": 0.5, "spec_upper": 1.5},
+        ]
+    )
+    yield_df, pareto_df = stats.compute_yield_pareto_by_site(measurements, limits)
+    assert not yield_df.empty
+    assert set(yield_df["site"]) == {1, 2}
+    assert not pareto_df.empty
+    assert set(pareto_df["site"]) == {2}

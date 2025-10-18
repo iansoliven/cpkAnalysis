@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Iterable, Literal, Tuple
+from typing import Any, Dict, Iterable, Literal, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -11,15 +11,31 @@ from .models import OutlierMethod
 GROUP_KEYS = ["file", "test_name", "test_number"]
 
 
-def apply_outlier_filter(frame: pd.DataFrame, method: OutlierMethod, k: float) -> tuple[pd.DataFrame, dict[str, Any]]:
+def apply_outlier_filter(
+    frame: pd.DataFrame,
+    method: OutlierMethod,
+    k: float,
+    *,
+    group_keys: Sequence[str] | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Apply the requested outlier filter to the measurements."""
     if frame.empty or method == "none" or k <= 0:
         return frame.copy(), {"method": "none", "k": 0, "removed": 0}
 
+    selected_keys = list(group_keys) if group_keys is not None else list(GROUP_KEYS)
+    available_keys = [key for key in selected_keys if key in frame.columns]
+    if not available_keys:
+        available_keys = [key for key in GROUP_KEYS if key in frame.columns]
+
     filtered_groups: list[pd.DataFrame] = []
     removed = 0
 
-    for _, group in frame.groupby(GROUP_KEYS, dropna=False, sort=False):
+    if available_keys:
+        group_iter: Iterable[tuple[Tuple[Any, ...], pd.DataFrame]] = frame.groupby(available_keys, dropna=False, sort=False)
+    else:
+        group_iter = [((), frame)]
+
+    for _, group in group_iter:
         values = pd.to_numeric(group["value"], errors="coerce")
         if values.empty:
             filtered_groups.append(group)
