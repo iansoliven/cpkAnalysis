@@ -85,7 +85,7 @@ def render_histogram(
     if use_rug_panel:
         rug_figsize = (DEFAULT_FIGSIZE[0], DEFAULT_FIGSIZE[1] + 1.0)
         fig = plt.figure(figsize=rug_figsize)
-        gs = fig.add_gridspec(2, 1, height_ratios=[0.8, 0.2], hspace=0.08)
+        gs = fig.add_gridspec(2, 1, height_ratios=[0.8, 0.2], hspace=0.02)
         ax = fig.add_subplot(gs[0])
         rug_ax = fig.add_subplot(gs[1], sharex=ax)
     else:
@@ -137,7 +137,7 @@ def render_histogram(
         rug_ax.vlines(
             rug_values,
             0.0,
-            0.6,
+            1.0,
             colors=RUG_COLOR,
             linewidth=1.0,
             alpha=RUG_ALPHA,
@@ -170,7 +170,7 @@ def render_histogram(
         cpk_position=cpk_position,
     )
     if use_rug_panel:
-        fig.subplots_adjust(left=0.09, right=0.75, top=0.97, bottom=0.24, hspace=0.08)
+        fig.subplots_adjust(left=0.09, right=0.75, top=0.97, bottom=0.18, hspace=0.02)
     else:
         fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
@@ -368,8 +368,9 @@ def _finalize_chart(
         )
     if test_label:
         ax.set_title(test_label, fontsize=title_font_size, fontweight="bold")
+    position = cpk_position or (1.02, 0.12)
+    cpk_rendered = False
     if cpk is not None and math.isfinite(cpk):
-        position = cpk_position or (1.02, 0.12)
         ha = "left"
         va = "bottom"
         if position[0] <= 1.0:
@@ -385,16 +386,20 @@ def _finalize_chart(
             va=va,
             fontsize=cpk_font_size,
         )
+        cpk_rendered = True
     if unit_label:
+        unit_y = position[1] - 0.12 if cpk_rendered else position[1]
+        if unit_y <= 0.0:
+            unit_y = 0.02
         ax.text(
-            0.5,
-            -0.22,
+            position[0],
+            unit_y,
             f"Unit: {unit_label}",
             transform=ax.transAxes,
-            ha="center",
-            va="top",
-            fontsize=9,  # Reduced from 10
-    )
+            ha="left",
+            va="bottom",
+            fontsize=cpk_font_size,
+        )
     fig.subplots_adjust(right=0.78, bottom=0.28)
 
 
