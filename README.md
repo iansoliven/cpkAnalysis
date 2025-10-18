@@ -4,7 +4,8 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-90%20passing-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-75%25-brightgreen.svg)](test_coverage_report/index.html)
 
 Transform large volumes of STDF (Standard Test Data Format) files into comprehensive CPK reports with:
 - ✅ **STDF V4 compliant** ingestion with proper flag filtering
@@ -44,7 +45,7 @@ Transform large volumes of STDF (Standard Test Data Format) files into comprehen
 ### Install
 
 ```bash
-git clone https://github.com/your-org/cpkAnalysis.git
+git clone https://github.com/iansoliven/cpkAnalysis.git
 cd cpkAnalysis
 git submodule update --init --recursive
 pip install -r requirements.txt
@@ -113,7 +114,7 @@ python -m cpkanalysis.cli run Sample/lot2.stdf --postprocess
 ### 1. Clone Repository with Submodules
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/iansoliven/cpkAnalysis.git
 cd cpkAnalysis
 git submodule update --init --recursive
 ```
@@ -615,8 +616,8 @@ class MyPlugin(Plugin):
 
 - 📖 **[Full README](README.md)** — This file
 - 🏠 **[Help Index](help/index.html)** — Central documentation hub
-- 🐛 **[Issue Tracker](https://github.com/your-org/cpkAnalysis/issues)** — Bug reports
-- 💬 **[Discussions](https://github.com/your-org/cpkAnalysis/discussions)** — Q&A
+- 🐛 **[Issue Tracker](https://github.com/iansoliven/cpkAnalysis/issues)** — Bug reports
+- 💬 **[Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)** — Q&A
 
 ---
 
@@ -637,7 +638,7 @@ pytest
 
 # With coverage report
 pytest --cov=cpkanalysis --cov-report=html:test_coverage_report
-# View htmlcov/index.html
+# View test_coverage_report/index.html
 
 # Run specific area
 pytest tests/test_ingest_*.py -v      # Ingestion tests
@@ -745,7 +746,7 @@ Device 5:  opt_flg=0x40, LO_LIMIT=None  → OLD: 1.0 ❌  NEW: None ✅ (explici
 
 ```bash
 # Clone with submodules
-git clone --recursive <repository-url>
+git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
@@ -802,14 +803,13 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Support
 
 - 📖 **Documentation**: [help/index.html](help/index.html)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/your-org/cpkAnalysis/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/your-org/cpkAnalysis/discussions)
-- 📧 **Email**: support@example.com
+- 🐛 **Issues**: [GitHub Issues](https://github.com/iansoliven/cpkAnalysis/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)
 
 ---
 
 **Made with ❤️ for semiconductor test engineers**
 
-*Last updated: 2025-10-11*
+*Last updated: 2025-10-18*
 
 

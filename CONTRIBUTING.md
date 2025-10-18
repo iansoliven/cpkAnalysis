@@ -8,7 +8,7 @@ Thank you for contributing to CPK Analysis! This guide will help you get started
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/your-org/cpkAnalysis.git
+git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
@@ -196,8 +196,8 @@ cpkAnalysis/
 ## Getting Help
 
 - 📖 **Documentation:** [help/index.html](help/index.html)
-- 🐛 **Issues:** [GitHub Issues](https://github.com/your-org/cpkAnalysis/issues)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/your-org/cpkAnalysis/discussions)
+- 🐛 **Issues:** [GitHub Issues](https://github.com/iansoliven/cpkAnalysis/issues)
+- 💬 **Discussions:** [GitHub Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)
 
 ## License
 

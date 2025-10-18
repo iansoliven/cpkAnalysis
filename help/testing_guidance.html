@@ -1026,7 +1026,7 @@ def test_proposed_limits_always_symmetric(mean, std_dev, target_cpk):
 
         <div class="info-box">
           <strong>Developer Guidelines</strong>
-          <p>All code contributions must include tests. See <a href="https://github.com/your-org/cpkAnalysis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for full guidelines.</p>
+          <p>All code contributions must include tests. See <a href="https://github.com/iansoliven/cpkAnalysis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for full guidelines.</p>
         </div>
 
         <div class="card">
@@ -1034,7 +1034,7 @@ def test_proposed_limits_always_symmetric(mean, std_dev, target_cpk):
           <h4>✅ Required Checks</h4>
           <ol>
             <li><strong>Run all tests:</strong> <code>pytest</code> — Must pass 100%</li>
-            <li><strong>Check coverage:</strong> <code>pytest --cov=cpkanalysis --cov-report=html</code> — Aim for 75%+ on new code</li>
+            <li><strong>Check coverage:</strong> <code>pytest --cov=cpkanalysis --cov-report=html:test_coverage_report</code> - Aim for 75%+ on new code</li>
             <li><strong>Format code:</strong> <code>black cpkanalysis/ tests/</code></li>
             <li><strong>Lint code:</strong> <code>ruff check cpkanalysis/ tests/</code></li>
           </ol>
@@ -1110,7 +1110,7 @@ def test_ingest_sources_combines_files_and_writes_parquet():</code></pre>
         <div class="card">
           <h3>Development Setup</h3>
           <pre><code># Clone with submodules
-git clone --recursive https://github.com/your-org/cpkAnalysis.git
+git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
