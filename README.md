@@ -622,45 +622,57 @@ class MyPlugin(Plugin):
 
 ## 🧪 Testing
 
-### Run Test Suite
+### Comprehensive Test Suite
+
+- **90 tests** across 17 test modules
+- **75% code coverage** (3,151 of 4,175 statements)
+- ✅ All tests passing
+- Automated CI/CD ready
+
+### Quick Start
 
 ```bash
-# All tests
+# Run all tests
 pytest
 
-# Specific test file
-pytest tests/test_ingest_limits.py -v
+# With coverage report
+pytest --cov=cpkanalysis --cov-report=html:test_coverage_report
+# View htmlcov/index.html
 
-# With coverage
-pytest --cov=cpkanalysis --cov-report=html
+# Run specific area
+pytest tests/test_ingest_*.py -v      # Ingestion tests
+pytest tests/test_stats_*.py -v       # Statistics tests
+pytest tests/test_postprocess*.py -v  # Post-processing tests
 ```
 
-### Test Coverage
+### Coverage Highlights
 
-| Module | Tests | Coverage |
-|--------|-------|----------|
-| `ingest.py` | 7 tests | STDF flag filtering, OPT_FLAG bits, limit handling |
-| `postprocess/` | 7 tests | Limit updates, chart regeneration, axis bounds |
-| **Total** | **14 tests** | **✅ All passing** |
+| Module | Coverage | Status |
+|--------|----------|--------|
+| `mpl_charts.py` | 92% | ✅ Excellent |
+| `outliers.py` | 90% | ✅ Excellent |
+| `pipeline.py` | 88% | ✅ Excellent |
+| `stats.py` | 87% | ✅ Excellent |
+| `ingest.py` | 84% | ✅ Very Good |
+| `plugins.py` | 83% | ✅ Very Good |
 
-### New Tests (2025-10-11)
+### For Developers
 
-Added comprehensive OPT_FLAG bit handling tests:
-- `test_opt_flag_bit4_preserves_default_low_limit` — Verifies bit 4 (0x10)
-- `test_opt_flag_bit5_preserves_default_high_limit` — Verifies bit 5 (0x20)
-- `test_extract_measurement_preserves_defaults_with_bit4_bit5` — Combined bits
+**See [help/testing_guidance.html](help/testing_guidance.html) for:**
+- Complete test file listing (all 17 modules)
+- Coverage statistics by module
+- How to write new tests
+- CI/CD integration examples
+- Contributing guidelines
+- Debugging test failures
 
-### Continuous Integration
+### Contributing
 
-The test suite is designed for CI/CD integration:
-
-```yaml
-# Example GitHub Actions
-- name: Run Tests
-  run: |
-    pip install -r requirements.txt
-    pytest tests/ -v --junitxml=test-results.xml
-```
+All code contributions **must include tests**. See [CONTRIBUTING.md](CONTRIBUTING.md) for:
+- Development setup
+- Pre-commit checklist
+- Code quality standards
+- Pull request guidelines
 
 ---
 
