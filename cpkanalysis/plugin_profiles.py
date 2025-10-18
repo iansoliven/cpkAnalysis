@@ -20,8 +20,14 @@ def load_plugin_profile(path: Path) -> Dict[str, PluginConfig]:
     if tomllib is None or not path.exists():
         return configs
     try:
-        data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        print(f"Warning: failed to read plugin profile {path}: {exc}. Using defaults.", file=sys.stderr)
+        return configs
+    decode_error = getattr(tomllib, "TOMLDecodeError", ValueError)
+    try:
+        data = tomllib.loads(text)
+    except (decode_error, TypeError) as exc:
         print(
             f"Warning: failed to parse plugin profile {path}: {exc}. Using defaults.",
             file=sys.stderr,
@@ -71,7 +77,8 @@ def save_plugin_profile(path: Path, configs: Sequence[PluginConfig]) -> None:
             lines.append("")
         content = "\n".join(lines).strip() + "\n"
         path.write_text(content, encoding="utf-8")
-    except Exception:
+    except OSError as exc:
+        print(f"Warning: failed to write plugin profile {path}: {exc}.", file=sys.stderr)
         return
 
 

@@ -86,7 +86,7 @@ class CPKAnalysisGUI:
 
         try:
             metadata_path = Path(result["metadata"]).expanduser().resolve() if result.get("metadata") else None
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             metadata_path = None
         try:
             self._post_context = postprocess.create_context(
@@ -94,7 +94,7 @@ class CPKAnalysisGUI:
                 metadata_path=metadata_path,
                 analysis_inputs=config,
             )
-        except Exception as exc:
+        except (SystemExit, OSError, ValueError, RuntimeError) as exc:
             print(f"Unable to initialise post-processing context: {exc}")
             self._post_context = None
 

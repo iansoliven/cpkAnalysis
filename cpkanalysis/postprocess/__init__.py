@@ -72,7 +72,7 @@ def _analysis_inputs_from_metadata(workbook_path: Path, metadata: dict) -> Analy
     if template_value:
         try:
             template_path = Path(template_value).expanduser().resolve()
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             template_path = None
 
     sources = []
@@ -82,7 +82,7 @@ def _analysis_inputs_from_metadata(workbook_path: Path, metadata: dict) -> Analy
             continue
         try:
             sources.append(SourceFile(path=Path(path_text)))
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             continue
 
     plugin_configs = [

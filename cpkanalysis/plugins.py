@@ -23,6 +23,7 @@ try:  # pragma: no cover - Python 3.10+
 except ImportError:  # pragma: no cover - fallback for <3.10
     from importlib_metadata import entry_points, EntryPoint  # type: ignore[assignment]
 
+from .event_names import DEFAULT_EVENT_NAMES, SUMMARY_READY_EVENT
 
 class PluginRegistryError(Exception):
     """Raised when plugin discovery or instantiation fails."""
@@ -36,7 +37,7 @@ class PluginDescriptor:
     name: str
     description: str
     factory: Callable[[Dict[str, Any]], Any]
-    events: Tuple[str, ...] = ("PipelineEvent",)
+    events: Tuple[str, ...] = DEFAULT_EVENT_NAMES
     default_enabled: bool = True
     default_priority: int = 0
     thread_safe: bool = False
@@ -117,9 +118,16 @@ class PluginRegistry:
                 f"TOML support unavailable for manifest at {path}; "
                 "Python 3.11+ or tomllib module required."
             )
+
         try:
-            payload = tomllib.loads(path.read_text(encoding="utf-8"))
-        except Exception as exc:  # pragma: no cover - user supplied data
+            text = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise PluginRegistryError(f"Failed to read plugin manifest {path}: {exc}") from exc
+
+        toml_error = getattr(tomllib, "TOMLDecodeError", ValueError)
+        try:
+            payload = tomllib.loads(text)
+        except (toml_error, TypeError) as exc:  # pragma: no cover - user supplied data
             raise PluginRegistryError(f"Failed to parse plugin manifest {path}: {exc}") from exc
 
         plugin_section = payload.get("plugin") or payload
@@ -170,7 +178,7 @@ class PluginRegistry:
                 name=descriptor_obj.get("name", descriptor_obj["plugin_id"]),
                 description=descriptor_obj.get("description", ""),
                 factory=descriptor_obj["factory"],
-                events=tuple(descriptor_obj.get("events", ("PipelineEvent",))),
+                events=tuple(descriptor_obj.get("events", DEFAULT_EVENT_NAMES)),
                 default_enabled=bool(descriptor_obj.get("default_enabled", True)),
                 default_priority=int(descriptor_obj.get("default_priority", 0)),
                 thread_safe=bool(descriptor_obj.get("thread_safe", False)),
@@ -208,7 +216,7 @@ class PluginRegistry:
             name="Summary Logger",
             description="Logs summary row counts after the statistics stage.",
             factory=self._create_summary_logger,
-            events=("SummaryReadyEvent",),
+            events=(SUMMARY_READY_EVENT,),
             default_enabled=False,
             default_priority=0,
             thread_safe=True,
@@ -231,11 +239,11 @@ class PluginRegistry:
                     return None
                 try:
                     row_count = len(summary)
-                except Exception:  # pragma: no cover - defensive fallback
+                except TypeError:  # pragma: no cover - defensive fallback
                     row_count = "unknown"
                 try:
                     print(self._template.format(rows=row_count))
-                except Exception:
+                except (KeyError, ValueError):
                     print(f"Summary rows: {row_count}")
                 return None
 

@@ -385,7 +385,7 @@ def _safe_text(value) -> str:
     try:
         if pd.isna(value):
             return ""
-    except Exception:
+    except (TypeError, ValueError):
         pass
     text = str(value).strip()
     return "" if text.lower() == "nan" else text

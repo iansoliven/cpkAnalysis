@@ -212,7 +212,7 @@ def _safe_str(value) -> str:
     try:
         if pd.isna(value):
             return ""
-    except Exception:
+    except (TypeError, ValueError):
         pass
     text = str(value)
     return text.strip() if text is not None else ""

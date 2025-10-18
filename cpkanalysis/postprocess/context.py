@@ -29,7 +29,7 @@ def load_metadata(path: Path) -> dict:
     try:
         text = path.read_text(encoding="utf-8")
         return json.loads(text) if text else {}
-    except Exception:
+    except (OSError, json.JSONDecodeError):
         return {}
 
 
@@ -87,7 +87,7 @@ class PostProcessContext:
         if self._workbook is not None:
             try:
                 self._workbook.close()
-            except Exception:
+            except (OSError, ValueError):
                 pass
         self._workbook = None
         self._summary_df = None

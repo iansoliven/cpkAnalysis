@@ -430,6 +430,6 @@ def _coerce_str(value: Any) -> Optional[str]:
         return stripped or None
     try:
         stripped = str(value).strip()
-    except Exception:
+    except (TypeError, ValueError):
         return None
     return stripped or None

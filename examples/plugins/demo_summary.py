@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from cpkanalysis.plugins import PluginDescriptor
+from cpkanalysis.event_names import SUMMARY_READY_EVENT
 
 
 def descriptor() -> PluginDescriptor:
@@ -12,7 +13,7 @@ def descriptor() -> PluginDescriptor:
         name="Sample Summary Logger",
         description="Writes the summary row count to stdout after statistics.",
         factory=_create_listener,
-        events=("SummaryReadyEvent",),
+        events=(SUMMARY_READY_EVENT,),
         default_enabled=False,
         default_priority=0,
         thread_safe=True,
@@ -33,7 +34,7 @@ def _create_listener(parameters: dict[str, Any]) -> Any:
                 return None
             try:
                 rows = len(summary)
-            except Exception:
+            except TypeError:
                 rows = "unknown"
             print(self._template.format(rows=rows))
             return None

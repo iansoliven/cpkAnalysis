@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import logging
 from typing import Callable, Dict, List, Optional, Tuple
 
 from .context import PostProcessContext
@@ -27,6 +28,8 @@ ACTION_DEFINITIONS: Tuple[ActionDefinition, ...] = (
     ActionDefinition("apply_spec_limits", "Apply Spec / What-If Limits", actions.apply_spec_limits),
     ActionDefinition("calculate_proposed_limits", "Calculate Proposed Limits", actions.calculate_proposed_limits),
 )
+
+logger = logging.getLogger(__name__)
 
 
 def loop(context: PostProcessContext, *, io: PostProcessIO) -> None:
@@ -90,7 +93,8 @@ def loop(context: PostProcessContext, *, io: PostProcessIO) -> None:
                 try:
                     context.save()
                     io.info("Changes saved.")
-                except Exception as exc:
+                except (OSError, ValueError) as exc:
+                    logger.exception("Failed to save post-processing changes before exit")
                     io.warn(f"Failed to save changes: {exc}")
         io.info("Exiting post-processing menu.")
         break
@@ -110,6 +114,7 @@ def _execute_action(
         io.warn(message)
         return None
     except Exception as exc:  # pragma: no cover - defensive
+        logger.exception("Action '%s' failed", action_def.key)
         io.warn(f"{action_def.label} failed: {exc}")
         return None
 
@@ -131,7 +136,8 @@ def _execute_action(
         try:
             context.save()
             io.info("Changes saved.")
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
+            logger.exception("Failed to auto-save post-processing changes")
             io.warn(f"Failed to save changes automatically: {exc}")
     return result
 

@@ -50,8 +50,8 @@ def ReadDirectory(directory: Optional[str] = None) -> Optional[List[Dict[str, st
     # CLI confirmation (placeholder for GUI)
     try:
         confirm = input("Are these correct? (y/n): ").strip().lower()
-    except Exception as e:
-        logger.error("Input failed: %s", e)
+    except (EOFError, KeyboardInterrupt) as exc:
+        logger.error("Input aborted: %s", exc)
         return None
     if confirm != 'y':
         print("Aborted by user.")

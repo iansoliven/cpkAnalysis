@@ -19,6 +19,17 @@ from .models import AnalysisInputs, IngestResult
 from .plugins import PluginRegistry, PluginRegistryError
 from .move_to_template import run as move_to_template, apply_template
 from openpyxl import Workbook
+from .event_names import (
+    DEFAULT_EVENT_NAMES,
+    FILTERED_READY_EVENT,
+    INGEST_READY_EVENT,
+    METADATA_WRITTEN_EVENT,
+    PIPELINE_EVENT,
+    SUMMARY_READY_EVENT,
+    TEMPLATE_APPLIED_EVENT,
+    WORKBOOK_READY_EVENT,
+    YIELD_PARETO_READY_EVENT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -139,14 +150,14 @@ class MetadataWrittenEvent(PipelineEvent):
 
 
 _EVENT_NAME_MAP: dict[str, Type[PipelineEvent]] = {
-    "PipelineEvent": PipelineEvent,
-    "IngestReadyEvent": IngestReadyEvent,
-    "FilteredReadyEvent": FilteredReadyEvent,
-    "SummaryReadyEvent": SummaryReadyEvent,
-    "YieldParetoReadyEvent": YieldParetoReadyEvent,
-    "WorkbookReadyEvent": WorkbookReadyEvent,
-    "TemplateAppliedEvent": TemplateAppliedEvent,
-    "MetadataWrittenEvent": MetadataWrittenEvent,
+    PIPELINE_EVENT: PipelineEvent,
+    INGEST_READY_EVENT: IngestReadyEvent,
+    FILTERED_READY_EVENT: FilteredReadyEvent,
+    SUMMARY_READY_EVENT: SummaryReadyEvent,
+    YIELD_PARETO_READY_EVENT: YieldParetoReadyEvent,
+    WORKBOOK_READY_EVENT: WorkbookReadyEvent,
+    TEMPLATE_APPLIED_EVENT: TemplateAppliedEvent,
+    METADATA_WRITTEN_EVENT: MetadataWrittenEvent,
 }
 
 
@@ -261,7 +272,7 @@ class Pipeline:
                 plugin_cfg.plugin_id,
                 plugin_cfg.parameters,
             )
-            event_names = descriptor.events or ("PipelineEvent",)
+            event_names = descriptor.events or DEFAULT_EVENT_NAMES
             event_types: list[Type[PipelineEvent]] = []
             for event_name in event_names:
                 event_cls = _EVENT_NAME_MAP.get(event_name)

@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import importlib.util
 import math
 import sys
 import warnings
 from collections import defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Dict, Iterable, Iterator, Optional, Sequence, Tuple, TypedDict
 
 import pandas as pd
@@ -14,26 +16,60 @@ import pyarrow.parquet as pq
 
 from .models import IngestResult, SourceFile
 
-try:  # pragma: no cover - dependency injection based on submodule availability
-    from istdf import STDFReader  # type: ignore
-except ImportError:  # pragma: no cover - handled at runtime
-    STDFReader = None  # type: ignore[assignment]
-    ISTDF_SRC = Path(__file__).resolve().parents[1] / "Submodules" / "istdf" / "src"
-    if ISTDF_SRC.exists() and str(ISTDF_SRC) not in sys.path:
-        sys.path.insert(0, str(ISTDF_SRC))
-        try:
-            from istdf import STDFReader  # type: ignore
-        except ImportError:
-            warnings.warn(
-                "Unable to import the 'istdf' submodule. STDF ingestion features will be unavailable.",
-                RuntimeWarning,
-            )
-            STDFReader = None  # type: ignore[assignment]
-    else:
+ISTDF_SRC = Path(__file__).resolve().parents[1] / "Submodules" / "istdf" / "src"
+
+
+def _load_local_istdf() -> ModuleType | None:
+    """Attempt to import the bundled istdf package without modifying sys.path."""
+    package_root = ISTDF_SRC / "istdf"
+    init_path = package_root / "__init__.py"
+    if not init_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location(
+        "istdf",
+        init_path,
+        submodule_search_locations=[str(package_root)],
+    )
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["istdf"] = module
+    try:
+        spec.loader.exec_module(module)  # type: ignore[union-attr]
+    except Exception as exc:  # pragma: no cover - defensive: third-party import
+        sys.modules.pop("istdf", None)
         warnings.warn(
-            "istdf submodule not available; STDF ingestion features will be unavailable.",
+            f"Unable to initialise the 'istdf' submodule: {exc}. STDF ingestion features will be unavailable.",
             RuntimeWarning,
         )
+        return None
+    return module
+
+
+def _resolve_stdf_reader() -> Any:
+    try:  # pragma: no cover - dependency injection based on submodule availability
+        from istdf import STDFReader as reader  # type: ignore
+        return reader
+    except ImportError:
+        if not ISTDF_SRC.exists():
+            warnings.warn(
+                "istdf submodule not available; STDF ingestion features will be unavailable.",
+                RuntimeWarning,
+            )
+            return None
+        module = _load_local_istdf()
+        if module is None:
+            return None
+        reader = getattr(module, "STDFReader", None)
+        if reader is None:
+            warnings.warn(
+                "istdf submodule loaded but STDFReader not found; STDF ingestion features will be unavailable.",
+                RuntimeWarning,
+            )
+        return reader
+
+
+STDFReader = _resolve_stdf_reader()
 
 
 @dataclass
@@ -566,7 +602,7 @@ def _apply_scale(value: Optional[float], scale: Optional[int]) -> Optional[float
         return value
     try:
         return value * (10 ** scale)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return value
 
 
@@ -650,7 +686,7 @@ def _coerce_str(value: Any) -> Optional[str]:
         return cleaned or None
     try:
         text = str(value).strip()
-    except Exception:
+    except (TypeError, ValueError):
         return None
     return text or None
 
