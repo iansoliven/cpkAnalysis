@@ -172,8 +172,12 @@ class PipelineContext:
     outlier_summary: dict[str, Any] | None = None
     summary: pd.DataFrame | None = None
     limit_sources: dict[tuple[str, str, str], dict[str, str]] | None = None
+    site_summary: pd.DataFrame | None = None
+    site_limit_sources: dict[tuple[Any, ...], dict[str, str]] | None = None
     yield_summary: pd.DataFrame | None = None
     pareto_summary: pd.DataFrame | None = None
+    site_yield_summary: pd.DataFrame | None = None
+    site_pareto_summary: pd.DataFrame | None = None
     template_sheet: str | None = None
     metadata_path: Path | None = None
     stage_timings: dict[str, float] = None  # type: ignore[assignment]
@@ -181,12 +185,18 @@ class PipelineContext:
     active_plugins: tuple[str, ...] = ()
     plugins_metadata: tuple[PluginExecutionRecord, ...] = ()
     workbook_obj: Workbook | None = None
+    site_data_available: bool = False
+    warnings: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if self.stage_timings is None:
             object.__setattr__(self, "stage_timings", {})
         if self.stage_details is None:
             object.__setattr__(self, "stage_details", {})
+        if self.warnings is None:
+            object.__setattr__(self, "warnings", ())
+        elif not isinstance(self.warnings, tuple):
+            object.__setattr__(self, "warnings", tuple(self.warnings))
 
     def with_updates(self, **changes: Any) -> "PipelineContext":
         """Return a new context with the supplied field updates."""
@@ -195,6 +205,8 @@ class PipelineContext:
             changes["stage_timings"] = {}
         if "stage_details" in changes and changes["stage_details"] is None:
             changes["stage_details"] = {}
+        if "warnings" in changes and changes["warnings"] is not None and not isinstance(changes["warnings"], tuple):
+            changes["warnings"] = tuple(changes["warnings"])
         return replace(self, **changes)
 
 
@@ -310,14 +322,29 @@ class Pipeline:
 
     def _stage_ingest(self, context: PipelineContext) -> PipelineContext:
         ingest_result = ingest.ingest_sources(context.config.sources, context.session_dir)
-        return context.with_updates(ingest_result=ingest_result)
+        site_available = ingest.has_site_data(ingest_result.frame)
+        warnings = list(context.warnings)
+        if context.config.enable_site_breakdown and not site_available:
+            warnings.append(
+                "Per-site aggregation requested but SITE_NUM data was not detected; proceeding without site breakdown."
+            )
+        context.config.site_data_status = "available" if site_available else "unavailable"
+        return context.with_updates(
+            ingest_result=ingest_result,
+            site_data_available=site_available,
+            warnings=tuple(warnings),
+        )
 
     def _stage_outliers(self, context: PipelineContext) -> PipelineContext:
         assert context.ingest_result is not None, "Ingest stage must run before outlier filtering."
+        group_keys = None
+        if context.config.enable_site_breakdown and context.site_data_available:
+            group_keys = ["file", "site", "test_name", "test_number"]
         filtered_frame, outlier_summary = outliers.apply_outlier_filter(
             context.ingest_result.frame,
             context.config.outliers.method,
             context.config.outliers.k,
+            group_keys=group_keys,
         )
         filtered_path = context.session_dir / "filtered_measurements.parquet"
         filtered_frame.to_parquet(filtered_path, engine="pyarrow", index=False)
@@ -329,7 +356,19 @@ class Pipeline:
         summary_df, limit_sources = stats.compute_summary(
             context.filtered_measurements, context.ingest_result.test_catalog
         )
-        return context.with_updates(summary=summary_df, limit_sources=limit_sources)
+        site_summary = None
+        site_limit_sources = None
+        if context.config.enable_site_breakdown and context.site_data_available:
+            site_summary, site_limit_sources = stats.compute_summary_by_site(
+                context.filtered_measurements,
+                context.ingest_result.test_catalog,
+            )
+        return context.with_updates(
+            summary=summary_df,
+            limit_sources=limit_sources,
+            site_summary=site_summary,
+            site_limit_sources=site_limit_sources,
+        )
 
     def _stage_yield_pareto(self, context: PipelineContext) -> PipelineContext:
         if not context.config.generate_yield_pareto:
@@ -340,7 +379,19 @@ class Pipeline:
         yield_df, pareto_df = stats.compute_yield_pareto(
             context.ingest_result.frame, context.ingest_result.test_catalog
         )
-        return context.with_updates(yield_summary=yield_df, pareto_summary=pareto_df)
+        site_yield = None
+        site_pareto = None
+        if context.config.enable_site_breakdown and context.site_data_available:
+            site_yield, site_pareto = stats.compute_yield_pareto_by_site(
+                context.ingest_result.frame,
+                context.ingest_result.test_catalog,
+            )
+        return context.with_updates(
+            yield_summary=yield_df,
+            pareto_summary=pareto_df,
+            site_yield_summary=site_yield,
+            site_pareto_summary=site_pareto,
+        )
 
     def _stage_workbook(self, context: PipelineContext) -> PipelineContext:
         assert context.ingest_result is not None, "Ingest stage must run before workbook."
@@ -413,8 +464,14 @@ class Pipeline:
             summary=context.summary,
             yield_summary=context.yield_summary,
             pareto_summary=context.pareto_summary,
+            site_summary=context.site_summary,
+            site_yield_summary=context.site_yield_summary,
+            site_pareto_summary=context.site_pareto_summary,
+            site_breakdown_requested=context.config.enable_site_breakdown,
+            site_breakdown_available=context.site_data_available,
             template_sheet=context.template_sheet,
             plugins=context.plugins_metadata,
+            warnings=context.warnings,
         )
         metadata_path = context.config.output.with_suffix(".json")
         metadata_path.write_text(json.dumps(metadata, indent=2), encoding="utf-8")
@@ -502,9 +559,22 @@ class Pipeline:
             "template_sheet": context.template_sheet,
             "plugins": list(context.active_plugins),
             "yield_pareto_enabled": context.config.generate_yield_pareto,
+            "site_breakdown_requested": context.config.enable_site_breakdown,
+            "site_data_available": context.site_data_available,
         }
         result["yield_rows"] = int(len(context.yield_summary)) if context.yield_summary is not None else 0
         result["pareto_rows"] = int(len(context.pareto_summary)) if context.pareto_summary is not None else 0
+        result["site_summary_rows"] = int(len(context.site_summary)) if context.site_summary is not None else 0
+        if context.config.enable_site_breakdown:
+            result["site_yield_rows"] = (
+                int(len(context.site_yield_summary)) if context.site_yield_summary is not None else 0
+            )
+            result["site_pareto_rows"] = (
+                int(len(context.site_pareto_summary)) if context.site_pareto_summary is not None else 0
+            )
+        result["site_breakdown_generated"] = context.site_summary is not None
+        if context.warnings:
+            result["warnings"] = list(context.warnings)
         stage_timings = dict(context.stage_timings)
         result["stage_timings"] = stage_timings
         stage_details = {name: dict(values) for name, values in context.stage_details.items()}
@@ -527,8 +597,15 @@ def _build_metadata(
     summary: pd.DataFrame,
     yield_summary: pd.DataFrame | None = None,
     pareto_summary: pd.DataFrame | None = None,
+    site_summary: pd.DataFrame | None = None,
+    site_yield_summary: pd.DataFrame | None = None,
+    site_pareto_summary: pd.DataFrame | None = None,
+    *,
+    site_breakdown_requested: bool = False,
+    site_breakdown_available: bool = False,
     template_sheet: str | None = None,
     plugins: Iterable[PluginExecutionRecord] = (),
+    warnings: Sequence[str] = (),
 ) -> dict[str, Any]:
     yield_info: dict[str, Any] | None = None
     if yield_summary is not None:
@@ -541,6 +618,18 @@ def _build_metadata(
         pareto_info = {
             "rows": int(len(pareto_summary)),
         }
+
+    site_summary_info: dict[str, Any] | None = None
+    if site_summary is not None:
+        site_summary_info = {"rows": int(len(site_summary))}
+
+    site_yield_info: dict[str, Any] | None = None
+    if site_yield_summary is not None:
+        site_yield_info = {"rows": int(len(site_yield_summary))}
+
+    site_pareto_info: dict[str, Any] | None = None
+    if site_pareto_summary is not None:
+        site_pareto_info = {"rows": int(len(site_pareto_summary))}
 
     return {
         "output": str(config.output),
@@ -563,9 +652,19 @@ def _build_metadata(
             "generate_time_series": config.generate_time_series,
             "generate_yield_pareto": config.generate_yield_pareto,
             "display_decimals": config.display_decimals,
+            "enable_site_breakdown": site_breakdown_requested,
         },
         "yield_summary": yield_info,
         "pareto_summary": pareto_info,
+        "site_summary": site_summary_info,
+        "site_yield_summary": site_yield_info,
+        "site_pareto_summary": site_pareto_info,
+        "site_breakdown": {
+            "requested": site_breakdown_requested,
+            "available": site_breakdown_available,
+            "generated": site_summary is not None,
+        },
+        "warnings": list(warnings),
         "plugins": [
             {
                 "id": record.plugin_id,

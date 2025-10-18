@@ -96,7 +96,7 @@ def test_pipeline_metadata_failure_triggers_cleanup(monkeypatch: pytest.MonkeyPa
     ingest_result = IngestResult(frame=frame, test_catalog=limits, per_file_stats=[{"file": "lot"}], raw_store_path=tmp_path / "raw.parquet")
 
     monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
-    monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k: (frame, {"removed": 0}))
+    monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k, **kwargs: (frame, {"removed": 0}))
     summary_df = pd.DataFrame({"File": ["lot"], "Test Name": ["T"], "Test Number": ["1"]})
     monkeypatch.setattr(pipeline.stats, "compute_summary", lambda measurements, limits: (summary_df, {}))
     monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (pd.DataFrame(), pd.DataFrame()))
@@ -138,7 +138,7 @@ def test_pipeline_event_listener_failure_triggers_cleanup(monkeypatch: pytest.Mo
     ingest_result = IngestResult(frame=frame, test_catalog=limits, per_file_stats=[{"file": "lot"}], raw_store_path=tmp_path / "raw.parquet")
 
     monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
-    monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k: (frame, {"removed": 0}))
+    monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k, **kwargs: (frame, {"removed": 0}))
     summary_df = pd.DataFrame({"File": ["lot"], "Test Name": ["T"], "Test Number": ["1"], "Unit": ["V"], "COUNT": [1], "MEAN": [1.0], "STDEV": [0.0]})
     monkeypatch.setattr(pipeline.stats, "compute_summary", lambda measurements, limits: (summary_df, {}))
     monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (pd.DataFrame(), pd.DataFrame()))
