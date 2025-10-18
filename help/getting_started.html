@@ -298,11 +298,11 @@ git submodule update --init --recursive</code></pre>
         <div class="file-tree">
           <ul>
             <li><strong>cpkanalysis/</strong> — Core pipeline, post-processing engine, GUI, and CLI</li>
-            <li><strong>examples/</strong> — Sample STDF files and plugin templates</li>
+            <li><strong>Sample/</strong> — Sample STDF files for testing</li>
             <li><strong>temp/</strong> — Session directories for intermediate Parquet files</li>
             <li><strong>help/</strong> — HTML documentation sources (this content)</li>
             <li><strong>docs/</strong> — Markdown technical documentation</li>
-            <li><strong>tests/</strong> — Pytest suite for ingestion and post-processing</li>
+            <li><strong>tests/</strong> — Pytest suite (90 tests, 75% coverage)</li>
             <li><strong>Submodules/istdf/</strong> — STDF V4 reader library</li>
             <li><strong>cpkTemplate/</strong> — Excel template workbooks</li>
           </ul>
@@ -312,8 +312,8 @@ git submodule update --init --recursive</code></pre>
 
         <h3>Basic Command</h3>
         <p>Analyze one or more STDF files and generate an Excel CPK workbook:</p>
-        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf examples/lot3.stdf \
-  --output temp/CPK_Workbook.xlsx \
+        <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf Sample/lot3.stdf \
+  --output CPK_Workbook.xlsx \
   --template cpkTemplate/cpk_report_output_template.xlsx</code></pre>
 
         <h3>What Happens During Execution</h3>
@@ -367,10 +367,10 @@ git submodule update --init --recursive</code></pre>
 
         <h3>Outlier Filtering</h3>
         <p>Apply statistical filters to remove outliers before CPK calculation:</p>
-        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+        <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf \
   --outlier-method iqr \
   --outlier-k 1.5 \
-  --output temp/Filtered_CPK.xlsx</code></pre>
+  --output Filtered_CPK.xlsx</code></pre>
 
         <div class="card">
           <h3>Available Methods</h3>
@@ -383,9 +383,9 @@ git submodule update --init --recursive</code></pre>
 
         <h3>Selective Chart Generation</h3>
         <p>Disable specific chart types to reduce processing time:</p>
-        <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf \
+        <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf \
   --no-time-series \
-  --output temp/Fast_CPK.xlsx</code></pre>
+  --output Fast_CPK.xlsx</code></pre>
 
         <div class="info-box">
           <strong>🚀 Performance Tip</strong>
@@ -446,13 +446,13 @@ git submodule update --init --recursive</code></pre>
         <div class="card">
           <h3>FileNotFoundError: STDF file not found</h3>
           <p><strong>Solution:</strong> Use absolute paths or verify relative paths from current directory:</p>
-          <pre><code>python -m cpkanalysis.cli run "$(pwd)/examples/lot2.stdf"</code></pre>
+          <pre><code>python -m cpkanalysis.cli run "$(pwd)/Sample/lot2.stdf"</code></pre>
         </div>
 
         <div class="card">
           <h3>PermissionError writing to temp/</h3>
           <p><strong>Solution:</strong> Ensure write permissions or specify an alternative session directory:</p>
-          <pre><code>python -m cpkanalysis.cli run examples/lot2.stdf --session-dir /tmp/cpk_session</code></pre>
+          <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf --session-dir /tmp/cpk_session</code></pre>
         </div>
 
         <div class="info-box">
