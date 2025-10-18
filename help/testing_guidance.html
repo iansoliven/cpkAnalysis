@@ -291,6 +291,17 @@
         </p>
 
         <div class="success-box">
+          <strong>Current Test Suite Status (2025-10-18)</strong>
+          <ul>
+            <li><strong>Total Tests:</strong> 90 tests across 17 test modules</li>
+            <li><strong>Overall Coverage:</strong> 75% (3,151 of 4,175 statements)</li>
+            <li><strong>Test Code:</strong> 2,841 lines of comprehensive test coverage</li>
+            <li><strong>Status:</strong> ✅ All 90 tests passing</li>
+            <li><strong>Platforms:</strong> Windows, macOS, Linux (Python 3.11+)</li>
+          </ul>
+        </div>
+
+        <div class="success-box">
           <strong>Why Automated Testing Matters</strong>
           <ul>
             <li><strong>Regression Prevention:</strong> Catch breaking changes immediately</li>
@@ -304,41 +315,181 @@
         <h2>Test Suite Overview</h2>
 
         <div class="card">
-          <h3>Test Organization</h3>
-          <p>The test suite is organized into focused modules:</p>
+          <h3>Complete Test File List</h3>
+          <p>All 17 test modules with current counts and coverage areas:</p>
           <table>
             <thead>
               <tr>
-                <th>Test Module</th>
-                <th>Location</th>
-                <th>Coverage</th>
+                <th>Test File</th>
+                <th>Tests</th>
+                <th>Coverage Area</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td><strong>STDF Ingestion</strong></td>
-                <td><code>tests/test_ingest_limits.py</code></td>
-                <td>OPT_FLAG handling, limit extraction, flag filtering</td>
+                <td><code>test_cli_commands.py</code></td>
+                <td>7</td>
+                <td>CLI interface, argument parsing, plugin directives</td>
               </tr>
               <tr>
-                <td><strong>Post-Processing</strong></td>
-                <td><code>tests/test_postprocess.py</code></td>
-                <td>Limit updates, chart regeneration, metadata logging</td>
+                <td><code>test_gui_helpers.py</code></td>
+                <td>3</td>
+                <td>GUI helper functions, prompts, parameter parsing</td>
               </tr>
               <tr>
-                <td><strong>istdf Reader</strong></td>
-                <td><code>Submodules/istdf/tests/</code></td>
-                <td>STDF V4 format parsing (external submodule)</td>
+                <td><code>test_ingest_limits.py</code></td>
+                <td>8</td>
+                <td>STDF flag filtering, OPT_FLAG bits 4/5/6/7</td>
               </tr>
               <tr>
-                <td><strong>Pipeline Integration</strong></td>
-                <td><code>tests/test_pipeline.py</code></td>
-                <td>End-to-end workflow validation</td>
+                <td><code>test_ingest_sources.py</code></td>
+                <td>2</td>
+                <td>Multi-source ingestion, measurement extraction</td>
               </tr>
               <tr>
-                <td><strong>Plugin System</strong></td>
-                <td><code>tests/test_plugins.py</code></td>
+                <td><code>test_move_to_template.py</code></td>
+                <td>2</td>
+                <td>Template integration, header matching</td>
+              </tr>
+              <tr>
+                <td><code>test_mpl_charts_edge_cases.py</code></td>
+                <td>4</td>
+                <td>Chart rendering edge cases (NaN, empty data)</td>
+              </tr>
+              <tr>
+                <td><code>test_outliers.py</code></td>
+                <td>16</td>
+                <td>IQR/stdev outlier filtering, edge cases</td>
+              </tr>
+              <tr>
+                <td><code>test_pipeline_flow.py</code></td>
+                <td>1</td>
+                <td>End-to-end pipeline orchestration</td>
+              </tr>
+              <tr>
+                <td><code>test_plugin_system.py</code></td>
+                <td>5</td>
                 <td>Plugin discovery, loading, execution</td>
+              </tr>
+              <tr>
+                <td><code>test_postprocess.py</code></td>
+                <td>8</td>
+                <td>Post-processing core actions</td>
+              </tr>
+              <tr>
+                <td><code>test_postprocess_actions.py</code></td>
+                <td>3</td>
+                <td>Spec/What-If limit updates</td>
+              </tr>
+              <tr>
+                <td><code>test_postprocess_update_limits.py</code></td>
+                <td>1</td>
+                <td>STDF limit updates</td>
+              </tr>
+              <tr>
+                <td><code>test_stats_calculations.py</code></td>
+                <td>14</td>
+                <td>CPK/CPL/CPU, yield loss, limit precedence</td>
+              </tr>
+              <tr>
+                <td><code>test_stats_yield_pareto.py</code></td>
+                <td>2</td>
+                <td>Yield/Pareto analysis</td>
+              </tr>
+              <tr>
+                <td><code>test_workbook_formatting.py</code></td>
+                <td>5</td>
+                <td>Excel number formatting</td>
+              </tr>
+              <tr>
+                <td><code>test_workbook_pipeline_menu.py</code></td>
+                <td>5</td>
+                <td>Integration tests (pipeline, menu, large frames)</td>
+              </tr>
+              <tr>
+                <td><code>test_workbook_yield_pareto.py</code></td>
+                <td>4</td>
+                <td>Yield/Pareto sheet generation</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Module Coverage Statistics</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Module</th>
+                <th>Coverage</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>mpl_charts.py</code></td>
+                <td>92%</td>
+                <td>✅ Excellent</td>
+              </tr>
+              <tr>
+                <td><code>outliers.py</code></td>
+                <td>90%</td>
+                <td>✅ Excellent</td>
+              </tr>
+              <tr>
+                <td><code>postprocess/sheet_utils.py</code></td>
+                <td>89%</td>
+                <td>✅ Excellent</td>
+              </tr>
+              <tr>
+                <td><code>pipeline.py</code></td>
+                <td>88%</td>
+                <td>✅ Excellent</td>
+              </tr>
+              <tr>
+                <td><code>stats.py</code></td>
+                <td>87%</td>
+                <td>✅ Excellent</td>
+              </tr>
+              <tr>
+                <td><code>postprocess/charts.py</code></td>
+                <td>86%</td>
+                <td>✅ Very Good</td>
+              </tr>
+              <tr>
+                <td><code>move_to_template.py</code></td>
+                <td>86%</td>
+                <td>✅ Very Good</td>
+              </tr>
+              <tr>
+                <td><code>ingest.py</code></td>
+                <td>84%</td>
+                <td>✅ Very Good</td>
+              </tr>
+              <tr>
+                <td><code>plugins.py</code></td>
+                <td>83%</td>
+                <td>✅ Very Good</td>
+              </tr>
+              <tr>
+                <td><code>postprocess/actions.py</code></td>
+                <td>77%</td>
+                <td>⚠️ Good</td>
+              </tr>
+              <tr>
+                <td><code>plugin_profiles.py</code></td>
+                <td>75%</td>
+                <td>⚠️ Good</td>
+              </tr>
+              <tr>
+                <td><code>workbook_builder.py</code></td>
+                <td>72%</td>
+                <td>⚠️ Good</td>
+              </tr>
+              <tr>
+                <td><code>cli.py</code></td>
+                <td>63%</td>
+                <td>⚠️ Acceptable</td>
               </tr>
             </tbody>
           </table>
@@ -516,22 +667,37 @@ def test_update_stdf_limits_all_tests():
 
         <h3>Successful Run</h3>
         <div class="success-box">
-          <strong>Expected Output</strong>
+          <strong>Expected Output (Current Test Suite)</strong>
           <pre><code>$ pytest
 ========================= test session starts =========================
-platform win32 -- Python 3.13.0, pytest-8.0.0, pluggy-1.4.0
+platform win32 -- Python 3.13.0, pytest-8.4.2, pluggy-1.6.0
 rootdir: d:\AI_GEN\cpkAnalysis
-collected 45 items
+configfile: pyproject.toml
+testpaths: tests
+collected 90 items
 
-tests/test_ingest_limits.py ........                            [ 17%]
-tests/test_postprocess.py ...............                       [ 51%]
-tests/test_pipeline.py .........                                [ 71%]
-tests/test_plugins.py .........                                 [100%]
+tests/test_cli_commands.py .......                              [  7%]
+tests/test_gui_helpers.py ...                                   [ 10%]
+tests/test_ingest_limits.py ........                            [ 18%]
+tests/test_ingest_sources.py ..                                 [ 20%]
+tests/test_move_to_template.py ..                               [ 22%]
+tests/test_mpl_charts_edge_cases.py ....                        [ 26%]
+tests/test_outliers.py ................                         [ 44%]
+tests/test_pipeline_flow.py .                                   [ 45%]
+tests/test_plugin_system.py .....                               [ 50%]
+tests/test_postprocess.py ........                              [ 59%]
+tests/test_postprocess_actions.py ...                           [ 62%]
+tests/test_postprocess_update_limits.py .                       [ 63%]
+tests/test_stats_calculations.py ..............                 [ 78%]
+tests/test_stats_yield_pareto.py ..                             [ 80%]
+tests/test_workbook_formatting.py .....                         [ 86%]
+tests/test_workbook_pipeline_menu.py .....                      [ 91%]
+tests/test_workbook_yield_pareto.py ....                        [100%]
 
-========================== 45 passed in 18.23s ========================</code></pre>
+========================== 90 passed in 24.34s ========================</code></pre>
           <ul>
             <li><strong>All dots (.)</strong> indicate passing tests</li>
-            <li><strong>Total time:</strong> ~18 seconds is typical for full suite</li>
+            <li><strong>Total time:</strong> ~24 seconds is typical for full suite</li>
             <li><strong>Exit code:</strong> 0 (success)</li>
           </ul>
         </div>
@@ -854,6 +1020,123 @@ def test_proposed_limits_always_symmetric(mean, std_dev, target_cpk):
 
     # Verify symmetry around mean
     assert abs((ul - mean) - (mean - ll)) < 0.001</code></pre>
+        </div>
+
+        <h2>Contributing to the Test Suite</h2>
+
+        <div class="info-box">
+          <strong>Developer Guidelines</strong>
+          <p>All code contributions must include tests. See <a href="https://github.com/your-org/cpkAnalysis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for full guidelines.</p>
+        </div>
+
+        <div class="card">
+          <h3>Before Submitting Code</h3>
+          <h4>✅ Required Checks</h4>
+          <ol>
+            <li><strong>Run all tests:</strong> <code>pytest</code> — Must pass 100%</li>
+            <li><strong>Check coverage:</strong> <code>pytest --cov=cpkanalysis --cov-report=html</code> — Aim for 75%+ on new code</li>
+            <li><strong>Format code:</strong> <code>black cpkanalysis/ tests/</code></li>
+            <li><strong>Lint code:</strong> <code>ruff check cpkanalysis/ tests/</code></li>
+          </ol>
+        </div>
+
+        <div class="card">
+          <h3>Adding New Tests</h3>
+          <h4>When to Add Tests</h4>
+          <ul>
+            <li><strong>New Features:</strong> Every new feature requires tests</li>
+            <li><strong>Bug Fixes:</strong> Add regression test demonstrating bug, then fix</li>
+            <li><strong>Edge Cases:</strong> Tests for NaN, Inf, empty data, boundary conditions</li>
+            <li><strong>Integration:</strong> End-to-end tests for new workflows</li>
+          </ul>
+
+          <h4>Test File Naming</h4>
+          <pre><code># Test file should match module being tested
+cpkanalysis/stats.py → tests/test_stats_calculations.py
+cpkanalysis/postprocess/actions.py → tests/test_postprocess_actions.py
+
+# Test function should describe behavior
+def test_compute_cpk_returns_none_without_limits():
+def test_apply_spec_limits_updates_template_and_limits():
+def test_ingest_sources_combines_files_and_writes_parquet():</code></pre>
+        </div>
+
+        <div class="card">
+          <h3>Pull Request Checklist</h3>
+          <p>Before submitting a pull request:</p>
+          <table>
+            <thead>
+              <tr>
+                <th>Check</th>
+                <th>Command</th>
+                <th>Required</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>All tests pass</td>
+                <td><code>pytest</code></td>
+                <td>✅ Yes</td>
+              </tr>
+              <tr>
+                <td>Coverage maintained/improved</td>
+                <td><code>pytest --cov</code></td>
+                <td>✅ Yes (75%+ overall)</td>
+              </tr>
+              <tr>
+                <td>Code formatted</td>
+                <td><code>black .</code></td>
+                <td>✅ Yes</td>
+              </tr>
+              <tr>
+                <td>No linting errors</td>
+                <td><code>ruff check</code></td>
+                <td>✅ Yes</td>
+              </tr>
+              <tr>
+                <td>Documentation updated</td>
+                <td>README, help files, docstrings</td>
+                <td>✅ Yes (if user-facing)</td>
+              </tr>
+              <tr>
+                <td>Type hints added</td>
+                <td><code>mypy cpkanalysis/</code></td>
+                <td>⚠️ Recommended</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <h3>Development Setup</h3>
+          <pre><code># Clone with submodules
+git clone --recursive https://github.com/your-org/cpkAnalysis.git
+cd cpkAnalysis
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Install development tools
+pip install pytest pytest-cov black ruff mypy
+
+# Verify installation
+pytest</code></pre>
+        </div>
+
+        <div class="warning-box">
+          <strong>Quality Standards</strong>
+          <p>Maintain the high quality of the test suite:</p>
+          <ul>
+            <li><strong>Fast Execution:</strong> Unit tests should run in milliseconds</li>
+            <li><strong>Deterministic:</strong> Tests must pass/fail consistently</li>
+            <li><strong>Independent:</strong> Tests should not depend on execution order</li>
+            <li><strong>Clear:</strong> Test names and assertions should be self-documenting</li>
+            <li><strong>No Duplicates:</strong> Use fixtures to avoid repeated setup code</li>
+          </ul>
         </div>
 
         <h2>Related Documentation</h2>
