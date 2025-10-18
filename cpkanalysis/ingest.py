@@ -156,12 +156,19 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
 
     per_file_stats: list[dict[str, Any]] = []
     all_frames: list[pd.DataFrame] = []
+    parquet_writer: pq.ParquetWriter | None = None
+    parquet_schema: pa.Schema | None = None
     test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
     for index, source in enumerate(sources, start=1):
         frame, test_meta, stats = _parse_stdf_file(source, index)
         if not frame.empty:
             all_frames.append(frame)
+            table = pa.Table.from_pandas(frame, preserve_index=False)
+            if parquet_writer is None:
+                parquet_schema = table.schema
+                parquet_writer = pq.ParquetWriter(raw_store_path, parquet_schema, compression="snappy")
+            parquet_writer.write_table(table)
         per_file_stats.append(stats)
         for key, info in test_meta.items():
             existing = test_catalog.get(key)
@@ -192,13 +199,16 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
                 existing["stdf_upper"] = None
                 existing["has_stdf_upper"] = False
 
+    if parquet_writer is not None:
+        parquet_writer.close()
+    else:
+        empty_table = pa.Table.from_pandas(pd.DataFrame(columns=EXPECTED_COLUMNS), preserve_index=False)
+        pq.write_table(empty_table, raw_store_path, compression="snappy")
+
     if all_frames:
         combined = pd.concat(all_frames, ignore_index=True)
     else:
         combined = pd.DataFrame(columns=EXPECTED_COLUMNS)
-
-    table = pa.Table.from_pandas(combined, preserve_index=False)
-    pq.write_table(table, raw_store_path, compression="snappy")
 
     catalog_rows = [
         {
@@ -240,7 +250,7 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
     test_metadata: Dict[str, _TestMetadata] = {}
     test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
     device_test_counters: Dict[Tuple[str, str, str], int] = defaultdict(int)
-    rows: list[dict[str, Any]] = []
+    column_data: dict[str, list[Any]] = {column: [] for column in EXPECTED_COLUMNS}
     invalid_measurements_count = 0  # Track invalid measurements
 
     with STDFReader(source.path, ignore_unknown=True) as reader:
@@ -282,40 +292,39 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
                     device_test_counters[key] += 1
                     measurement_index = device_test_counters[key]
                     timestamp = measurement.get("test_time")
-                    rows.append(
-                        {
-                            "file": source.file_name,
-                            "file_path": str(source.path),
-                            "device_id": part_id,
-                            "device_sequence": device_sequence,
-                            "test_name": measurement["test_name"],
-                            "test_number": measurement["test_number"],
-                            "units": measurement["test_unit"],
-                            "value": measurement["measurement"],
-                            "stdf_lower": measurement["low_limit"],
-                            "stdf_upper": measurement["high_limit"],
-                            "stdf_result_format": measurement.get("stdf_result_format"),
-                            "stdf_lower_format": measurement.get("stdf_lower_format"),
-                            "stdf_upper_format": measurement.get("stdf_upper_format"),
-                            "stdf_result_scale": measurement.get("stdf_result_scale"),
-                            "stdf_lower_scale": measurement.get("stdf_lower_scale"),
-                            "stdf_upper_scale": measurement.get("stdf_upper_scale"),
-                            "timestamp": timestamp if timestamp is not None else float(measurement_index),
-                            "measurement_index": measurement_index,
-                            "part_status": status,
-                        }
-                    )
-                    # Note: Test catalog is now populated separately in _populate_test_catalog_from_ptr()
-                    # This ensures all tests appear in catalog regardless of measurement validity
+
+                    column_data["file"].append(source.file_name)
+                    column_data["file_path"].append(str(source.path))
+                    column_data["device_id"].append(part_id)
+                    column_data["device_sequence"].append(device_sequence)
+                    column_data["test_name"].append(measurement["test_name"])
+                    column_data["test_number"].append(measurement["test_number"])
+                    column_data["units"].append(measurement["test_unit"])
+                    column_data["value"].append(measurement["measurement"])
+                    column_data["stdf_lower"].append(measurement["low_limit"])
+                    column_data["stdf_upper"].append(measurement["high_limit"])
+                    column_data["stdf_result_format"].append(measurement.get("stdf_result_format"))
+                    column_data["stdf_lower_format"].append(measurement.get("stdf_lower_format"))
+                    column_data["stdf_upper_format"].append(measurement.get("stdf_upper_format"))
+                    column_data["stdf_result_scale"].append(measurement.get("stdf_result_scale"))
+                    column_data["stdf_lower_scale"].append(measurement.get("stdf_lower_scale"))
+                    column_data["stdf_upper_scale"].append(measurement.get("stdf_upper_scale"))
+                    column_data["timestamp"].append(timestamp if timestamp is not None else float(measurement_index))
+                    column_data["measurement_index"].append(measurement_index)
+                    column_data["part_status"].append(status)
+
                 current_measurements.clear()
                 current_serial = None
                 current_site = None
 
-    frame = pd.DataFrame(rows, columns=EXPECTED_COLUMNS)
+    if column_data["file"]:
+        frame = pd.DataFrame(column_data, columns=EXPECTED_COLUMNS)
+    else:
+        frame = pd.DataFrame(columns=EXPECTED_COLUMNS)
     stats = {
         "file": source.file_name,
         "path": str(source.path),
-        "measurement_count": int(len(rows)),
+        "measurement_count": int(len(frame)),
         "device_count": int(device_sequence),
         "invalid_measurements_filtered": invalid_measurements_count,
     }
