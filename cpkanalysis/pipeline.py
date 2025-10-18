@@ -336,8 +336,9 @@ class Pipeline:
             return context
         assert context.ingest_result is not None, "Ingest stage must run before yield analysis."
         assert context.filtered_measurements is not None, "Outlier stage must run before yield analysis."
+        # Use the unfiltered measurements so yield/pareto stay aligned with the raw data set.
         yield_df, pareto_df = stats.compute_yield_pareto(
-            context.filtered_measurements, context.ingest_result.test_catalog
+            context.ingest_result.frame, context.ingest_result.test_catalog
         )
         return context.with_updates(yield_summary=yield_df, pareto_summary=pareto_df)
 
