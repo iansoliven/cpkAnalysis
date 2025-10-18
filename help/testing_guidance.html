@@ -389,10 +389,10 @@ pytest -vs</code></pre>
         <div class="card">
           <h4>Measure Test Coverage</h4>
           <pre><code># Run tests with coverage tracking
-pytest --cov=cpkanalysis --cov-report=html
+pytest --cov=cpkanalysis --cov-report=html:test_coverage_report
 
 # View coverage report
-# Open htmlcov/index.html in browser</code></pre>
+# Open test_coverage_report/index.html in browser</code></pre>
           <p>Coverage reports highlight untested code paths and guide test expansion.</p>
         </div>
 
@@ -633,7 +633,7 @@ jobs:
     reports:
       junit: report.xml
     paths:
-      - htmlcov/</code></pre>
+      - test_coverage_report/</code></pre>
         </div>
 
         <div class="success-box">
