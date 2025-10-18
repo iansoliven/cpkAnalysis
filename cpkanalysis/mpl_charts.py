@@ -168,8 +168,10 @@ def render_histogram(
         cpk_font_size=cpk_font_size,
         cpk_position=cpk_position,
     )
-    tight_bottom = 0.12 if use_rug_panel else 0.2
-    fig.tight_layout(rect=(0, tight_bottom, 0.75, 1))
+    if use_rug_panel:
+        fig.subplots_adjust(left=0.09, right=0.75, top=0.97, bottom=0.18, hspace=0.05)
+    else:
+        fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
 
 
