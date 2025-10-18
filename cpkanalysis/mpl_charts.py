@@ -83,8 +83,9 @@ def render_histogram(
     use_rug_panel = rug and rug_values.size > 0
 
     if use_rug_panel:
-        fig = plt.figure(figsize=DEFAULT_FIGSIZE)
-        gs = fig.add_gridspec(2, 1, height_ratios=[0.85, 0.15], hspace=0.05)
+        rug_figsize = (DEFAULT_FIGSIZE[0], DEFAULT_FIGSIZE[1] + 1.0)
+        fig = plt.figure(figsize=rug_figsize)
+        gs = fig.add_gridspec(2, 1, height_ratios=[0.8, 0.2], hspace=0.08)
         ax = fig.add_subplot(gs[0])
         rug_ax = fig.add_subplot(gs[1], sharex=ax)
     else:
@@ -169,7 +170,7 @@ def render_histogram(
         cpk_position=cpk_position,
     )
     if use_rug_panel:
-        fig.subplots_adjust(left=0.09, right=0.75, top=0.97, bottom=0.18, hspace=0.05)
+        fig.subplots_adjust(left=0.09, right=0.75, top=0.97, bottom=0.24, hspace=0.08)
     else:
         fig.tight_layout(rect=(0, 0.2, 0.75, 1))
     return _figure_to_png(fig)
