@@ -27,3 +27,4 @@ nul
 .DS_Store
 Archive
 temp/
+.coverage
