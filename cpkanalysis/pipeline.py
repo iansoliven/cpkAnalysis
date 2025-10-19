@@ -636,6 +636,35 @@ def _build_metadata(
     if site_pareto_summary is not None:
         site_pareto_info = {"rows": int(len(site_pareto_summary))}
 
+    site_configuration: list[dict[str, Any]] = []
+    for description in ingest_result.site_descriptions:
+        entry: dict[str, Any] = {
+            "head": description.head_num,
+            "sites": list(description.site_numbers),
+        }
+        if description.site_group is not None:
+            entry["site_group"] = description.site_group
+        optional_fields = {
+            "handler_type": description.handler_type,
+            "handler_id": description.handler_id,
+            "card_type": description.card_type,
+            "card_id": description.card_id,
+            "load_type": description.load_type,
+            "load_id": description.load_id,
+            "dib_type": description.dib_type,
+            "dib_id": description.dib_id,
+            "cable_type": description.cable_type,
+            "cable_id": description.cable_id,
+            "contactor_type": description.contactor_type,
+            "contactor_id": description.contactor_id,
+            "laser_type": description.laser_type,
+            "laser_id": description.laser_id,
+            "extractor_type": description.extractor_type,
+            "extractor_id": description.extractor_id,
+        }
+        entry.update({key: value for key, value in optional_fields.items() if value is not None})
+        site_configuration.append(entry)
+
     return {
         "output": str(config.output),
         "template": str(config.template) if config.template else None,
@@ -664,6 +693,7 @@ def _build_metadata(
         "site_summary": site_summary_info,
         "site_yield_summary": site_yield_info,
         "site_pareto_summary": site_pareto_info,
+        "site_configuration": site_configuration or None,
         "site_breakdown": {
             "requested": site_breakdown_requested,
             "available": site_breakdown_available,

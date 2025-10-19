@@ -102,6 +102,31 @@ class AnalysisInputs:
             self.site_data_status = "unknown"
 
 
+@dataclass(frozen=True)
+class SiteDescription:
+    """Configuration extracted from an SDR record."""
+
+    head_num: int
+    site_group: int | None
+    site_numbers: tuple[int, ...]
+    handler_type: str | None = None
+    handler_id: str | None = None
+    card_type: str | None = None
+    card_id: str | None = None
+    load_type: str | None = None
+    load_id: str | None = None
+    dib_type: str | None = None
+    dib_id: str | None = None
+    cable_type: str | None = None
+    cable_id: str | None = None
+    contactor_type: str | None = None
+    contactor_id: str | None = None
+    laser_type: str | None = None
+    laser_id: str | None = None
+    extractor_type: str | None = None
+    extractor_id: str | None = None
+
+
 @dataclass
 class IngestResult:
     """Result bundle produced by STDF ingestion."""
@@ -110,4 +135,5 @@ class IngestResult:
     test_catalog: "pd.DataFrame"
     per_file_stats: list[dict[str, Any]]
     raw_store_path: Path
+    site_descriptions: tuple[SiteDescription, ...] = field(default_factory=tuple)
 

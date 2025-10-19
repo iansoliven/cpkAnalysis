@@ -14,7 +14,7 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from .models import IngestResult, SourceFile
+from .models import IngestResult, SiteDescription, SourceFile
 
 ISTDF_SRC = Path(__file__).resolve().parents[1] / "Submodules" / "istdf" / "src"
 
@@ -160,9 +160,10 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
     parquet_writer: pq.ParquetWriter | None = None
     parquet_schema: pa.Schema | None = None
     test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    all_site_descriptions: list[SiteDescription] = []
 
     for index, source in enumerate(sources, start=1):
-        frame, test_meta, stats = _parse_stdf_file(source, index)
+        frame, test_meta, stats, site_configs = _parse_stdf_file(source, index)
         if not frame.empty:
             all_frames.append(frame)
             table = pa.Table.from_pandas(frame, preserve_index=False)
@@ -171,6 +172,8 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
                 parquet_writer = pq.ParquetWriter(raw_store_path, parquet_schema, compression="snappy")
             parquet_writer.write_table(table)
         per_file_stats.append(stats)
+        if site_configs:
+            all_site_descriptions.extend(site_configs)
         for key, info in test_meta.items():
             existing = test_catalog.get(key)
             if existing is None:
@@ -211,6 +214,11 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
     else:
         combined = pd.DataFrame(columns=EXPECTED_COLUMNS)
 
+    if all_site_descriptions:
+        unique_sites = tuple(dict.fromkeys(all_site_descriptions))
+    else:
+        unique_sites = tuple()
+
     catalog_rows = [
         {
             "test_name": key[0],
@@ -238,10 +246,14 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
         test_catalog=catalog_frame,
         per_file_stats=per_file_stats,
         raw_store_path=raw_store_path,
+        site_descriptions=unique_sites,
     )
 
 
-def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame, Dict[Tuple[str, str], Dict[str, Any]], dict[str, Any]]:
+def _parse_stdf_file(
+    source: SourceFile,
+    file_index: int,
+) -> tuple[pd.DataFrame, Dict[Tuple[str, str], Dict[str, Any]], dict[str, Any], list[SiteDescription]]:
     """Parse a single STDF file into a DataFrame plus metadata."""
     fallback_index = 0
     device_sequence = 0
@@ -253,11 +265,17 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
     device_test_counters: Dict[Tuple[str, str, str], int] = defaultdict(int)
     column_data: dict[str, list[Any]] = {column: [] for column in EXPECTED_COLUMNS}
     invalid_measurements_count = 0  # Track invalid measurements
+    site_descriptions: list[SiteDescription] = []
 
     with STDFReader(source.path, ignore_unknown=True) as reader:
         for record in reader:
             name = record.name
             data = record.to_dict()
+            if name == "SDR":
+                description = _extract_site_description(data)
+                if description is not None:
+                    site_descriptions.append(description)
+                continue
             if name == "PIR":
                 current_measurements.clear()
                 current_serial = _coerce_str(data.get("PART_ID"))
@@ -330,7 +348,54 @@ def _parse_stdf_file(source: SourceFile, file_index: int) -> tuple[pd.DataFrame,
         "device_count": int(device_sequence),
         "invalid_measurements_filtered": invalid_measurements_count,
     }
-    return frame, test_catalog, stats
+    return frame, test_catalog, stats, site_descriptions
+
+
+def _extract_site_description(data: Dict[str, Any]) -> Optional[SiteDescription]:
+    site_numbers = _coerce_site_numbers(data.get("SITE_NUM"))
+    if not site_numbers:
+        return None
+
+    head_num = _coerce_int(data.get("HEAD_NUM"))
+    site_group = _coerce_int(data.get("SITE_GRP"))
+
+    return SiteDescription(
+        head_num=head_num if head_num is not None else 0,
+        site_group=site_group,
+        site_numbers=site_numbers,
+        handler_type=_coerce_str(data.get("HAND_TYP")),
+        handler_id=_coerce_str(data.get("HAND_ID")),
+        card_type=_coerce_str(data.get("CARD_TYP")),
+        card_id=_coerce_str(data.get("CARD_ID")),
+        load_type=_coerce_str(data.get("LOAD_TYP")),
+        load_id=_coerce_str(data.get("LOAD_ID")),
+        dib_type=_coerce_str(data.get("DIB_TYP")),
+        dib_id=_coerce_str(data.get("DIB_ID")),
+        cable_type=_coerce_str(data.get("CABL_TYP")),
+        cable_id=_coerce_str(data.get("CABL_ID")),
+        contactor_type=_coerce_str(data.get("CONT_TYP")),
+        contactor_id=_coerce_str(data.get("CONT_ID")),
+        laser_type=_coerce_str(data.get("LASR_TYP")),
+        laser_id=_coerce_str(data.get("LASR_ID")),
+        extractor_type=_coerce_str(data.get("EXTR_TYP")),
+        extractor_id=_coerce_str(data.get("EXTR_ID")),
+    )
+
+
+def _coerce_site_numbers(raw_value: Any) -> tuple[int, ...]:
+    if raw_value is None:
+        return ()
+    if isinstance(raw_value, (list, tuple)):
+        numbers: list[int] = []
+        for item in raw_value:
+            coerced = _coerce_int(item)
+            if coerced is not None:
+                numbers.append(coerced)
+        return tuple(numbers)
+    single = _coerce_int(raw_value)
+    if single is None:
+        return ()
+    return (single,)
 
 
 def _populate_test_catalog_from_ptr(data: Dict[str, Any], cache: Dict[str, _TestMetadata], test_catalog: Dict[Tuple[str, str], Dict[str, Any]]) -> None:
@@ -727,16 +792,40 @@ def detect_site_support(
     for source in sources:
         try:
             with STDFReader(source.path, ignore_unknown=True) as reader:
+                found_sdr_sites = False
                 for index, record in enumerate(reader, start=1):
                     if index > sample_records:
                         break
                     payload = record.to_dict()
+                    name = record.name
+                    if name == "SDR":
+                        sdr_sites = _coerce_site_numbers(payload.get("SITE_NUM"))
+                        if sdr_sites:
+                            found_sdr_sites = True
+                        continue
                     if "SITE_NUM" not in payload:
                         continue
-                    site_value = _coerce_int(payload.get("SITE_NUM"))
+                    raw_site_field = payload.get("SITE_NUM")
+                    if isinstance(raw_site_field, (list, tuple)):
+                        site_candidates = [
+                            value
+                            for value in ( _coerce_int(item) for item in raw_site_field )
+                            if value is not None
+                        ]
+                        head_value = _coerce_int(payload.get("HEAD_NUM"))
+                        for candidate in site_candidates:
+                            if not (candidate == 0 and head_value == 255):
+                                return True, None
+                        continue
+                    site_value = _coerce_int(raw_site_field)
                     if site_value is None:
-                        return False, f"Invalid SITE_NUM value encountered in {source.file_name}."
+                        continue
+                    head_value = _coerce_int(payload.get("HEAD_NUM"))
+                    if head_value == 255 and site_value == 0:
+                        continue
                     return True, None
+                if found_sdr_sites:
+                    return True, "Detected SDR configuration; per-site measurements may appear later in the file."
         except FileNotFoundError:
             continue  # Allow higher layers to report missing files separately.
         except Exception as exc:  # pragma: no cover - defensive guard

@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cpkanalysis import ingest  # noqa: E402
-from cpkanalysis.models import SourceFile  # noqa: E402
+from cpkanalysis.models import SiteDescription, SourceFile  # noqa: E402
 
 
 def _build_ptr_record(
@@ -44,6 +44,24 @@ def _build_ptr_record(
         "PARM_FLG": parm_flg,
         "TEST_TIM": test_tim,
     }
+
+
+def _build_sdr_payload(
+    *,
+    head_num: int = 0,
+    site_group: int = 1,
+    site_numbers: Iterable[int] = (1,),
+    **extra: object,
+) -> dict:
+    site_tuple = tuple(site_numbers)
+    payload: dict[str, object] = {
+        "HEAD_NUM": head_num,
+        "SITE_GRP": site_group,
+        "SITE_CNT": len(site_tuple),
+        "SITE_NUM": list(site_tuple),
+    }
+    payload.update(extra)
+    return payload
 
 
 @dataclass(frozen=True)
@@ -157,6 +175,39 @@ def test_ingest_sources_tracks_indices_and_status(monkeypatch: pytest.MonkeyPatc
     assert result.frame["device_id"].tolist()[2].startswith("SITE2_")
 
 
+def test_ingest_sources_captures_site_descriptions(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    sdr_payload = _build_sdr_payload(
+        head_num=2,
+        site_group=7,
+        site_numbers=(1, 2),
+        HAND_TYP="Handler-A",
+        LOAD_ID="Loader-42",
+    )
+    records = [
+        _FakeRecord("SDR", sdr_payload),
+        _FakeRecord("SDR", sdr_payload),  # duplicate should be deduplicated
+        _FakeRecord("PIR", {"PART_ID": "S1", "SITE_NUM": 1}),
+        _FakeRecord("PTR", _build_ptr_record(result=1.23)),
+        _FakeRecord("PRR", {"PART_ID": "S1", "SITE_NUM": 1, "PART_FLG": 0}),
+    ]
+
+    source = _make_source(tmp_path, "sdr.stdf", records)
+    session_dir = tmp_path / "session"
+    result = ingest.ingest_sources([source], session_dir)
+
+    assert len(result.site_descriptions) == 1
+    description = result.site_descriptions[0]
+    assert description == SiteDescription(
+        head_num=2,
+        site_group=7,
+        site_numbers=(1, 2),
+        handler_type="Handler-A",
+        load_id="Loader-42",
+    )
+
+
 def test_detect_site_support_positive(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
 
@@ -240,3 +291,30 @@ def test_has_site_data_all_null() -> None:
 def test_has_site_data_missing_column() -> None:
     frame = pd.DataFrame({"file": ["a"]})
     assert ingest.has_site_data(frame) is False
+
+
+def test_detect_site_support_from_sdr(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    records = [
+        _FakeRecord("SDR", _build_sdr_payload(head_num=1, site_group=3, site_numbers=(1, 2))),
+    ]
+    source = _make_source(tmp_path, "sdr_only.stdf", records)
+
+    has_site, message = ingest.detect_site_support([source])
+    assert has_site is True
+    assert isinstance(message, str) and "SDR" in message
+
+
+def test_detect_site_support_skips_summary_records(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    records = [
+        _FakeRecord("PTR", {"HEAD_NUM": 255, "SITE_NUM": 0}),
+        _FakeRecord("PRR", {"HEAD_NUM": 255, "SITE_NUM": 0, "PART_FLG": 0}),
+    ]
+    source = _make_source(tmp_path, "summary_only.stdf", records)
+
+    has_site, message = ingest.detect_site_support([source])
+    assert has_site is False
+    assert isinstance(message, str)

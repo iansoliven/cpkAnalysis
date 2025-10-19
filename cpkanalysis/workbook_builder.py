@@ -25,7 +25,7 @@ from .mpl_charts import (
     render_time_series,
     render_yield_chart,
 )
-from .stats import SUMMARY_COLUMNS, YIELD_SUMMARY_COLUMNS, PARETO_COLUMNS
+from .stats import SUMMARY_COLUMNS, YIELD_SUMMARY_COLUMNS, PARETO_COLUMNS, PARETO_COLUMNS_SITE
 
 _BASE_FALLBACK_DECIMALS = 4
 FALLBACK_DECIMALS = _BASE_FALLBACK_DECIMALS

@@ -13,7 +13,7 @@ from openpyxl import Workbook
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cpkanalysis import ingest, outliers, pipeline, stats, workbook_builder
-from cpkanalysis.models import AnalysisInputs, IngestResult, SourceFile
+from cpkanalysis.models import AnalysisInputs, IngestResult, SiteDescription, SourceFile
 
 
 def _make_source(tmp_path: Path, name: str) -> SourceFile:
@@ -270,6 +270,7 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
         test_catalog=test_catalog,
         per_file_stats=[{"file": "first.stdf", "measurement_count": 2}],
         raw_store_path=raw_store_path,
+        site_descriptions=(SiteDescription(head_num=0, site_group=None, site_numbers=(1, 2)),),
     )
 
     captured: dict[str, Any] = {}
@@ -443,6 +444,9 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
     metadata = json.loads((config.output.with_suffix(".json")).read_text())
     assert metadata["site_breakdown"]["generated"] is True
     assert metadata["analysis_options"]["enable_site_breakdown"] is True
+    assert metadata["site_configuration"] == [
+        {"head": 0, "sites": [1, 2]},
+    ]
     build_kwargs = captured["build_kwargs"]
     assert build_kwargs["site_enabled"] is True
     assert build_kwargs["site_summary"] is site_summary_df
