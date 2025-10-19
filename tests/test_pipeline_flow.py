@@ -447,3 +447,290 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
     assert build_kwargs["site_enabled"] is True
     assert build_kwargs["site_summary"] is site_summary_df
     assert build_kwargs["site_yield_summary"] is site_yield_df
+
+
+def test_pipeline_site_breakdown_requested_without_site_data(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    session_dir = tmp_path / "session_no_site"
+
+    def fake_session_dir() -> Path:
+        session_dir.mkdir(exist_ok=True)
+        return session_dir
+
+    monkeypatch.setattr(pipeline, "_create_session_dir", fake_session_dir)
+    monkeypatch.setattr(pipeline, "_cleanup_session_dir", lambda path: None)
+    monkeypatch.setattr(pipeline, "_spinner", lambda message: contextlib.nullcontext())
+
+    raw_measurements = pd.DataFrame(
+        [
+            {
+                "file": "first.stdf",
+                "device_id": "D1",
+                "test_name": "VDD",
+                "test_number": "1",
+                "units": "V",
+                "value": 1.1,
+                "part_status": "PASS",
+            }
+        ]
+    )
+    test_catalog = pd.DataFrame(
+        [
+            {
+                "test_name": "VDD",
+                "test_number": "1",
+                "unit": "V",
+                "spec_lower": 0.5,
+                "spec_upper": 1.5,
+            }
+        ]
+    )
+    raw_store_path = tmp_path / "raw_no_site.parquet"
+    raw_store_path.write_text("parquet")
+
+    ingest_result = IngestResult(
+        frame=raw_measurements,
+        test_catalog=test_catalog,
+        per_file_stats=[{"file": "first.stdf", "measurement_count": 1}],
+        raw_store_path=raw_store_path,
+    )
+
+    monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
+    monkeypatch.setattr(
+        outliers,
+        "apply_outlier_filter",
+        lambda frame, method, k, **kwargs: (frame, {"removed": 0}),
+    )
+    monkeypatch.setattr(
+        pd.DataFrame,
+        "to_parquet",
+        lambda self, path, *args, **kwargs: Path(path).write_bytes(b"parquet"),
+    )
+
+    summary_df = pd.DataFrame(
+        [
+            {
+                "File": "first.stdf",
+                "Test Name": "VDD",
+                "Test Number": "1",
+                "Unit": "V",
+                "COUNT": 1,
+                "MEAN": 1.1,
+                "STDEV": 0.0,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_summary",
+        lambda measurements, limits: (summary_df, {}),
+    )
+
+    def _fail_site_calls(*_args, **_kwargs):
+        raise AssertionError("Site-specific computations should be skipped without site data.")
+
+    monkeypatch.setattr(pipeline.stats, "compute_summary_by_site", _fail_site_calls)
+    yield_summary = pd.DataFrame(
+        [{"file": "first.stdf", "devices_total": 1, "devices_pass": 1, "devices_fail": 0, "yield_percent": 1.0}]
+    )
+    pareto_summary = pd.DataFrame()
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_yield_pareto",
+        lambda measurements, limits: (yield_summary, pareto_summary),
+    )
+    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto_by_site", _fail_site_calls)
+
+    captured: dict[str, Any] = {}
+
+    def fake_build_workbook(**kwargs):
+        captured["kwargs"] = kwargs
+        return Workbook()
+
+    monkeypatch.setattr(workbook_builder, "build_workbook", fake_build_workbook)
+
+    config = AnalysisInputs(
+        sources=[_make_source(tmp_path, "no_site.stdf")],
+        output=tmp_path / "analysis_no_site.xlsx",
+        enable_site_breakdown=True,
+        generate_yield_pareto=True,
+    )
+
+    result = pipeline.Pipeline(config, registry=None).run()
+
+    assert result["site_breakdown_requested"] is True
+    assert result["site_data_available"] is False
+    assert result.get("site_summary_rows", 0) == 0
+    assert result.get("site_yield_rows", 0) == 0
+    assert result.get("site_pareto_rows", 0) == 0
+    assert result["site_breakdown_generated"] is False
+
+    warnings = result.get("warnings")
+    assert warnings and "SITE_NUM" in warnings[0]
+    assert config.site_data_status == "unavailable"
+
+    workbook_kwargs = captured["kwargs"]
+    assert workbook_kwargs["site_enabled"] is False
+    assert workbook_kwargs["site_summary"] is None
+    assert workbook_kwargs["site_yield_summary"] is None
+    assert workbook_kwargs["site_pareto_summary"] is None
+
+    metadata_path = config.output.with_suffix(".json")
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["site_breakdown"] == {"requested": True, "available": False, "generated": False}
+    assert metadata["analysis_options"]["enable_site_breakdown"] is True
+    assert metadata["warnings"] and "SITE_NUM" in metadata["warnings"][0]
+
+
+def test_pipeline_site_breakdown_disabled_skips_site_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    session_dir = tmp_path / "session_site_disabled"
+
+    def fake_session_dir() -> Path:
+        session_dir.mkdir(exist_ok=True)
+        return session_dir
+
+    monkeypatch.setattr(pipeline, "_create_session_dir", fake_session_dir)
+    monkeypatch.setattr(pipeline, "_cleanup_session_dir", lambda path: None)
+    monkeypatch.setattr(pipeline, "_spinner", lambda message: contextlib.nullcontext())
+
+    raw_measurements = pd.DataFrame(
+        [
+            {
+                "file": "first.stdf",
+                "site": 1,
+                "device_id": "S1_1",
+                "test_name": "VDD",
+                "test_number": "1",
+                "units": "V",
+                "value": 1.0,
+                "part_status": "PASS",
+            },
+            {
+                "file": "first.stdf",
+                "site": 2,
+                "device_id": "S2_1",
+                "test_name": "VDD",
+                "test_number": "1",
+                "units": "V",
+                "value": 2.2,
+                "part_status": "FAIL",
+            },
+        ]
+    )
+    test_catalog = pd.DataFrame(
+        [
+            {
+                "test_name": "VDD",
+                "test_number": "1",
+                "unit": "V",
+                "spec_lower": 0.5,
+                "spec_upper": 2.5,
+            }
+        ]
+    )
+    raw_store_path = tmp_path / "raw_site_enabled.parquet"
+    raw_store_path.write_text("parquet")
+
+    ingest_result = IngestResult(
+        frame=raw_measurements,
+        test_catalog=test_catalog,
+        per_file_stats=[{"file": "first.stdf", "measurement_count": 2}],
+        raw_store_path=raw_store_path,
+    )
+
+    monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
+    monkeypatch.setattr(
+        outliers,
+        "apply_outlier_filter",
+        lambda frame, method, k, **kwargs: (frame, {"removed": 0}),
+    )
+    monkeypatch.setattr(
+        pd.DataFrame,
+        "to_parquet",
+        lambda self, path, *args, **kwargs: Path(path).write_bytes(b"parquet"),
+    )
+
+    summary_df = pd.DataFrame(
+        [
+            {
+                "File": "first.stdf",
+                "Test Name": "VDD",
+                "Test Number": "1",
+                "Unit": "V",
+                "COUNT": 2,
+                "MEAN": 1.6,
+                "STDEV": 0.8485281374,
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_summary",
+        lambda measurements, limits: (summary_df, {}),
+    )
+
+    def _fail_site_calls(*_args, **_kwargs):
+        raise AssertionError("Site computations should be skipped when the flag is disabled.")
+
+    monkeypatch.setattr(pipeline.stats, "compute_summary_by_site", _fail_site_calls)
+    yield_summary = pd.DataFrame(
+        [{"file": "first.stdf", "devices_total": 2, "devices_pass": 1, "devices_fail": 1, "yield_percent": 0.5}]
+    )
+    pareto_summary = pd.DataFrame(
+        [
+            {
+                "file": "first.stdf",
+                "test_name": "VDD",
+                "test_number": "1",
+                "devices_fail": 1,
+                "fail_rate_percent": 0.5,
+                "cumulative_percent": 0.5,
+                "lower_limit": 0.5,
+                "upper_limit": 2.5,
+            }
+        ]
+    )
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_yield_pareto",
+        lambda measurements, limits: (yield_summary, pareto_summary),
+    )
+    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto_by_site", _fail_site_calls)
+
+    captured: dict[str, Any] = {}
+
+    def fake_build_workbook(**kwargs):
+        captured["kwargs"] = kwargs
+        return Workbook()
+
+    monkeypatch.setattr(workbook_builder, "build_workbook", fake_build_workbook)
+
+    config = AnalysisInputs(
+        sources=[_make_source(tmp_path, "site_data_present.stdf")],
+        output=tmp_path / "analysis_site_disabled.xlsx",
+        enable_site_breakdown=False,
+        generate_yield_pareto=True,
+    )
+
+    result = pipeline.Pipeline(config, registry=None).run()
+
+    assert result["site_breakdown_requested"] is False
+    assert result["site_data_available"] is True
+    assert result.get("site_summary_rows", 0) == 0
+    assert result.get("site_yield_rows", 0) == 0
+    assert result.get("site_pareto_rows", 0) == 0
+    assert result["site_breakdown_generated"] is False
+    assert result.get("warnings") is None
+    assert config.site_data_status == "available"
+
+    workbook_kwargs = captured["kwargs"]
+    assert workbook_kwargs["site_enabled"] is False
+    assert workbook_kwargs["site_summary"] is None
+    assert workbook_kwargs["site_yield_summary"] is None
+    assert workbook_kwargs["site_pareto_summary"] is None
+
+    metadata_path = config.output.with_suffix(".json")
+    metadata = json.loads(metadata_path.read_text())
+    assert metadata["site_breakdown"] == {"requested": False, "available": True, "generated": False}
+    assert metadata["analysis_options"]["enable_site_breakdown"] is False
+    assert metadata["warnings"] == []

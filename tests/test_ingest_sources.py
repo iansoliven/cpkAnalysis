@@ -184,3 +184,59 @@ def test_detect_site_support_reports_missing(monkeypatch: pytest.MonkeyPatch, tm
     assert has_site is False
     assert isinstance(message, str)
     assert "SITE_NUM" in message
+
+
+def test_detect_site_support_partial(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)
+
+    site_records = [
+        _FakeRecord("PIR", {"PART_ID": "A", "SITE_NUM": 5}),
+        _FakeRecord("PRR", {"PART_ID": "A", "SITE_NUM": 5, "PART_FLG": 0}),
+    ]
+    nosite_records = [
+        _FakeRecord("PIR", {"PART_ID": "B"}),
+        _FakeRecord("PRR", {"PART_ID": "B", "PART_FLG": 0}),
+    ]
+    source_site = _make_source(tmp_path, "has_site.stdf", site_records)
+    source_nosite = _make_source(tmp_path, "no_site.stdf", nosite_records)
+
+    has_site, message = ingest.detect_site_support([source_nosite, source_site])
+    assert has_site is True
+    assert message is None
+
+
+def test_detect_site_support_respects_sample_limit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    class _CountingReader(_FakeSTDFReader):
+        def __iter__(self):
+            # produce many PIRs without SITE_NUM, eventually include one
+            for _ in range(1000):
+                yield _FakeRecord("PIR", {"PART_ID": "X"})
+            yield _FakeRecord("PIR", {"PART_ID": "Y", "SITE_NUM": 3})
+            yield _FakeRecord("PRR", {"PART_ID": "Y", "SITE_NUM": 3, "PART_FLG": 0})
+
+    monkeypatch.setattr(ingest, "STDFReader", _CountingReader)
+    source = _make_source(tmp_path, "count.stdf", [])
+    has_site, message = ingest.detect_site_support([source], sample_records=10)
+    # Should not find site within first 10 records
+    assert has_site is False
+    assert isinstance(message, str)
+
+
+def test_has_site_data_mixed_values() -> None:
+    frame = pd.DataFrame({"site": [1, None, 3, float("nan")]})
+    assert ingest.has_site_data(frame) is True
+
+
+def test_has_site_data_numeric_strings() -> None:
+    frame = pd.DataFrame({"site": ["1", " 2 ", None]})
+    assert ingest.has_site_data(frame) is True
+
+
+def test_has_site_data_all_null() -> None:
+    frame = pd.DataFrame({"site": [None, float("nan"), None]})
+    assert ingest.has_site_data(frame) is False
+
+
+def test_has_site_data_missing_column() -> None:
+    frame = pd.DataFrame({"file": ["a"]})
+    assert ingest.has_site_data(frame) is False
