@@ -206,6 +206,18 @@ python -m cpkanalysis.cli run Sample/*.stdf --generate-yield-pareto
 
 Generates a `Yield and Pareto` sheet with file-level yield summaries, per-test Pareto tables, and paired charts for each STDF file.
 
+### Per-Site Aggregation *(optional)*
+
+```bash
+# Force per-site statistics and charts when SITE_NUM is present
+python -m cpkanalysis.cli run Sample/*.stdf --site-breakdown
+
+# Explicitly opt out even if SITE_NUM exists
+python -m cpkanalysis.cli run Sample/*.stdf --no-site-breakdown
+```
+
+When SITE_NUM records are detected during ingestion you’ll be prompted (CLI & GUI) to include per-site statistics. The workbook reuses the existing sheets, appending site-level plots and tables to the right of the legacy output so nothing is lost. If SITE_NUM data is missing and per-site mode is requested the CLI reports the warning and lets you abort before any processing occurs.
+
 ### Output Formatting
 
 ```bash
@@ -256,11 +268,11 @@ python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx
 | **Summary** | Per-file/per-test statistics: COUNT, MEAN, MEDIAN, STDEV, IQR, CPL, CPU, CPK, yield loss variants, 2.0 CPK projections, 3xIQR alternatives |
 | **Measurements** | Flattened measurement table with File, DeviceID, Test Name, Test Number, Value, Units, Timestamp/Index (split into multiple sheets if >1M rows) |
 | **Test List and Limits** | Test catalog with STDF limits, Spec overrides, User What-If limits (priority: What-If > Spec > STDF) |
-| **Yield and Pareto** | File-level yield summary plus per-test Pareto tables and charts |
-| **Histogram_\*** | Matplotlib-rendered histograms per file, arranged by test with limit markers |
+| **Yield and Pareto** | File-level yield summary plus per-test Pareto tables and charts; per-site sections are appended to the right when enabled |
+| **Histogram_\*** | Matplotlib-rendered histograms per file, arranged by test with limit markers (per-site plots occupy additional blocks to the right) |
 | **CDF_\*** | Cumulative distribution function plots with limit markers |
 | **TimeSeries_\*** | Time-series plots showing measurement progression with limit bands |
-| **CPK Report** | Template-driven report populated with statistics, test info, and clickable hyperlinks to charts |
+| **CPK Report** | Template-driven report populated with statistics, test info, and clickable hyperlinks to charts (includes site column when per-site data is generated) |
 | **\_PlotAxisRanges** | Hidden metadata sheet for axis bounds (enables consistent chart regeneration) |
 
 ### Companion Metadata JSON
@@ -273,7 +285,22 @@ python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx
     "sources": ["lot2.stdf", "lot3.stdf"],
     "outlier_method": "none",
     "generate_histogram": true,
-    "template_path": "cpkTemplate/template.xlsx"
+    "template_path": "cpkTemplate/template.xlsx",
+    "enable_site_breakdown": true
+  },
+  "site_breakdown": {
+    "requested": true,
+    "available": true,
+    "generated": true
+  },
+  "site_summary": {
+    "rows": 42
+  },
+  "site_yield_summary": {
+    "rows": 6
+  },
+  "site_pareto_summary": {
+    "rows": 4
   },
   "per_file_stats": [
     {

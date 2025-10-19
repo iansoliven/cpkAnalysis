@@ -377,6 +377,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             if temp_template_path is not None:
                 _cleanup_file(str(temp_template_path))
         else:
+            warnings = result.get("warnings") or []
+            for warning in warnings:
+                print(f"Warning: {warning}")
             print(
                 f"Workbook written to {result['output']} ({result['summary_rows']} summary rows; "
                 f"{result['measurement_rows']} measurements; outliers removed: {result['outlier_removed']})"

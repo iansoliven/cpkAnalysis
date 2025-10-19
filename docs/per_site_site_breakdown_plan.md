@@ -1,4 +1,4 @@
-Intent: Introduce optional per-site aggregation with minimal disruption by shipping it in staged, verifiable increments.
+Intent: Introduce optional per-site aggregation with minimal disruption by shipping it in staged, verifiable increments. (Phases 1–5 implemented; Phase 6 documentation/polish in progress.)
 
 Lean Incremental Plan
 - Phase 1 – Surface-Level Toggle & Detection
