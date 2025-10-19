@@ -626,18 +626,20 @@ def _create_plot_sheets(
                 if site_values.size == 0:
                     continue
                 site_serials = site_group["_serial_number"].to_numpy(copy=False)
-                site_axis_min, site_axis_max, site_data_min, site_data_max = _compute_axis_bounds(
-                    site_values,
-                    lower_limit,
-                    upper_limit,
-                    desired_ticks=10,
-                )
+                site_data_min = float(np.min(site_values)) if site_values.size else None
+                site_data_max = float(np.max(site_values)) if site_values.size else None
                 site_value_norm = _normalise_site_value(site_value_raw)
                 site_key = (str(file_name), site_value_norm, str(test_name), str(test_number))
                 site_row = site_summary_map.get(site_key)
                 site_cpk = None
                 if site_row is not None:
                     site_cpk = _maybe_float(site_row.get("CPK"))
+                axis_entry = axis_ranges[(file_name, test_name, test_number)]
+                site_ranges = axis_entry.setdefault("site_ranges", {})
+                site_ranges[site_value_norm] = {
+                    "data_min": site_data_min,
+                    "data_max": site_data_max,
+                }
                 plot_tasks.append(
                     {
                         "key": ("site", file_name, site_value_norm, test_name, test_number),
@@ -648,9 +650,9 @@ def _create_plot_sheets(
                         "serial_numbers": site_serials,
                         "lower_limit": lower_limit,
                         "upper_limit": upper_limit,
-                        "x_range": (site_axis_min, site_axis_max),
-                        "axis_min": site_axis_min,
-                        "axis_max": site_axis_max,
+                        "x_range": x_range,
+                        "axis_min": axis_min,
+                        "axis_max": axis_max,
                         "test_label": test_label,
                         "cpk_value": site_cpk,
                         "unit_label": unit_label,
@@ -658,6 +660,8 @@ def _create_plot_sheets(
                         "block_index": idx,
                         "site_value": site_value_norm,
                         "site_label": _format_site_label(site_value_raw),
+                        "site_data_min": site_data_min,
+                        "site_data_max": site_data_max,
                     }
                 )
 

@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import cpkanalysis.workbook_builder as workbook_builder
+import pandas as pd
+import pytest
 from openpyxl import Workbook
-
 from cpkanalysis.workbook_builder import (
     COL_STRIDE,
+    _create_plot_sheets,
     _format_site_label,
     _normalise_site_value,
     _populate_cpk_report,
     _site_block_columns,
     _write_yield_pareto_sheet,
 )
-import pandas as pd
 
 
 def test_site_block_columns_stride() -> None:
@@ -118,3 +120,71 @@ def test_yield_pareto_sheet_includes_site_sections() -> None:
     ]
     assert any("Site 1" in label for label in labels)
     assert any("Site 2" in label for label in labels)
+
+
+def test_site_plots_share_axis_ranges(monkeypatch: pytest.MonkeyPatch) -> None:
+    wb = Workbook()
+    measurements = pd.DataFrame(
+        [
+            {"file": "lotA.stdf", "test_name": "VDD", "test_number": "1", "value": 0.5, "site": 1, "device_sequence": 1},
+            {"file": "lotA.stdf", "test_name": "VDD", "test_number": "1", "value": 0.7, "site": 1, "device_sequence": 2},
+            {"file": "lotA.stdf", "test_name": "VDD", "test_number": "1", "value": 1.2, "site": 2, "device_sequence": 3},
+            {"file": "lotA.stdf", "test_name": "VDD", "test_number": "1", "value": 1.4, "site": 2, "device_sequence": 4},
+        ]
+    )
+    summary = pd.DataFrame(
+        [
+            {
+                "File": "lotA.stdf",
+                "Test Name": "VDD",
+                "Test Number": "1",
+                "CPK": 1.0,
+            }
+        ]
+    )
+    site_summary = pd.DataFrame(
+        [
+            {"File": "lotA.stdf", "Site": 1, "Test Name": "VDD", "Test Number": "1", "CPK": 1.5},
+            {"File": "lotA.stdf", "Site": 2, "Test Name": "VDD", "Test Number": "1", "CPK": 0.8},
+        ]
+    )
+
+    captured_tasks: list[dict[str, object]] = []
+
+    def fake_render(
+        task: dict[str, object],
+        include_histogram: bool,
+        include_cdf: bool,
+        include_time_series: bool,
+        include_rug: bool,
+    ) -> dict[str, None]:
+        captured_tasks.append(task.copy())
+        return {"histogram": None, "cdf": None, "time_series": None}
+
+    monkeypatch.setattr(workbook_builder, "_render_plot_images", fake_render)
+
+    _create_plot_sheets(
+        wb,
+        measurements=measurements,
+        test_limits=pd.DataFrame(),
+        summary=summary,
+        include_histogram=True,
+        include_cdf=True,
+        include_time_series=True,
+        timings=None,
+        include_rug=False,
+        max_render_processes=1,
+        site_summary=site_summary,
+        site_enabled=True,
+    )
+
+    aggregate_task = next(task for task in captured_tasks if task.get("block_index") == 0)
+    site_tasks = [task for task in captured_tasks if (task.get("block_index") or 0) > 0]
+    assert site_tasks, "Expected per-site plot tasks to be generated."
+
+    for site_task in site_tasks:
+        assert site_task["x_range"] == aggregate_task["x_range"]
+        assert site_task["axis_min"] == aggregate_task["axis_min"]
+        assert site_task["axis_max"] == aggregate_task["axis_max"]
+        assert site_task["site_data_min"] is not None
+        assert site_task["site_data_max"] is not None
