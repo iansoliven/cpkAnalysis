@@ -418,7 +418,11 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
         "compute_yield_pareto_by_site",
         lambda measurements, limits: (site_yield_df, site_pareto_df),
     )
-    monkeypatch.setattr(workbook_builder, "build_workbook", lambda **kwargs: Workbook())
+    def fake_build_workbook(**kwargs):
+        captured["build_kwargs"] = kwargs
+        return Workbook()
+
+    monkeypatch.setattr(workbook_builder, "build_workbook", fake_build_workbook)
 
     config = AnalysisInputs(
         sources=[_make_source(tmp_path, "first.stdf")],
@@ -439,4 +443,7 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
     metadata = json.loads((config.output.with_suffix(".json")).read_text())
     assert metadata["site_breakdown"]["generated"] is True
     assert metadata["analysis_options"]["enable_site_breakdown"] is True
-
+    build_kwargs = captured["build_kwargs"]
+    assert build_kwargs["site_enabled"] is True
+    assert build_kwargs["site_summary"] is site_summary_df
+    assert build_kwargs["site_yield_summary"] is site_yield_df

@@ -223,6 +223,7 @@ def _format_limit_cells(ws, excel_row: int, row: Any) -> None:
 
 CPK_COLUMNS = [
     "File",
+    "Site",
     "TEST NAME",
     "TEST NUM",
     "UNITS",
@@ -260,6 +261,42 @@ AXIS_META_SHEET = "_PlotAxisRanges"
 ROW_HEIGHT_POINTS = IMAGE_HEIGHT * 0.75
 
 
+def _normalise_site_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, float):
+        if math.isnan(value):
+            return None
+        if value.is_integer():
+            return int(value)
+    return value
+
+
+def _format_site_label(value: Any) -> str:
+    if value is None:
+        return "Unknown"
+    if isinstance(value, float) and math.isnan(value):
+        return "Unknown"
+    return str(value)
+
+
+def _site_block_columns(block_index: int) -> tuple[int, int]:
+    label_column = 1 + block_index * COL_STRIDE
+    image_column = IMAGE_ANCHOR_COLUMN + block_index * COL_STRIDE
+    return label_column, image_column
+
+
+def _ensure_site_block_width(sheet, block_index: int) -> tuple[int, int]:
+    label_column, image_column = _site_block_columns(block_index)
+    label_letter = get_column_letter(label_column)
+    image_letter = get_column_letter(image_column)
+    if sheet.column_dimensions[label_letter].width is None or sheet.column_dimensions[label_letter].width < 28:
+        sheet.column_dimensions[label_letter].width = 28
+    if sheet.column_dimensions[image_letter].width is None or sheet.column_dimensions[image_letter].width < 60:
+        sheet.column_dimensions[image_letter].width = 60
+    return label_column, image_column
+
+
 def build_workbook(
     *,
     summary: pd.DataFrame,
@@ -276,6 +313,11 @@ def build_workbook(
     include_yield_pareto: bool = False,
     yield_summary: Optional[pd.DataFrame] = None,
     pareto_summary: Optional[pd.DataFrame] = None,
+    site_summary: Optional[pd.DataFrame] = None,
+    site_limit_sources: Optional[dict[tuple[Any, ...], dict[str, str]]] = None,
+    site_yield_summary: Optional[pd.DataFrame] = None,
+    site_pareto_summary: Optional[pd.DataFrame] = None,
+    site_enabled: bool = False,
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
     timing_collector: Optional[dict[str, float]] = None,
@@ -292,9 +334,10 @@ def build_workbook(
         _write_measurements(workbook, measurements)
         _write_test_limits(workbook, test_limits)
         plot_links: dict[tuple[str, str, str], str] = {}
+        site_plot_links: dict[tuple[str, Any, str, str], str] = {}
         if include_histogram or include_cdf or include_time_series:
             charts_start = time.perf_counter()
-            plot_links = _create_plot_sheets(
+            plot_links, site_plot_links = _create_plot_sheets(
                 workbook,
                 measurements,
                 test_limits,
@@ -305,17 +348,33 @@ def build_workbook(
                 timings=timing_collector,
                 include_rug=histogram_rug,
                 max_render_processes=max_render_processes,
+                site_summary=site_summary if site_enabled else None,
+                site_enabled=site_enabled,
             )
             if timing_collector is not None:
                 timing_collector["charts.total"] = timing_collector.get("charts.total", 0.0) + (
                     time.perf_counter() - charts_start
                 )
-        _populate_cpk_report(workbook, summary, test_limits, plot_links)
+        _populate_cpk_report(
+            workbook,
+            summary,
+            test_limits,
+            plot_links,
+            site_summary=site_summary if site_enabled else None,
+            site_limit_sources=site_limit_sources if site_enabled else None,
+            site_plot_links=site_plot_links if site_enabled else None,
+        )
 
         if include_yield_pareto:
             yield_df = yield_summary if yield_summary is not None else pd.DataFrame(columns=YIELD_SUMMARY_COLUMNS)
             pareto_df = pareto_summary if pareto_summary is not None else pd.DataFrame(columns=PARETO_COLUMNS)
-            _write_yield_pareto_sheet(workbook, yield_df, pareto_df)
+            _write_yield_pareto_sheet(
+                workbook,
+                yield_df,
+                pareto_df,
+                site_yield_summary=site_yield_summary if site_enabled else None,
+                site_pareto_summary=site_pareto_summary if site_enabled else None,
+            )
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
         if not defer_save:
@@ -463,13 +522,27 @@ def _create_plot_sheets(
     timings: Optional[dict[str, float]] = None,
     include_rug: bool = False,
     max_render_processes: Optional[int] = None,
-) -> dict[tuple[str, str, str], str]:
+    site_summary: Optional[pd.DataFrame] = None,
+    site_enabled: bool = False,
+) -> tuple[dict[tuple[str, str, str], str], dict[tuple[str, Any, str, str], str]]:
     limit_map = _limit_lookup(test_limits)
     summary_map = {
         (str(row.get("File")), str(row.get("Test Name")), str(row.get("Test Number"))): _maybe_float(row.get("CPK"))
         for _, row in summary.iterrows()
     }
+    site_summary_map: dict[tuple[str, Any, str, str], pd.Series] = {}
+    if site_summary is not None:
+        for _, row in site_summary.iterrows():
+            key = (
+                str(row.get("File")),
+                _normalise_site_value(row.get("Site")),
+                str(row.get("Test Name")),
+                str(row.get("Test Number")),
+            )
+            site_summary_map[key] = row
+
     plot_links: dict[tuple[str, str, str], str] = {}
+    site_plot_links: dict[tuple[str, Any, str, str], str] = {}
     axis_ranges: dict[tuple[str, str, str], dict[str, float | None]] = {}
     prepared_measurements = _prepare_measurements_for_plots(measurements)
     grouped = prepared_measurements.groupby(["file", "test_name", "test_number"], sort=False)
@@ -540,10 +613,55 @@ def _create_plot_sheets(
                 "cpk_value": cpk_value,
                 "unit_label": unit_label,
                 "include_rug": rug_active,
+                "block_index": 0,
+                "site_value": None,
+                "site_label": "",
             }
         )
 
-    rendered_images: dict[tuple[str, str, str], dict[str, Optional[bytes]]] = {}
+        if site_enabled and "site" in filtered_group.columns:
+            site_groups = filtered_group.groupby("site", dropna=False, sort=False)
+            for idx, (site_value_raw, site_group) in enumerate(site_groups, start=1):
+                site_values = site_group["_value_numeric"].to_numpy(copy=False)
+                if site_values.size == 0:
+                    continue
+                site_serials = site_group["_serial_number"].to_numpy(copy=False)
+                site_axis_min, site_axis_max, site_data_min, site_data_max = _compute_axis_bounds(
+                    site_values,
+                    lower_limit,
+                    upper_limit,
+                    desired_ticks=10,
+                )
+                site_value_norm = _normalise_site_value(site_value_raw)
+                site_key = (str(file_name), site_value_norm, str(test_name), str(test_number))
+                site_row = site_summary_map.get(site_key)
+                site_cpk = None
+                if site_row is not None:
+                    site_cpk = _maybe_float(site_row.get("CPK"))
+                plot_tasks.append(
+                    {
+                        "key": ("site", file_name, site_value_norm, test_name, test_number),
+                        "file_name": file_name,
+                        "test_name": test_name,
+                        "test_number": test_number,
+                        "values": site_values,
+                        "serial_numbers": site_serials,
+                        "lower_limit": lower_limit,
+                        "upper_limit": upper_limit,
+                        "x_range": (site_axis_min, site_axis_max),
+                        "axis_min": site_axis_min,
+                        "axis_max": site_axis_max,
+                        "test_label": test_label,
+                        "cpk_value": site_cpk,
+                        "unit_label": unit_label,
+                        "include_rug": rug_active,
+                        "block_index": idx,
+                        "site_value": site_value_norm,
+                        "site_label": _format_site_label(site_value_raw),
+                    }
+                )
+
+    rendered_images: dict[tuple[Any, ...], dict[str, Optional[bytes]]] = {}
     if plot_tasks:
         render_start = time.perf_counter()
         available_cpus = os.cpu_count() or 1
@@ -578,6 +696,8 @@ def _create_plot_sheets(
                 )
         render_elapsed = time.perf_counter() - render_start
 
+    plot_positions: dict[tuple[str, str, str], dict[str, tuple[Any, int]]] = {}
+
     for task in plot_tasks:
         key = task["key"]
         file_name = task["file_name"]
@@ -590,39 +710,106 @@ def _create_plot_sheets(
         axis_max = task["axis_max"]
         lower_limit = task["lower_limit"]
         upper_limit = task["upper_limit"]
+        block_index = task.get("block_index", 0)
+        site_value = task.get("site_value")
+        site_label = task.get("site_label") or ""
         image_bundle = rendered_images.get(key, {})
 
-        if include_histogram:
-            anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
-            row, sheet = anchor["row"], anchor["sheet"]
+        base_identifier = (file_name, test_name, test_number)
+
+        if block_index == 0:
+            if include_histogram:
+                anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
+                row, sheet = anchor["row"], anchor["sheet"]
+                _ensure_site_block_width(sheet, 0)
+                image_bytes = image_bundle.get("histogram")
+                if image_bytes is not None:
+                    cell = _place_image(sheet, image_bytes, row, label=test_label)
+                    sheet_ref = sheet.title.replace("'", "''")
+                    plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
+                    _ensure_row_height(sheet, row)
+                hist_sheets[file_name]["row"] += ROW_STRIDE
+                plot_positions.setdefault(base_identifier, {})["histogram"] = (sheet, row)
+
+            if include_cdf:
+                anchor_cdf = _ensure_plot_anchor(cdf_sheets, workbook, file_name, "CDF")
+                _ensure_site_block_width(anchor_cdf["sheet"], 0)
+                image_bytes = image_bundle.get("cdf")
+                if image_bytes is not None:
+                    _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
+                    _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
+                cdf_sheets[file_name]["row"] += ROW_STRIDE
+                plot_positions.setdefault(base_identifier, {})["cdf"] = (anchor_cdf["sheet"], anchor_cdf["row"])
+
+            if include_time_series:
+                anchor_ts = _ensure_plot_anchor(time_sheets, workbook, file_name, "TimeSeries")
+                _ensure_site_block_width(anchor_ts["sheet"], 0)
+                image_bytes = image_bundle.get("time_series")
+                if image_bytes is not None:
+                    _place_image(
+                        anchor_ts["sheet"],
+                        image_bytes,
+                        anchor_ts["row"],
+                        label=test_label,
+                    )
+                    _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
+                time_sheets[file_name]["row"] += ROW_STRIDE
+                plot_positions.setdefault(base_identifier, {})["time_series"] = (anchor_ts["sheet"], anchor_ts["row"])
+            continue
+
+        positions = plot_positions.get(base_identifier)
+        if not positions:
+            continue
+
+        display_label = f"{test_label} – Site {site_label}"
+        site_key = (file_name, site_value, test_name, test_number)
+
+        if include_histogram and "histogram" in positions:
+            sheet, row = positions["histogram"]
+            label_col, image_col = _ensure_site_block_width(sheet, block_index)
             image_bytes = image_bundle.get("histogram")
             if image_bytes is not None:
-                cell = _place_image(sheet, image_bytes, row, label=test_label)
+                cell = _place_image(
+                    sheet,
+                    image_bytes,
+                    row,
+                    label=display_label,
+                    label_column=label_col,
+                    image_column=image_col,
+                )
                 sheet_ref = sheet.title.replace("'", "''")
-                plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
+                site_plot_links[(file_name, site_value, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
                 _ensure_row_height(sheet, row)
-            hist_sheets[file_name]["row"] += ROW_STRIDE
 
-        if include_cdf:
-            anchor_cdf = _ensure_plot_anchor(cdf_sheets, workbook, file_name, "CDF")
+        if include_cdf and "cdf" in positions:
+            sheet, row = positions["cdf"]
+            label_col, image_col = _ensure_site_block_width(sheet, block_index)
             image_bytes = image_bundle.get("cdf")
             if image_bytes is not None:
-                _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
-                _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
-            cdf_sheets[file_name]["row"] += ROW_STRIDE
+                _place_image(
+                    sheet,
+                    image_bytes,
+                    row,
+                    label=display_label,
+                    label_column=label_col,
+                    image_column=image_col,
+                )
+                _ensure_row_height(sheet, row)
 
-        if include_time_series:
-            anchor_ts = _ensure_plot_anchor(time_sheets, workbook, file_name, "TimeSeries")
+        if include_time_series and "time_series" in positions:
+            sheet, row = positions["time_series"]
+            label_col, image_col = _ensure_site_block_width(sheet, block_index)
             image_bytes = image_bundle.get("time_series")
             if image_bytes is not None:
                 _place_image(
-                    anchor_ts["sheet"],
+                    sheet,
                     image_bytes,
-                    anchor_ts["row"],
-                    label=test_label,
+                    row,
+                    label=display_label,
+                    label_column=label_col,
+                    image_column=image_col,
                 )
-                _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
-            time_sheets[file_name]["row"] += ROW_STRIDE
+                _ensure_row_height(sheet, row)
 
     _write_axis_ranges(workbook, axis_ranges)
     total_elapsed = time.perf_counter() - overall_start
@@ -632,7 +819,7 @@ def _create_plot_sheets(
         embed_elapsed = total_elapsed - render_elapsed
         if embed_elapsed > 0:
             timings["charts.embed"] = timings.get("charts.embed", 0.0) + embed_elapsed
-    return plot_links
+    return plot_links, site_plot_links
 
 
 def _prepare_measurements_for_plots(measurements: pd.DataFrame) -> pd.DataFrame:
@@ -742,6 +929,9 @@ def _write_yield_pareto_sheet(
     workbook: Workbook,
     yield_summary: pd.DataFrame,
     pareto_summary: pd.DataFrame,
+    *,
+    site_yield_summary: Optional[pd.DataFrame] = None,
+    site_pareto_summary: Optional[pd.DataFrame] = None,
 ) -> None:
     sheet_name = "Yield and Pareto"
     if sheet_name in workbook.sheetnames:
@@ -754,7 +944,33 @@ def _write_yield_pareto_sheet(
 
     row_cursor = _write_yield_summary_table(ws, yield_summary)
     for index, (_, yield_row) in enumerate(yield_summary.iterrows(), start=1):
+        section_start = row_cursor
         row_cursor = _write_yield_section(ws, yield_row, pareto_summary, index, row_cursor)
+
+        if site_yield_summary is not None and not site_yield_summary.empty:
+            file_name = str(yield_row.get("file", ""))
+            site_subset = site_yield_summary[site_yield_summary["file"] == file_name]
+            if not site_subset.empty:
+                for site_idx, (_, site_row) in enumerate(site_subset.iterrows(), start=1):
+                    site_value = site_row.get("site")
+                    site_label = _format_site_label(site_value)
+                    if site_pareto_summary is not None and not site_pareto_summary.empty:
+                        site_pareto = site_pareto_summary[
+                            (site_pareto_summary["file"] == file_name)
+                            & (site_pareto_summary["site"] == site_value)
+                        ]
+                    else:
+                        site_pareto = pd.DataFrame(columns=PARETO_COLUMNS_SITE)
+                    _write_site_yield_section(
+                        ws,
+                        site_row,
+                        site_pareto,
+                        index,
+                        section_start,
+                        column_offset=site_idx * COL_STRIDE,
+                        site_label=site_label,
+                        site_index=site_idx,
+                    )
 
 
 def _write_yield_summary_table(ws, yield_summary: pd.DataFrame) -> int:
@@ -977,11 +1193,186 @@ def _write_yield_section(
 
     return max(pareto_end_row + 2, pareto_section_start + ROW_STRIDE)
 
+
+def _write_site_yield_section(
+    ws,
+    yield_row: pd.Series,
+    pareto_summary: pd.DataFrame,
+    section_index: int,
+    start_row: int,
+    *,
+    column_offset: int,
+    site_label: str,
+    site_index: int,
+) -> None:
+    base_col = column_offset + 1
+    file_name = str(yield_row.get("file", ""))
+    header_cell = ws.cell(row=start_row, column=base_col, value=f"File: {file_name} (Site {site_label})")
+    header_cell.font = Font(bold=True)
+
+    row_cursor = start_row + 1
+    yield_headers = ["Outcome", "Units", "Percent"]
+    for col_offset, header in enumerate(yield_headers):
+        cell = ws.cell(row=row_cursor, column=base_col + col_offset, value=header)
+        cell.font = Font(bold=True)
+
+    pass_units = int(yield_row.get("devices_pass", 0))
+    fail_units = int(yield_row.get("devices_fail", 0))
+    yield_percent = yield_row.get("yield_percent")
+    yield_ratio = None
+    chart_yield = None
+    try:
+        value = float(yield_percent)
+        if math.isfinite(value):
+            yield_ratio = value
+            chart_yield = value * 100.0
+    except (TypeError, ValueError):
+        yield_ratio = None
+        chart_yield = None
+
+    data_rows = [
+        ("Pass", pass_units, yield_ratio),
+        ("Fail", fail_units, None if yield_ratio is None else max(0.0, 1.0 - yield_ratio)),
+    ]
+
+    for outcome, units, percent in data_rows:
+        row_cursor += 1
+        ws.cell(row=row_cursor, column=base_col, value=outcome)
+        ws.cell(row=row_cursor, column=base_col + 1, value=int(units))
+        ws.cell(row=row_cursor, column=base_col + 2, value=percent)
+
+    yield_end_row = row_cursor
+    start_letter = get_column_letter(base_col)
+    end_letter = get_column_letter(base_col + len(yield_headers) - 1)
+    table_ref = f"{start_letter}{start_row + 1}:{end_letter}{yield_end_row}"
+    table = Table(displayName=f"YieldTable{section_index}_Site{site_index}", ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+
+    for r in range(start_row + 1, yield_end_row + 1):
+        _set_number_format(ws.cell(row=r, column=base_col + 1), "0")
+        _set_number_format(ws.cell(row=r, column=base_col + 2), "0.00%")
+
+    for col_offset, minimum in zip(range(3), [32, 14, 12]):
+        letter = get_column_letter(base_col + col_offset)
+        dim = ws.column_dimensions[letter]
+        existing = dim.width or 0
+        if existing < minimum:
+            dim.width = minimum
+
+    yield_chart_col = column_offset + 6
+    chart_bytes = render_yield_chart(pass_units, fail_units, yield_percent=chart_yield, title=f"{_sanitize_label(file_name)} Site {site_label} Yield")
+    dim = ws.column_dimensions[get_column_letter(yield_chart_col)]
+    if (dim.width or 0) < 45:
+        dim.width = 45
+    _place_image_at(ws, chart_bytes, start_row, yield_chart_col)
+    _ensure_row_height(ws, start_row)
+
+    next_row = max(yield_end_row + 2, start_row + ROW_STRIDE)
+
+    pareto_section_start = next_row
+    ws.cell(row=pareto_section_start, column=base_col, value="Pareto").font = Font(bold=True)
+    row_cursor = pareto_section_start + 1
+    pareto_headers = [
+        "Test Name",
+        "Test Number",
+        "Devices Fail",
+        "Fail Rate",
+        "Cumulative",
+        "Lower Limit",
+        "Upper Limit",
+    ]
+    for col_offset, header in enumerate(pareto_headers):
+        cell = ws.cell(row=row_cursor, column=base_col + col_offset, value=header)
+        cell.font = Font(bold=True)
+
+    site_value = yield_row.get("site")
+    if pareto_summary is None or pareto_summary.empty:
+        subset = pd.DataFrame(columns=PARETO_COLUMNS_SITE)
+    else:
+        subset = pareto_summary[
+            (pareto_summary.get("file") == file_name)
+            & (pareto_summary.get("site") == site_value)
+        ]
+
+    chart_labels: list[str] = []
+    chart_counts: list[float] = []
+    chart_cumulative: list[float] = []
+
+    if subset.empty:
+        row_cursor += 1
+        for col_offset, value in enumerate(["No failing tests", "", 0, None, None, None, None]):
+            ws.cell(row=row_cursor, column=base_col + col_offset, value=value)
+    else:
+        for _, pareto_row in subset.iterrows():
+            row_cursor += 1
+            test_name = str(pareto_row.get("test_name", ""))
+            test_number = str(pareto_row.get("test_number", ""))
+            ws.cell(row=row_cursor, column=base_col, value=test_name)
+            ws.cell(row=row_cursor, column=base_col + 1, value=test_number)
+            fail_units = int(pareto_row.get("devices_fail", 0))
+            ws.cell(row=row_cursor, column=base_col + 2, value=fail_units)
+
+            fail_value = None
+            try:
+                candidate = float(pareto_row.get("fail_rate_percent"))
+                if math.isfinite(candidate):
+                    fail_value = candidate
+            except (TypeError, ValueError):
+                fail_value = None
+
+            cumulative_value = None
+            try:
+                candidate = float(pareto_row.get("cumulative_percent"))
+                if math.isfinite(candidate):
+                    cumulative_value = candidate
+            except (TypeError, ValueError):
+                cumulative_value = None
+
+            ws.cell(row=row_cursor, column=base_col + 3, value=fail_value if fail_value is not None else None)
+            ws.cell(row=row_cursor, column=base_col + 4, value=cumulative_value if cumulative_value is not None else None)
+            ws.cell(row=row_cursor, column=base_col + 5, value=pareto_row.get("lower_limit"))
+            ws.cell(row=row_cursor, column=base_col + 6, value=pareto_row.get("upper_limit"))
+
+            label = f"{test_name} ({test_number})".strip()
+            chart_labels.append(_sanitize_label(label) or "(unnamed)")
+            chart_counts.append(float(fail_units))
+            chart_cumulative.append((cumulative_value * 100.0) if cumulative_value is not None else 0.0)
+
+    pareto_end_row = row_cursor
+    start_letter = get_column_letter(base_col)
+    end_letter = get_column_letter(base_col + len(pareto_headers) - 1)
+    table_ref = f"{start_letter}{pareto_section_start + 1}:{end_letter}{pareto_end_row}"
+    table = Table(displayName=f"ParetoTable{section_index}_Site{site_index}", ref=table_ref)
+    table.tableStyleInfo = TableStyleInfo(name="TableStyleMedium2", showRowStripes=True, showColumnStripes=False)
+    ws.add_table(table)
+
+    for r in range(pareto_section_start + 2, pareto_end_row + 1):
+        _set_number_format(ws.cell(row=r, column=base_col + 2), "0")
+        _set_number_format(ws.cell(row=r, column=base_col + 3), "0.00%")
+        _set_number_format(ws.cell(row=r, column=base_col + 4), "0.00%")
+
+    for col_offset, minimum in zip(range(7), [32, 18, 14, 12, 12, 14, 14]):
+        letter = get_column_letter(base_col + col_offset)
+        dim = ws.column_dimensions[letter]
+        existing = dim.width or 0
+        if existing < minimum:
+            dim.width = minimum
+
+    pareto_chart_title = f"{_sanitize_label(file_name)} Site {site_label} Pareto"
+    chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
+    _place_image_at(ws, chart_bytes, pareto_section_start + 1, column_offset + 6)
+    _ensure_row_height(ws, pareto_section_start + 1)
+
 def _populate_cpk_report(
     workbook: Workbook,
     summary: pd.DataFrame,
     test_limits: pd.DataFrame,
     plot_links: dict[tuple[str, str, str], str],
+    *,
+    site_summary: Optional[pd.DataFrame] = None,
+    site_limit_sources: Optional[dict[tuple[Any, ...], dict[str, str]]] = None,
+    site_plot_links: Optional[dict[tuple[str, Any, str, str], str]] = None,
 ) -> None:
     sheet_name = "CPK Report"
     if sheet_name not in workbook.sheetnames:
@@ -1011,14 +1402,15 @@ def _populate_cpk_report(
         ws.delete_rows(2, ws.max_row - 1)
 
     general_format = _fixed_decimal_format(FALLBACK_DECIMALS)
+    site_plot_links = site_plot_links or {}
+
     for _, row in summary.iterrows():
         excel_row_index = ws.max_row + 1
         ws.append([None] * len(header))
-        
-        # Get corresponding limits data for this test
+
         limits_key = (row.get("Test Name", ""), str(row.get("Test Number", "")))
         limits_data = limits_lookup.get(limits_key, {})
-        
+
         for column in CPK_COLUMNS:
             cell_index = column_map[column]
             cell = ws.cell(row=excel_row_index, column=cell_index)
@@ -1031,6 +1423,8 @@ def _populate_cpk_report(
                     cell.style = "Hyperlink"
                 else:
                     cell.value = ""
+            elif column == "Site":
+                cell.value = ""
             elif column == "Proposal" or column == "Lot Qual":
                 cell.value = ""
             elif column == "UNITS":
@@ -1070,7 +1464,7 @@ def _populate_cpk_report(
             )
             _set_number_format(ul_cell, ul_format)
 
-        text_columns = {"File", "TEST NAME", "TEST NUM", "UNITS", "PLOTS", "Proposal", "Lot Qual"}
+        text_columns = {"File", "Site", "TEST NAME", "TEST NUM", "UNITS", "PLOTS", "Proposal", "Lot Qual"}
         percent_columns = {"%YLD LOSS", "%YLD LOSS_2.0", "%YLD LOSS_3IQR"}
         integer_columns = {"COUNT"}
         limit_columns = {"LL_ATE", "UL_ATE"}
@@ -1084,6 +1478,83 @@ def _populate_cpk_report(
                 _set_number_format(cell, "0")
             else:
                 _set_number_format(cell, general_format)
+
+    if site_summary is not None and not site_summary.empty:
+        for _, row in site_summary.iterrows():
+            excel_row_index = ws.max_row + 1
+            ws.append([None] * len(header))
+
+            file_name = str(row.get("File", ""))
+            test_name = row.get("Test Name", "")
+            test_number = str(row.get("Test Number", ""))
+            site_value = _normalise_site_value(row.get("Site"))
+            display_site = _format_site_label(row.get("Site"))
+
+            limits_key = (test_name, test_number)
+            limits_data = limits_lookup.get(limits_key, {})
+
+            for column in CPK_COLUMNS:
+                cell_index = column_map[column]
+                cell = ws.cell(row=excel_row_index, column=cell_index)
+                if column == "PLOTS":
+                    link_key = (file_name, site_value, test_name, test_number)
+                    hyperlink = site_plot_links.get(link_key)
+                    if hyperlink:
+                        cell.value = "Histogram"
+                        cell.hyperlink = hyperlink
+                        cell.style = "Hyperlink"
+                    else:
+                        cell.value = ""
+                elif column == "Site":
+                    cell.value = display_site
+                elif column == "Proposal" or column == "Lot Qual":
+                    cell.value = ""
+                elif column == "UNITS":
+                    cell.value = row.get("Unit", "")
+                elif column == "TEST NAME":
+                    cell.value = test_name
+                elif column == "TEST NUM":
+                    cell.value = test_number
+                elif column == "LL_ATE":
+                    cell.value = limits_data.get("stdf_lower", "")
+                elif column == "UL_ATE":
+                    cell.value = limits_data.get("stdf_upper", "")
+                else:
+                    cell.value = row.get(column, "")
+
+            ll_index = column_map.get("LL_ATE")
+            if ll_index is not None:
+                ll_cell = ws.cell(row=excel_row_index, column=ll_index)
+                ll_format = _row_number_format(
+                    limits_data,
+                    format_fields=("stdf_lower_format", "stdf_result_format", "stdf_upper_format"),
+                    scale_fields=("stdf_lower_scale", "stdf_result_scale", "stdf_upper_scale"),
+                )
+                _set_number_format(ll_cell, ll_format)
+            ul_index = column_map.get("UL_ATE")
+            if ul_index is not None:
+                ul_cell = ws.cell(row=excel_row_index, column=ul_index)
+                ul_format = _row_number_format(
+                    limits_data,
+                    format_fields=("stdf_upper_format", "stdf_result_format", "stdf_lower_format"),
+                    scale_fields=("stdf_upper_scale", "stdf_result_scale", "stdf_lower_scale"),
+                )
+                _set_number_format(ul_cell, ul_format)
+
+            text_columns = {"File", "Site", "TEST NAME", "TEST NUM", "UNITS", "PLOTS", "Proposal", "Lot Qual"}
+            percent_columns = {"%YLD LOSS", "%YLD LOSS_2.0", "%YLD LOSS_3IQR"}
+            integer_columns = {"COUNT"}
+            limit_columns = {"LL_ATE", "UL_ATE"}
+            for column, cell_index in column_map.items():
+                if column in text_columns or column in limit_columns:
+                    continue
+                cell = ws.cell(row=excel_row_index, column=cell_index)
+                if column in percent_columns:
+                    _set_number_format(cell, "0.00%")
+                elif column in integer_columns:
+                    _set_number_format(cell, "0")
+                else:
+                    _set_number_format(cell, general_format)
 
     for idx in range(1, len(header) + 1):
         ws.column_dimensions[get_column_letter(idx)].width = 18
@@ -1107,14 +1578,21 @@ def _ensure_plot_anchor(cache: dict[str, Any], workbook: Workbook, file_name: st
     return cache[file_name]
 
 
-def _place_image(sheet, image_bytes: bytes, anchor_row: int, label: str) -> str:
-    anchor_cell = f"A{anchor_row}"
-    sheet.cell(row=anchor_row, column=1, value=label)
+def _place_image(
+    sheet,
+    image_bytes: bytes,
+    anchor_row: int,
+    label: str,
+    *,
+    label_column: int = 1,
+    image_column: int = IMAGE_ANCHOR_COLUMN,
+) -> str:
+    sheet.cell(row=anchor_row, column=label_column, value=label)
     image_stream = BytesIO(image_bytes)
     img = XLImage(image_stream)
     img.width = IMAGE_WIDTH
     img.height = IMAGE_HEIGHT
-    target_cell = f"{get_column_letter(IMAGE_ANCHOR_COLUMN)}{anchor_row}"
+    target_cell = f"{get_column_letter(image_column)}{anchor_row}"
     sheet.add_image(img, target_cell)
     return target_cell
 
