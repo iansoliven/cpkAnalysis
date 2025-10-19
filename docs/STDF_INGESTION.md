@@ -1,6 +1,6 @@
 # STDF Ingestion Technical Reference
 
-This document provides comprehensive technical details about how the CPK Analysis system ingests and processes STDF (Standard Test Data Format) files, with particular emphasis on OPT_FLAG handling, flag filtering, and real-world ATE conventions.
+This document provides comprehensive technical details about how the CPK Analysis system ingests and processes STDF (Standard Test Data Format) files, with particular emphasis on OPT_FLAG handling, flag filtering, site data preservation, and real-world ATE conventions.
 
 ---
 
@@ -12,9 +12,10 @@ This document provides comprehensive technical details about how the CPK Analysi
 4. [Critical: Bits 4 & 5 vs Bits 6 & 7](#critical-bits-4--5-vs-bits-6--7)
 5. [Flag Filtering](#flag-filtering)
 6. [Metadata Caching](#metadata-caching)
-7. [Real-World ATE Patterns](#real-world-ate-patterns)
-8. [Implementation Details](#implementation-details)
-9. [Testing & Validation](#testing--validation)
+7. [Site Data Handling](#site-data-handling)
+8. [Real-World ATE Patterns](#real-world-ate-patterns)
+9. [Implementation Details](#implementation-details)
+10. [Testing & Validation](#testing--validation)
 
 ---
 
@@ -25,6 +26,7 @@ The STDF ingestion system (`cpkanalysis.ingest`) parses Standard Test Data Forma
 - **Limits**: STDF-specified pass/fail limits (LO_LIMIT, HI_LIMIT)
 - **Metadata**: Test names, numbers, units, scaling factors
 - **Quality Flags**: Validity indicators (PARM_FLG, TEST_FLG, OPT_FLAG)
+- **Site Information**: Per-device site identifiers (SITE_NUM from PIR records)
 
 ### Key Design Principles
 
@@ -32,6 +34,7 @@ The STDF ingestion system (`cpkanalysis.ingest`) parses Standard Test Data Forma
 2. **Complete Visibility**: All tests appear in reports regardless of measurement validity
 3. **Data Quality**: Only valid, reliable measurements contribute to CPK statistics
 4. **STDF Compliance**: Strict adherence to STDF V4 specification semantics
+5. **Site Awareness**: Optional per-site aggregation preserves multi-site test context
 
 ---
 
@@ -262,6 +265,319 @@ PTR: test_num=100, lo_limit=2.0, opt_flg=0x00
 → cache["100"].low_limit = 2.0
 → cache["100"].has_low_limit = True
 ```
+
+---
+
+## Site Data Handling
+
+### Overview
+
+Modern semiconductor test equipment often tests devices across **multiple test sites** simultaneously to maximize throughput. The STDF V4 specification supports this via the `SITE_NUM` field in Part Information Records (PIR).
+
+**CPK Analysis now supports optional per-site aggregation**, enabling independent statistical analysis for each test site while maintaining backward compatibility.
+
+### Site Data Architecture
+
+#### 1. Site Number Extraction
+
+**Location**: PIR (Part Information Record) processing in `cpkanalysis/ingest.py`
+
+```python
+# PIR record contains SITE_NUM field
+current_site = _coerce_int(data.get("SITE_NUM"))
+
+# Site propagated to all measurements for this device
+column_data["site"].append(current_site)
+```
+
+**Key Points**:
+- SITE_NUM extracted from each PIR record (per-device context)
+- Site value associated with all subsequent measurements for that device
+- Values typically: integers (1, 2, 3, ...), but can be None/missing
+- Stored in "site" column of measurements DataFrame
+
+#### 2. Site Detection
+
+**Function**: `detect_site_support(sources, sample_records=500)`
+
+**Purpose**: Probe STDF files to determine if SITE_NUM data is available
+
+**Implementation**:
+```python
+def detect_site_support(sources, sample_records=500):
+    """
+    Probe STDF files for SITE_NUM presence.
+
+    Returns:
+        (has_site_data: bool, warning: str | None)
+    """
+    # Read first N records from each file
+    # Check for non-None SITE_NUM in PIR records
+    # Also parses SDR (Site Description Records) for metadata
+```
+
+**Optimization**: Only samples first 500 records (configurable) to avoid reading multi-GB files entirely
+
+**Edge Cases Handled**:
+- Files without PIR records → `has_site_data=False`
+- PIR records with SITE_NUM always None → `has_site_data=False`
+- Mixed files (some with, some without) → `has_site_data=True` if ANY file has sites
+- SDR records present but no PIR → uses SDR as hint
+
+#### 3. Site Data Validation
+
+**Function**: `has_site_data(frame: pd.DataFrame) -> bool`
+
+**Purpose**: Verify DataFrame actually contains usable site values
+
+**Implementation**:
+```python
+def has_site_data(frame):
+    """Check if measurements DataFrame has valid site column."""
+    if "site" not in frame.columns:
+        return False
+
+    # Check if any non-null site values exist
+    valid_sites = frame["site"].notna().any()
+    return valid_sites
+```
+
+**Validation Logic**:
+- Column must exist: `"site" in frame.columns`
+- Must contain at least one non-null value
+- Returns `False` if all sites are None/NaN
+
+### Site-Aware Processing Stages
+
+#### Stage 1: Ingestion
+
+```python
+# measurements DataFrame includes "site" column
+measurements = pd.DataFrame({
+    "file": ["lot1.stdf", "lot1.stdf", ...],
+    "site": [1, 1, 2, 2, ...],  # ← Site column
+    "test_name": ["VDD", "VDD", "VDD", "VDD", ...],
+    "test_number": ["100", "100", "100", "100", ...],
+    "part_id": [1, 2, 1, 2, ...],
+    "value": [1.8, 1.82, 1.79, 1.81, ...],
+    # ... other columns
+})
+```
+
+#### Stage 2: Outlier Filtering (Optional Site Grouping)
+
+**Without site breakdown** (default):
+```python
+group_keys = ["file", "test_name", "test_number"]
+# Outliers calculated globally across all sites
+```
+
+**With site breakdown** (`enable_site_breakdown=True`):
+```python
+group_keys = ["file", "site", "test_name", "test_number"]
+# Outliers calculated independently per site
+```
+
+**Impact**: Same measurement value might be an outlier in site 1 but normal in site 2
+
+#### Stage 3: Statistics Computation
+
+**Overall Statistics** (always computed):
+```python
+summary = compute_summary(measurements, limits)
+# Groups by: ["file", "test_name", "test_number"]
+# Result: One row per test (aggregated across all sites)
+```
+
+**Per-Site Statistics** (when enabled):
+```python
+site_summary = compute_summary_by_site(measurements, limits)
+# Groups by: ["file", "site", "test_name", "test_number"]
+# Result: One row per (file, site, test) combination
+```
+
+**Yield & Pareto** (similar pattern):
+```python
+# Overall
+yield_summary, pareto_summary = compute_yield_pareto(measurements, limits)
+# Groups by: ["file"]
+
+# Per-Site
+site_yield, site_pareto = compute_yield_pareto_by_site(measurements, limits)
+# Groups by: ["file", "site"]
+```
+
+#### Stage 4: Workbook Generation
+
+**Layout Design**: Side-by-side blocks
+
+```
+┌─────────────────────┬─────────────────────┬─────────────────────┐
+│  Overall (Block 0)  │  Site 1 (Block 1)   │  Site 2 (Block 2)   │
+├─────────────────────┼─────────────────────┼─────────────────────┤
+│  Test Label         │  Test - Site 1      │  Test - Site 2      │
+│  [Histogram Image]  │  [Histogram Image]  │  [Histogram Image]  │
+│  [CDF Image]        │  [CDF Image]        │  [CDF Image]        │
+│  [TimeSeries Image] │  [TimeSeries Image] │  [TimeSeries Image] │
+└─────────────────────┴─────────────────────┴─────────────────────┘
+  Column 1-18           Column 19-36          Column 37-54
+  (COL_STRIDE=18)
+```
+
+**Block Positioning**:
+- Block 0 (overall): Columns 1-18
+- Block 1 (site 1): Columns 19-36
+- Block 2 (site 2): Columns 37-54
+- Formula: `column_offset = block_index * COL_STRIDE` (COL_STRIDE=18)
+
+### User Experience
+
+#### 1. Automatic Detection
+
+```bash
+# No explicit flag - system detects and prompts
+$ python -m cpkanalysis.cli run multisite.stdf
+
+Detecting site support in STDF files...
+✓ SITE_NUM data detected (sites: 1, 2, 3, 4)
+
+Enable per-site statistics and charts? [y/N]: y
+
+Proceeding with per-site aggregation enabled...
+```
+
+#### 2. Explicit Control
+
+```bash
+# Force enable (skip prompt)
+$ python -m cpkanalysis.cli run multisite.stdf --site-breakdown
+
+# Force disable (skip prompt, even if sites exist)
+$ python -m cpkanalysis.cli run multisite.stdf --no-site-breakdown
+```
+
+#### 3. Graceful Degradation
+
+```bash
+# User requests sites but data unavailable
+$ python -m cpkanalysis.cli run nosites.stdf --site-breakdown
+
+⚠ Warning: SITE_NUM data not found in STDF files
+Per-site aggregation requested but unavailable - proceeding without it.
+
+Continue analysis? [Y/n]: y
+```
+
+### Site Value Normalization
+
+**Challenge**: SITE_NUM can be various types (int, float, None)
+
+**Solution**: Normalization helper functions
+
+```python
+def _normalise_site_value(value):
+    """Convert site values to consistent types."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None  # Null sites
+    if isinstance(value, float) and value.is_integer():
+        return int(value)  # 1.0 → 1
+    return value  # Keep as-is
+
+def _format_site_label(value):
+    """Format site values for display."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return "Unknown"  # User-friendly label
+    return str(value)
+```
+
+**Examples**:
+- `1.0` → `1` (int)
+- `None` → `None` (preserved)
+- `NaN` → `None` (normalized)
+- `1.5` → `1.5` (preserved)
+- Format: `None` → `"Unknown"` (display)
+
+### Metadata & Audit Trail
+
+**Metadata JSON captures site breakdown state**:
+
+```json
+{
+  "analysis_options": {
+    "enable_site_breakdown": true
+  },
+  "site_breakdown": {
+    "requested": true,    // User asked for it
+    "available": true,    // Data contains SITE_NUM
+    "generated": true     // Actually produced output
+  },
+  "site_summary": {
+    "rows": 42            // Per-site summary row count
+  },
+  "site_yield_summary": {
+    "rows": 6             // Per-site yield row count
+  },
+  "site_pareto_summary": {
+    "rows": 18            // Per-site pareto row count
+  }
+}
+```
+
+**Distinguishes**:
+- **Requested** ≠ **Available** ≠ **Generated**
+- Example: User requests (`requested=true`) but data lacks SITE_NUM (`available=false`) → no output (`generated=false`)
+
+### Implementation Benefits
+
+✅ **Backward Compatible**: Disabled by default, zero impact when off
+✅ **Opt-In Design**: User controls via flag or prompt
+✅ **Early Detection**: Probes files before full ingestion (saves time)
+✅ **Graceful Degradation**: Clear warnings when unavailable
+✅ **Independent Statistics**: Each site has true per-site CPK/yield
+✅ **Layout Preservation**: Overall stats unchanged, site data appended
+✅ **Audit Trail**: Metadata captures request vs. availability vs. generation
+
+### Common Use Cases
+
+#### Use Case 1: Multi-Site Test Head Comparison
+
+**Scenario**: Single wafer tested across 4 test sites simultaneously
+
+**Goal**: Identify if specific sites have systematic bias or higher failure rates
+
+**Solution**:
+```bash
+python -m cpkanalysis.cli run wafer123.stdf --site-breakdown
+```
+
+**Result**: CPK Report shows:
+- Overall CPK (all sites combined)
+- Site 1 CPK
+- Site 2 CPK
+- Site 3 CPK
+- Site 4 CPK
+
+**Insight**: Site 3 shows CPK=0.8 while others show CPK=1.3 → equipment calibration issue
+
+#### Use Case 2: Production Floor Site Monitoring
+
+**Scenario**: Combine multiple lots tested on different sites over time
+
+**Goal**: Track site-specific trends and yield
+
+**Solution**: Enable site breakdown, compare yield percentages per site
+
+**Result**: Pareto analysis shows Site 2 fails predominantly on VDD test → investigate contact issues
+
+#### Use Case 3: Characterization Data (No Sites)
+
+**Scenario**: Engineering characterization STDF without multi-site setup
+
+**Goal**: Normal CPK analysis
+
+**Solution**: System detects no SITE_NUM, skips site breakdown automatically
+
+**Result**: Classic aggregated output, no prompts, no overhead
 
 ---
 
@@ -591,6 +907,7 @@ Device 5: opt_flg=0x40, LO_LIMIT=None → Limit: None ✅ (explicit clear)
 
 ---
 
-**Last Updated**: 2025-10-11
+**Last Updated**: 2025-10-19
 **Specification Version**: STDF V4-2007
 **Implementation Version**: cpkanalysis 1.0+
+**New in this version**: Per-site aggregation support (Section 7)

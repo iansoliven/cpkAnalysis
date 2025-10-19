@@ -72,19 +72,22 @@ python -m cpkanalysis.cli run Sample/lot2.stdf --postprocess
 - **Comprehensive flag filtering**: PARM_FLG, TEST_FLG, OPT_FLAG validation
 - **Dual-layer processing**: Complete test catalog + validated measurements
 - **Smart limit handling**: Proper OPT_FLAG bits 4/5/6/7 semantics
+- **Site data preservation**: SITE_NUM extraction for multi-site test systems
 - Preserves device context, timestamps, and measurement indices
 
 ### 📊 **Statistical Analysis**
 - **CPK metrics**: CPL, CPU, CPK with configurable limits
-- **Yield loss calculations**: Percentage out-of-spec
+- **Per-site aggregation**: Optional site-by-site statistics for multi-site test heads
+- **Yield loss calculations**: Percentage out-of-spec (overall + per-site)
 - **Robust statistics**: 3xIQR alternatives using median
 - **Limit precedence**: What-If > Spec > STDF priority
-- **Outlier filtering**: Optional IQR or σ-based methods
+- **Outlier filtering**: Optional IQR or σ-based methods (site-aware grouping)
 
 ### 📈 **Chart Generation**
-- **Histograms** with Freedman-Diaconis binning
+- **Histograms** with Freedman-Diaconis binning (overall + per-site)
 - **Cumulative Distribution Functions** (CDF)
 - **Time-series plots** with device sequence
+- **Side-by-side layout**: Per-site plots appended horizontally
 - Adaptive axis bounds with limit markers
 - Multiple limit visualization (STDF, Spec, What-If, Proposed)
 
@@ -208,15 +211,101 @@ Generates a `Yield and Pareto` sheet with file-level yield summaries, per-test P
 
 ### Per-Site Aggregation *(optional)*
 
+Modern semiconductor testers use **multi-site test heads** to maximize throughput by testing multiple devices simultaneously. CPK Analysis supports optional **per-site aggregation** to analyze each test site independently.
+
+#### Detection & Prompting
+
 ```bash
-# Force per-site statistics and charts when SITE_NUM is present
+# Automatic detection - prompts if SITE_NUM found
+python -m cpkanalysis.cli run Sample/*.stdf
+
+# Example output:
+# Detecting site support in STDF files...
+# ✓ SITE_NUM data detected (sites: 1, 2, 3, 4)
+# Enable per-site statistics and charts? [y/N]: y
+```
+
+#### Explicit Control
+
+```bash
+# Force enable per-site mode (skip prompt)
 python -m cpkanalysis.cli run Sample/*.stdf --site-breakdown
 
-# Explicitly opt out even if SITE_NUM exists
+# Force disable even if SITE_NUM exists
 python -m cpkanalysis.cli run Sample/*.stdf --no-site-breakdown
 ```
 
-When SITE_NUM records are detected during ingestion you’ll be prompted (CLI & GUI) to include per-site statistics. The workbook reuses the existing sheets, appending site-level plots and tables to the right of the legacy output so nothing is lost. If SITE_NUM data is missing and per-site mode is requested the CLI reports the warning and lets you abort before any processing occurs.
+#### What You Get
+
+**When enabled**, the workbook includes:
+
+1. **Per-Site CPK Statistics**
+   - Independent CPL, CPU, CPK calculations per site
+   - Site column in CPK Report sheet
+   - Clickable hyperlinks to site-specific plots
+
+2. **Per-Site Yield & Pareto**
+   - Yield percentages calculated per (file, site) combination
+   - Pareto analysis showing top failures per site
+   - Horizontal layout: Overall | Site 1 | Site 2 | Site 3...
+
+3. **Per-Site Charts**
+   - Histogram plots for each site (side-by-side with overall)
+   - CDF and time-series plots per site
+   - Consistent axis bounds for easy comparison
+
+4. **Site-Aware Outlier Filtering**
+   - Outliers calculated per site (not globally)
+   - Value might be outlier in site 1 but normal in site 2
+
+#### Layout Design
+
+```
+Excel Workbook Layout (Horizontal Blocks):
+
+┌─────────────────┬─────────────────┬─────────────────┬─────────────────┐
+│  Overall        │  Site 1         │  Site 2         │  Site 3         │
+│  (All Sites)    │                 │                 │                 │
+├─────────────────┼─────────────────┼─────────────────┼─────────────────┤
+│  VDD Test       │  VDD - Site 1   │  VDD - Site 2   │  VDD - Site 3   │
+│  [Histogram]    │  [Histogram]    │  [Histogram]    │  [Histogram]    │
+│  [CDF]          │  [CDF]          │  [CDF]          │  [CDF]          │
+│  [TimeSeries]   │  [TimeSeries]   │  [TimeSeries]   │  [TimeSeries]   │
+└─────────────────┴─────────────────┴─────────────────┴─────────────────┘
+  Columns 1-18      Columns 19-36     Columns 37-54     Columns 55-72
+```
+
+#### Use Cases
+
+**Multi-Site Test Head Comparison**
+- Identify systematic bias in specific test sites
+- Example: Site 3 shows CPK=0.8 while others show CPK=1.3 → calibration issue
+
+**Production Monitoring**
+- Track site-specific yield trends over time
+- Spot equipment degradation in individual sites
+
+**Graceful Degradation**
+- If SITE_NUM data missing, analysis proceeds normally
+- Clear warning if site breakdown requested but unavailable
+- Zero impact when disabled (default behavior unchanged)
+
+#### Metadata Tracking
+
+```json
+{
+  "site_breakdown": {
+    "requested": true,   // User asked for it
+    "available": true,   // SITE_NUM found in data
+    "generated": true    // Output includes per-site stats
+  },
+  "site_summary": { "rows": 42 },
+  "site_yield_summary": { "rows": 6 },
+  "site_pareto_summary": { "rows": 18 }
+}
+```
+
+**See also:** [docs/STDF_INGESTION.md](docs/STDF_INGESTION.md#site-data-handling) for technical details
 
 ### Output Formatting
 
@@ -706,6 +795,42 @@ All code contributions **must include tests**. See [CONTRIBUTING.md](CONTRIBUTIN
 
 ## 🎉 Recent Improvements
 
+### ✨ NEW: Per-Site Aggregation (2025-10-19)
+
+**Optional multi-site test head analysis for production monitoring**
+
+#### Features Added
+- **Site data preservation**: SITE_NUM extracted from PIR records during ingestion
+- **Automatic detection**: Probes STDF files (first 500 records) to check for site data
+- **User control**: CLI flags `--site-breakdown` / `--no-site-breakdown` or interactive prompt
+- **Site-aware statistics**: Independent CPK/yield/Pareto calculations per test site
+- **Site-aware outlier filtering**: Outliers calculated per (file, site, test) group
+- **Horizontal layout**: Per-site plots and tables appended right of overall data
+- **Metadata tracking**: JSON captures requested vs. available vs. generated state
+
+#### Benefits
+✅ **Multi-site test head comparison**: Identify systematic bias in specific sites
+✅ **Equipment monitoring**: Track site-specific yield trends and degradation
+✅ **Backward compatible**: Disabled by default, zero impact when off
+✅ **Graceful degradation**: Clear warnings when unavailable
+✅ **Non-destructive**: Overall stats preserved, site data appended
+
+#### Example Output
+```
+CPK Report:
+  Overall: VDD CPK=1.2 (all sites combined)
+  Site 1:  VDD CPK=1.3 ✓
+  Site 2:  VDD CPK=1.4 ✓
+  Site 3:  VDD CPK=0.8 ⚠ ← Equipment calibration issue detected!
+  Site 4:  VDD CPK=1.3 ✓
+```
+
+**Documentation**: See [docs/STDF_INGESTION.md#site-data-handling](docs/STDF_INGESTION.md#site-data-handling)
+
+**Tests**: 19 new tests covering detection, statistics, layout, and integration
+
+---
+
 ### ⚠️ Critical Fix: STDF OPT_FLAG Bits 4 & 5 (2025-10-11)
 
 **Fixed critical data loss affecting ~80% of production STDF files**
@@ -837,6 +962,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 **Made with ❤️ for semiconductor test engineers**
 
-*Last updated: 2025-10-18*
+*Last updated: 2025-10-19*
 
 
