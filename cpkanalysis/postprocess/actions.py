@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
@@ -20,6 +21,8 @@ __all__ = [
     "apply_spec_limits",
     "calculate_proposed_limits",
 ]
+
+PROPOSAL_TOLERANCE = 1e-6
 
 
 class ActionCancelled(RuntimeError):
@@ -223,6 +226,29 @@ def _first_not_none(*values):
         if value is not None:
             return value
     return None
+
+
+# ---------------------------------------------------------------------------
+# Proposed limit helpers
+# ---------------------------------------------------------------------------
+
+
+def _almost_equal(a: float | None, b: float | None) -> bool:
+    if a is None or b is None:
+        return False
+    return abs(a - b) <= PROPOSAL_TOLERANCE
+
+
+def _ensure_proposal_state(metadata: Dict[str, object]) -> Dict[str, Dict[str, float | None]]:
+    state = metadata.setdefault("post_processing_state", {})
+    if not isinstance(state, dict):
+        state = {}
+        metadata["post_processing_state"] = state
+    proposals = state.setdefault("proposed_limits", {})
+    if not isinstance(proposals, dict):
+        proposals = {}
+        state["proposed_limits"] = proposals
+    return proposals
 
 
 # ---------------------------------------------------------------------------
@@ -502,9 +528,23 @@ def calculate_proposed_limits(context: PostProcessContext, io: PostProcessIO, pa
     summary_df = context.summary_frame()
     summary_lookup = _summaries_by_key(summary_df)
     measurements_df = context.measurements_frame()
+    metadata_proposals = _ensure_proposal_state(context.metadata)
+    timestamp = datetime.now(timezone.utc).isoformat()
 
     warnings: List[str] = []
     updated_tests: List[TestDescriptor] = []
+    metrics_updates = 0
+    audit_details: List[dict] = []
+    mark_dirty = False
+
+    def _read_first(rows: List[int], column: int | None) -> float | None:
+        if column is None:
+            return None
+        for row_idx in rows:
+            value = _safe_float(sheet_utils.get_cell(template_ws, row_idx, column))
+            if value is not None:
+                return value
+        return None
 
     for descriptor in selected_tests:
         row = summary_lookup.get(descriptor.key())
@@ -514,22 +554,9 @@ def calculate_proposed_limits(context: PostProcessContext, io: PostProcessIO, pa
 
         mean = _safe_float(row.get("MEAN"))
         stdev = _safe_float(row.get("STDEV"))
-        if mean is None or stdev is None or stdev <= 0:
-            _warn_if_missing(io, warnings, f"Cannot compute proposals for {descriptor.label()} – invalid stats.")
-            continue
-
-        width = 3.0 * target_cpk * stdev
-        proposed_ll = mean - width
-        proposed_ul = mean + width
-
-        # Determine yield loss using measurement data
-        failures = _compute_yield_loss(
-            measurements_df,
-            descriptor.test_name,
-            descriptor.test_number,
-            proposed_ll,
-            proposed_ul,
-        )
+        width = None
+        if mean is not None and stdev is not None and stdev > 0:
+            width = 3.0 * target_cpk * stdev
 
         template_rows = sheet_utils.find_rows_by_test(
             template_ws,
@@ -542,30 +569,150 @@ def calculate_proposed_limits(context: PostProcessContext, io: PostProcessIO, pa
             _warn_if_missing(io, warnings, f"Template row not found for {descriptor.label()} – skipping.")
             continue
 
+        prior_entry = metadata_proposals.get(descriptor.key(), {})
+        prev_lower = _safe_float(prior_entry.get("ll")) if isinstance(prior_entry, dict) else None
+        prev_upper = _safe_float(prior_entry.get("ul")) if isinstance(prior_entry, dict) else None
+
+        existing_lower = _read_first(template_rows, ll_prop_col)
+        existing_upper = _read_first(template_rows, ul_prop_col)
+        current_cpk = _read_first(template_rows, cpk_prop_col)
+        current_yield = _read_first(template_rows, yld_prop_col)
+
+        lower_origin = "unchanged"
+        upper_origin = "unchanged"
+        proposal_changed = False
+
+        final_lower = existing_lower
+        if existing_lower is not None:
+            if prev_lower is None or not _almost_equal(existing_lower, prev_lower):
+                lower_origin = "user"
+                proposal_changed = True
+        else:
+            if width is None or mean is None:
+                _warn_if_missing(io, warnings, f"Cannot compute lower proposal for {descriptor.label()} – missing stats.")
+            else:
+                final_lower = mean - width
+                lower_origin = "computed"
+                proposal_changed = True
+
+        final_upper = existing_upper
+        if existing_upper is not None:
+            if prev_upper is None or not _almost_equal(existing_upper, prev_upper):
+                upper_origin = "user"
+                proposal_changed = True
+        else:
+            if width is None or mean is None:
+                _warn_if_missing(io, warnings, f"Cannot compute upper proposal for {descriptor.label()} – missing stats.")
+            else:
+                final_upper = mean + width
+                upper_origin = "computed"
+                proposal_changed = True
+
+        if final_lower is None and final_upper is None:
+            _warn_if_missing(io, warnings, f"No proposed limits determined for {descriptor.label()} – skipping.")
+            continue
+
+        metrics_blank = current_cpk is None or current_yield is None
+        if not proposal_changed and not metrics_blank:
+            continue
+
         for row_idx in template_rows:
-            sheet_utils.set_cell(template_ws, row_idx, ll_prop_col, proposed_ll)
-            sheet_utils.set_cell(template_ws, row_idx, ul_prop_col, proposed_ul)
-            sheet_utils.set_cell(template_ws, row_idx, cpk_prop_col, target_cpk)
-            sheet_utils.set_cell(template_ws, row_idx, yld_prop_col, failures)
+            if final_lower is not None and lower_origin in {"user", "computed"}:
+                sheet_utils.set_cell(template_ws, row_idx, ll_prop_col, final_lower)
+                mark_dirty = True
+            if final_upper is not None and upper_origin in {"user", "computed"}:
+                sheet_utils.set_cell(template_ws, row_idx, ul_prop_col, final_upper)
+                mark_dirty = True
+
+        cpk_updated = False
+        yield_updated = False
+
+        if proposal_changed or current_cpk is None:
+            if stdev is None or stdev <= 0 or mean is None:
+                _warn_if_missing(io, warnings, f"Cannot compute CPK for {descriptor.label()} – missing stats.")
+            else:
+                candidates: List[float] = []
+                if final_upper is not None:
+                    candidates.append((final_upper - mean) / (3.0 * stdev))
+                if final_lower is not None:
+                    candidates.append((mean - final_lower) / (3.0 * stdev))
+                new_cpk_value = min(candidates) if candidates else None
+                if new_cpk_value is not None and not np.isfinite(new_cpk_value):
+                    new_cpk_value = None
+                if new_cpk_value is not None:
+                    if current_cpk is None or not _almost_equal(new_cpk_value, current_cpk):
+                        for row_idx in template_rows:
+                            sheet_utils.set_cell(template_ws, row_idx, cpk_prop_col, new_cpk_value)
+                        cpk_updated = True
+                        mark_dirty = True
+                elif current_cpk is None:
+                    pass  # Nothing to write
+
+        if proposal_changed or current_yield is None:
+            if measurements_df.empty:
+                _warn_if_missing(io, warnings, f"No measurements available to compute yield for {descriptor.label()}.")
+            else:
+                new_yield_value = _compute_yield_loss(
+                    measurements_df,
+                    descriptor.test_name,
+                    descriptor.test_number,
+                    final_lower,
+                    final_upper,
+                )
+                if new_yield_value is not None and not np.isfinite(new_yield_value):
+                    new_yield_value = None
+                if new_yield_value is not None:
+                    if current_yield is None or not _almost_equal(new_yield_value, current_yield):
+                        for row_idx in template_rows:
+                            sheet_utils.set_cell(template_ws, row_idx, yld_prop_col, new_yield_value)
+                        yield_updated = True
+                        mark_dirty = True
+                elif current_yield is None:
+                    pass
+
+        test_changed = proposal_changed or cpk_updated or yield_updated
+        if not test_changed:
+            continue
+
+        metadata_proposals[descriptor.key()] = {"ll": final_lower, "ul": final_upper, "timestamp": timestamp}
+        mark_dirty = True
 
         updated_tests.append(descriptor)
+        if cpk_updated or yield_updated:
+            metrics_updates += 1
+        audit_details.append(
+            {
+                "test": descriptor.key(),
+                "lower_origin": lower_origin,
+                "upper_origin": upper_origin,
+                "cpk_updated": cpk_updated,
+                "yield_updated": yield_updated,
+            }
+        )
 
     if not updated_tests:
         raise ActionCancelled("No tests updated.")
 
     charts.refresh_tests(context, updated_tests, include_spec=True, include_proposed=True)
 
-    summary_text = f"Calculated proposed limits for {len(updated_tests)} test(s) with CPK target {target_cpk:.3f}."
+    summary_parts = [f"Updated proposed limits for {len(updated_tests)} test(s)."]
+    if metrics_updates:
+        summary_parts.append(f"Recomputed metrics for {metrics_updates} test(s).")
+    summary_text = " ".join(summary_parts)
+
     return {
         "summary": summary_text,
         "warnings": warnings,
         "audit": {
             "scope": resolved["scope"],
             "tests": _tests_to_strings(updated_tests),
-            "parameters": {"target_cpk": target_cpk},
+            "parameters": {
+                "target_cpk": target_cpk,
+                "per_test": audit_details,
+            },
         },
         "replay_params": resolved,
-        "mark_dirty": True,
+        "mark_dirty": mark_dirty,
     }
 
 

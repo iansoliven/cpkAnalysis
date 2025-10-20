@@ -194,4 +194,201 @@ def test_calculate_proposed_limits_populates_proposal_columns(monkeypatch: pytes
     assert template_ws.cell(row=row_idx, column=cpk_prop).value == pytest.approx(1.0)
     assert template_ws.cell(row=row_idx, column=yld_prop).value == pytest.approx(2 / 3, rel=1e-3)
 
-    assert result["summary"].startswith("Calculated proposed limits for 1 test(s)")
+    assert result["summary"] == "Updated proposed limits for 1 test(s). Recomputed metrics for 1 test(s)."
+
+    audit_params = result["audit"]["parameters"]
+    assert audit_params["target_cpk"] == pytest.approx(1.0)
+    assert len(audit_params["per_test"]) == 1
+    per_test = audit_params["per_test"][0]
+    assert per_test["lower_origin"] == "computed"
+    assert per_test["upper_origin"] == "computed"
+    assert per_test["cpk_updated"] is True
+    assert per_test["yield_updated"] is True
+
+    proposal_state = context.metadata["post_processing_state"]["proposed_limits"]
+    entry = proposal_state["lot1|TestA|1"]
+    assert entry["ll"] == pytest.approx(expected_ll)
+    assert entry["ul"] == pytest.approx(expected_ul)
+
+
+def test_calculate_proposed_limits_respects_user_proposals(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+    )
+
+    descriptor_key = "lot1|TestA|1"
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    ll_prop = headers[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop = headers[sheet_utils.normalize_header("UL_PROP")]
+    cpk_prop = headers[sheet_utils.normalize_header("CPK_PROP")]
+    yld_prop = headers[sheet_utils.normalize_header("%YLD LOSS_PROP")]
+    data_row = header_row + 1
+
+    user_lower = 0.5
+    user_upper = 1.6
+    template_ws.cell(row=data_row, column=ll_prop, value=user_lower)
+    template_ws.cell(row=data_row, column=ul_prop, value=user_upper)
+    template_ws.cell(row=data_row, column=cpk_prop, value=None)
+    template_ws.cell(row=data_row, column=yld_prop, value=None)
+
+    context.metadata["post_processing_state"] = {
+        "proposed_limits": {descriptor_key: {"ll": 0.7, "ul": 1.3, "timestamp": "prev"}},
+    }
+
+    result = actions.calculate_proposed_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.2},
+    )
+
+    assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(user_lower)
+    assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(user_upper)
+
+    cpk_value = template_ws.cell(row=data_row, column=cpk_prop).value
+    yld_value = template_ws.cell(row=data_row, column=yld_prop).value
+    assert cpk_value == pytest.approx(0.833333, rel=1e-3)
+    assert yld_value == pytest.approx(2 / 3, rel=1e-3)
+
+    per_test = result["audit"]["parameters"]["per_test"][0]
+    assert per_test["lower_origin"] == "user"
+    assert per_test["upper_origin"] == "user"
+    assert per_test["cpk_updated"] is True
+    assert per_test["yield_updated"] is True
+
+    state = context.metadata["post_processing_state"]["proposed_limits"][descriptor_key]
+    assert state["ll"] == pytest.approx(user_lower)
+    assert state["ul"] == pytest.approx(user_upper)
+
+
+def test_calculate_proposed_limits_computes_blank_side(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+    )
+
+    descriptor_key = "lot1|TestA|1"
+    context.metadata["post_processing_state"] = {
+        "proposed_limits": {descriptor_key: {"ll": 0.4, "ul": 1.5, "timestamp": "prev"}},
+    }
+
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    ll_prop = headers[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop = headers[sheet_utils.normalize_header("UL_PROP")]
+    cpk_prop = headers[sheet_utils.normalize_header("CPK_PROP")]
+    yld_prop = headers[sheet_utils.normalize_header("%YLD LOSS_PROP")]
+    data_row = header_row + 1
+
+    template_ws.cell(row=data_row, column=ll_prop, value=0.4)
+    template_ws.cell(row=data_row, column=ul_prop, value=None)
+    template_ws.cell(row=data_row, column=cpk_prop, value=None)
+    template_ws.cell(row=data_row, column=yld_prop, value=None)
+
+    result = actions.calculate_proposed_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
+    )
+
+    assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(0.4)
+    assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(1.6)
+
+    per_test = result["audit"]["parameters"]["per_test"][0]
+    assert per_test["lower_origin"] == "unchanged"
+    assert per_test["upper_origin"] == "computed"
+
+
+def test_calculate_proposed_limits_skips_when_no_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+    )
+
+    descriptor_key = "lot1|TestA|1"
+    context.metadata["post_processing_state"] = {
+        "proposed_limits": {descriptor_key: {"ll": 0.7, "ul": 1.3, "timestamp": "prev"}},
+    }
+
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    ll_prop = headers[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop = headers[sheet_utils.normalize_header("UL_PROP")]
+    cpk_prop = headers[sheet_utils.normalize_header("CPK_PROP")]
+    yld_prop = headers[sheet_utils.normalize_header("%YLD LOSS_PROP")]
+    data_row = header_row + 1
+    template_ws.cell(row=data_row, column=ll_prop, value=0.7)
+    template_ws.cell(row=data_row, column=ul_prop, value=1.3)
+    template_ws.cell(row=data_row, column=cpk_prop, value=0.9)
+    template_ws.cell(row=data_row, column=yld_prop, value=0.05)
+
+    with pytest.raises(actions.ActionCancelled, match="No tests updated."):
+        actions.calculate_proposed_limits(
+            context,
+            io,
+            {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
+        )
+
+
+def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+    )
+
+    descriptor_key = "lot1|TestA|1"
+    context.metadata["post_processing_state"] = {
+        "proposed_limits": {descriptor_key: {"ll": 0.7, "ul": 1.3, "timestamp": "prev"}},
+    }
+
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    ll_prop = headers[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop = headers[sheet_utils.normalize_header("UL_PROP")]
+    cpk_prop = headers[sheet_utils.normalize_header("CPK_PROP")]
+    yld_prop = headers[sheet_utils.normalize_header("%YLD LOSS_PROP")]
+    data_row = header_row + 1
+    template_ws.cell(row=data_row, column=ll_prop, value=0.7)
+    template_ws.cell(row=data_row, column=ul_prop, value=1.3)
+    template_ws.cell(row=data_row, column=cpk_prop, value=None)
+    template_ws.cell(row=data_row, column=yld_prop, value=None)
+
+    result = actions.calculate_proposed_limits(
+        context,
+        io,
+        {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
+    )
+
+    assert template_ws.cell(row=data_row, column=cpk_prop).value == pytest.approx(0.5)
+    assert template_ws.cell(row=data_row, column=yld_prop).value == pytest.approx(2 / 3, rel=1e-3)
+
+    per_test = result["audit"]["parameters"]["per_test"][0]
+    assert per_test["lower_origin"] == "unchanged"
+    assert per_test["upper_origin"] == "unchanged"
+    assert per_test["cpk_updated"] is True
+    assert per_test["yield_updated"] is True
