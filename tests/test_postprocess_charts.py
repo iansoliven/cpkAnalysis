@@ -6,6 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
+import types
 from openpyxl import Workbook
 
 from cpkanalysis import postprocess
@@ -239,3 +241,82 @@ def test_refresh_tests_partial_update_preserves_other_charts(tmp_path: Path) -> 
     axis_after = _read_axis_sheet(workbook)
     assert axis_after.keys() == axis_before.keys()
     assert axis_after[("lot1", "TestB", "2")] == axis_before[("lot1", "TestB", "2")]
+
+
+def test_refresh_tests_subset_on_virgin_metadata_triggers_full_refresh(monkeypatch, tmp_path: Path) -> None:
+    workbook_path, metadata_path, analysis_inputs = _build_two_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+
+    # Initial full refresh to build the chart sheets, then drop metadata to emulate
+    # a workbook produced by the pipeline where chart positions were never recorded.
+    charts.refresh_tests(context, [])
+    context.metadata.pop("post_processing_state", None)
+
+    descriptor = actions.TestDescriptor(
+        file="lot1",
+        test_name="TestB",
+        test_number="2",
+        unit="V",
+        mean=2.0,
+        stdev=0.2,
+        cpk=1.5,
+    )
+
+    call_counter = {"count": 0}
+    original = charts._refresh_all_tests
+
+    def _wrapper(*args, **kwargs):
+        call_counter["count"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(charts, "_refresh_all_tests", _wrapper)
+
+    charts.refresh_tests(context, [descriptor], include_spec=True, include_proposed=True)
+
+    assert call_counter["count"] == 1
+
+    workbook = context.workbook()
+    hist_sheet = workbook[_safe_sheet_name("Histogram_lot1")]
+    assert len(hist_sheet._images) == 2
+
+    chart_state = context.metadata.get("post_processing_state", {}).get("chart_positions", {})
+    hist_positions = chart_state.get("Histogram", {}).get("lot1", {})
+    assert hist_positions["lot1|TestA|1"] == 0
+    assert hist_positions["lot1|TestB|2"] == 1
+
+
+def test_refresh_tests_handles_empty_measurements_subset(monkeypatch, tmp_path: Path) -> None:
+    workbook_path, metadata_path, analysis_inputs = _build_two_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+
+    charts.refresh_tests(context, [])
+    workbook = context.workbook()
+    axis_before = charts._load_axis_ranges(workbook)
+
+    descriptor = actions.TestDescriptor(
+        file="lot1",
+        test_name="TestA",
+        test_number="1",
+        unit="V",
+        mean=1.0,
+        stdev=0.1,
+        cpk=1.5,
+    )
+
+    def _empty_measurements(self, *, refresh: bool = False):
+        return pd.DataFrame(columns=["File", "Test Name", "Test Number", "Value"])
+
+    monkeypatch.setattr(context, "measurements_frame", types.MethodType(_empty_measurements, context))
+
+    charts.refresh_tests(context, [descriptor], include_spec=True, include_proposed=True)
+
+    axis_after = charts._load_axis_ranges(context.workbook())
+    assert axis_after == axis_before

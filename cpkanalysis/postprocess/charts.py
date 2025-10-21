@@ -91,6 +91,35 @@ def _get_plot_sheet(workbook, file_key: str, prefix: str):
     return sheet
 
 
+def _has_existing_charts(workbook, file_key: str) -> bool:
+    for prefix in CHART_PREFIXES:
+        sheet_name = _safe_sheet_name(f"{prefix}_{file_key}")
+        if sheet_name in workbook.sheetnames:
+            sheet = workbook[sheet_name]
+            images = getattr(sheet, "_images", None)
+            if images:
+                return True
+    return False
+
+
+def _requires_full_refresh(chart_state: Dict[str, Any], workbook, target_keys: Set[Tuple[str, str, str]]) -> bool:
+    order_map = chart_state.get("_order") or {}
+    axis_cache: Dict[Tuple[str, str, str], Dict[str, float | None]] | None = None
+    for file_key, _, _ in target_keys:
+        file_order = order_map.get(file_key) or {}
+        if file_order:
+            continue
+        if _has_existing_charts(workbook, file_key):
+            return True
+        if axis_cache is None:
+            axis_cache = _load_axis_ranges(workbook)
+        if axis_cache:
+            for axis_key in axis_cache:
+                if axis_key[0] == file_key:
+                    return True
+    return False
+
+
 def _load_axis_ranges(workbook) -> Dict[Tuple[str, str, str], Dict[str, float | None]]:
     if AXIS_META_SHEET not in workbook.sheetnames:
         return {}
@@ -183,17 +212,29 @@ def refresh_tests(
             chart_state,
         )
     else:
-        _refresh_subset_tests(
-            context,
-            workbook,
-            summary_lookup,
-            measurements_df,
-            limit_lookup,
-            include_spec,
-            include_proposed,
-            chart_state,
-            target_keys,
-        )
+        if _requires_full_refresh(chart_state, workbook, target_keys):
+            _refresh_all_tests(
+                context,
+                workbook,
+                summary_lookup,
+                measurements_df,
+                limit_lookup,
+                include_spec,
+                include_proposed,
+                chart_state,
+            )
+        else:
+            _refresh_subset_tests(
+                context,
+                workbook,
+                summary_lookup,
+                measurements_df,
+                limit_lookup,
+                include_spec,
+                include_proposed,
+                chart_state,
+                target_keys,
+            )
 
     context.invalidate_frames("measurements")
 

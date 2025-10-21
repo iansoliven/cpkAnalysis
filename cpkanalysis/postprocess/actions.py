@@ -753,8 +753,10 @@ def _compute_yield_loss(
     if values.empty:
         return float("nan")
 
-    # Filter out Inf/-Inf values (dropna() only removes NaN)
-    # Inf values should not be counted as failures - they represent edge cases
+    # Filter out Inf/-Inf values (dropna() only removes NaN).
+    # Rationale: ±Inf typically indicates instrumentation artefacts (saturation,
+    # divide-by-zero, etc.) rather than true out-of-spec parts, so counting them
+    # as failures would distort the yield metric.
     finite_values = values[np.isfinite(values)]
     if finite_values.empty:
         return float("nan")
