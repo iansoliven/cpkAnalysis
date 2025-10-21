@@ -1590,14 +1590,25 @@ def _place_image(
     *,
     label_column: int = 1,
     image_column: int = IMAGE_ANCHOR_COLUMN,
+    position: int | None = None,
+    anchor_cell: str | None = None,
 ) -> str:
     sheet.cell(row=anchor_row, column=label_column, value=label)
     image_stream = BytesIO(image_bytes)
     img = XLImage(image_stream)
     img.width = IMAGE_WIDTH
     img.height = IMAGE_HEIGHT
-    target_cell = f"{get_column_letter(image_column)}{anchor_row}"
-    sheet.add_image(img, target_cell)
+    target_cell = anchor_cell or f"{get_column_letter(image_column)}{anchor_row}"
+    img.anchor = target_cell
+    if position is None:
+        sheet.add_image(img, target_cell)
+    else:
+        if position < 0:
+            position = 0
+        if position >= len(sheet._images):
+            sheet._images.append(img)
+        else:
+            sheet._images.insert(position, img)
     return target_cell
 
 

@@ -126,6 +126,12 @@ EXPECTED_COLUMNS = [
     "part_status",
 ]
 
+STRING_ONLY_COLUMNS = [
+    "stdf_result_format",
+    "stdf_lower_format",
+    "stdf_upper_format",
+]
+
 # STDF flag constants
 RESULT_INVALID = 0x04  # PARM_FLG bit 2: measurement result is invalid
 
@@ -162,50 +168,54 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
     test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
     all_site_descriptions: list[SiteDescription] = []
 
-    for index, source in enumerate(sources, start=1):
-        frame, test_meta, stats, site_configs = _parse_stdf_file(source, index)
-        if not frame.empty:
-            all_frames.append(frame)
-            table = pa.Table.from_pandas(frame, preserve_index=False)
-            if parquet_writer is None:
-                parquet_schema = table.schema
-                parquet_writer = pq.ParquetWriter(raw_store_path, parquet_schema, compression="snappy")
-            parquet_writer.write_table(table)
-        per_file_stats.append(stats)
-        if site_configs:
-            all_site_descriptions.extend(site_configs)
-        for key, info in test_meta.items():
-            existing = test_catalog.get(key)
-            if existing is None:
-                test_catalog[key] = info
-                continue
-            if existing.get("unit") in ("", None) and info.get("unit"):
-                existing["unit"] = info["unit"]
-            existing.setdefault("has_stdf_lower", existing.get("stdf_lower") is not None)
-            existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
-            info_low_flag = info.get("has_stdf_lower")
-            info_high_flag = info.get("has_stdf_upper")
-            # Update limits: allow explicit updates and clears based on has_stdf_* flags
-            # If has_stdf_lower is True, update (even if value is None - explicit clear)
-            # If has_stdf_lower is False and value is None, it's an explicit "no limit"
-            if info_low_flag is True:
-                existing["stdf_lower"] = info["stdf_lower"]
-                existing["has_stdf_lower"] = info["stdf_lower"] is not None
-            elif info_low_flag is False and info.get("stdf_lower") is None:
-                # Explicit "no limit" case
-                existing["stdf_lower"] = None
-                existing["has_stdf_lower"] = False
-            if info_high_flag is True:
-                existing["stdf_upper"] = info["stdf_upper"]
-                existing["has_stdf_upper"] = info["stdf_upper"] is not None
-            elif info_high_flag is False and info.get("stdf_upper") is None:
-                # Explicit "no limit" case
-                existing["stdf_upper"] = None
-                existing["has_stdf_upper"] = False
+    writer_opened = False
+    try:
+        for index, source in enumerate(sources, start=1):
+            frame, test_meta, stats, site_configs = _parse_stdf_file(source, index)
+            if not frame.empty:
+                all_frames.append(frame)
+                table = pa.Table.from_pandas(frame, preserve_index=False)
+                if parquet_writer is None:
+                    parquet_schema = table.schema
+                    parquet_writer = pq.ParquetWriter(raw_store_path, parquet_schema, compression="snappy")
+                    writer_opened = True
+                parquet_writer.write_table(table)
+            per_file_stats.append(stats)
+            if site_configs:
+                all_site_descriptions.extend(site_configs)
+            for key, info in test_meta.items():
+                existing = test_catalog.get(key)
+                if existing is None:
+                    test_catalog[key] = info
+                    continue
+                if existing.get("unit") in ("", None) and info.get("unit"):
+                    existing["unit"] = info["unit"]
+                existing.setdefault("has_stdf_lower", existing.get("stdf_lower") is not None)
+                existing.setdefault("has_stdf_upper", existing.get("stdf_upper") is not None)
+                info_low_flag = info.get("has_stdf_lower")
+                info_high_flag = info.get("has_stdf_upper")
+                # Update limits: allow explicit updates and clears based on has_stdf_* flags
+                # If has_stdf_lower is True, update (even if value is None - explicit clear)
+                # If has_stdf_lower is False and value is None, it's an explicit "no limit"
+                if info_low_flag is True:
+                    existing["stdf_lower"] = info["stdf_lower"]
+                    existing["has_stdf_lower"] = info["stdf_lower"] is not None
+                elif info_low_flag is False and info.get("stdf_lower") is None:
+                    # Explicit "no limit" case
+                    existing["stdf_lower"] = None
+                    existing["has_stdf_lower"] = False
+                if info_high_flag is True:
+                    existing["stdf_upper"] = info["stdf_upper"]
+                    existing["has_stdf_upper"] = info["stdf_upper"] is not None
+                elif info_high_flag is False and info.get("stdf_upper") is None:
+                    # Explicit "no limit" case
+                    existing["stdf_upper"] = None
+                    existing["has_stdf_upper"] = False
+    finally:
+        if parquet_writer is not None:
+            parquet_writer.close()
 
-    if parquet_writer is not None:
-        parquet_writer.close()
-    else:
+    if not writer_opened:
         empty_table = pa.Table.from_pandas(pd.DataFrame(columns=EXPECTED_COLUMNS), preserve_index=False)
         pq.write_table(empty_table, raw_store_path, compression="snappy")
 
@@ -339,8 +349,13 @@ def _parse_stdf_file(
 
     if column_data["file"]:
         frame = pd.DataFrame(column_data, columns=EXPECTED_COLUMNS)
+        for column in STRING_ONLY_COLUMNS:
+            # Cast to pandas' nullable string dtype so Arrow keeps schema stable even when all null.
+            frame[column] = frame[column].astype("string")
     else:
         frame = pd.DataFrame(columns=EXPECTED_COLUMNS)
+        for column in STRING_ONLY_COLUMNS:
+            frame[column] = pd.Series(dtype="string")
     stats = {
         "file": source.file_name,
         "path": str(source.path),

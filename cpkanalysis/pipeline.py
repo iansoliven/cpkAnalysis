@@ -247,7 +247,10 @@ class Pipeline:
                 context = self._run_stage(stage_name, message, handler, context)
             return self._build_result(context)
         finally:
-            _cleanup_session_dir(self._session_dir)
+            if self._config.keep_session:
+                logger.info("Retaining session directory at '%s' per configuration.", self._session_dir)
+            else:
+                _cleanup_session_dir(self._session_dir)
 
     def _run_stage(
         self,
@@ -558,6 +561,8 @@ class Pipeline:
         result = {
             "output": str(context.config.output),
             "metadata": str(context.metadata_path) if context.metadata_path else "",
+            "session_dir": str(context.session_dir),
+            "session_retained": bool(context.config.keep_session),
             "summary_rows": int(len(context.summary)),
             "measurement_rows": int(len(context.filtered_measurements)),
             "outlier_removed": context.outlier_summary.get("removed", 0),
@@ -723,13 +728,18 @@ def _create_session_dir() -> Path:
     return session
 
 
-def _cleanup_session_dir(path: Path) -> None:
-    try:
-        shutil.rmtree(path)
-    except FileNotFoundError:
-        return
-    except OSError as exc:
-        logger.warning("Failed to remove session directory '%s': %s", path, exc)
+def _cleanup_session_dir(path: Path, *, retries: int = 3, delay: float = 0.5) -> None:
+    for attempt in range(retries):
+        try:
+            shutil.rmtree(path)
+            return
+        except FileNotFoundError:
+            return
+        except OSError as exc:
+            if attempt == retries - 1:
+                logger.warning("Failed to remove session directory '%s': %s", path, exc)
+            else:
+                time.sleep(delay * (attempt + 1))
 
 
 class _Spinner:

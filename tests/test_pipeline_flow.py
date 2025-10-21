@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -738,3 +739,127 @@ def test_pipeline_site_breakdown_disabled_skips_site_outputs(monkeypatch: pytest
     assert metadata["site_breakdown"] == {"requested": False, "available": True, "generated": False}
     assert metadata["analysis_options"]["enable_site_breakdown"] is False
     assert metadata["warnings"] == []
+
+
+def test_pipeline_respects_keep_session_flag(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    session_dir = tmp_path / "session_keep"
+    session_dir.mkdir(exist_ok=True)
+
+    monkeypatch.setattr(pipeline, "_create_session_dir", lambda: session_dir)
+
+    cleanup_called = False
+
+    def fake_cleanup(path: Path, **_kwargs: Any) -> None:
+        nonlocal cleanup_called
+        cleanup_called = True
+
+    monkeypatch.setattr(pipeline, "_cleanup_session_dir", fake_cleanup)
+    monkeypatch.setattr(pipeline, "_spinner", lambda message: contextlib.nullcontext())
+
+    raw_measurements = pd.DataFrame(
+        [
+            {
+                "file": "keep.stdf",
+                "file_path": "keep.stdf",
+                "device_id": "D1",
+                "device_sequence": 1,
+                "site": 1,
+                "test_name": "VDD",
+                "test_number": "1",
+                "units": "V",
+                "value": 1.0,
+                "stdf_lower": 0.5,
+                "stdf_upper": 1.5,
+                "stdf_result_format": None,
+                "stdf_lower_format": None,
+                "stdf_upper_format": None,
+                "stdf_result_scale": None,
+                "stdf_lower_scale": None,
+                "stdf_upper_scale": None,
+                "timestamp": 0.0,
+                "measurement_index": 1,
+                "part_status": "PASS",
+            }
+        ]
+    )
+    filtered_measurements = raw_measurements.copy()
+    test_catalog = pd.DataFrame(
+        [
+            {
+                "test_name": "VDD",
+                "test_number": "1",
+                "unit": "V",
+                "stdf_lower": 0.5,
+                "stdf_upper": 1.5,
+                "spec_lower": None,
+                "spec_upper": None,
+                "what_if_lower": None,
+                "what_if_upper": None,
+            }
+        ]
+    )
+    raw_store_path = tmp_path / "raw_keep.parquet"
+    raw_store_path.write_bytes(b"parquet")
+
+    ingest_result = IngestResult(
+        frame=raw_measurements,
+        test_catalog=test_catalog,
+        per_file_stats=[{"file": "keep.stdf", "measurement_count": 1}],
+        raw_store_path=raw_store_path,
+    )
+
+    monkeypatch.setattr(pipeline.ingest, "ingest_sources", lambda sources, temp_dir: ingest_result)
+    monkeypatch.setattr(
+        outliers,
+        "apply_outlier_filter",
+        lambda frame, method, k, **kwargs: (filtered_measurements, {"removed": 0}),
+    )
+    summary_df = pd.DataFrame(
+        [
+            {
+                "File": "keep.stdf",
+                "Test Name": "VDD",
+                "Test Number": "1",
+                "Unit": "V",
+                "COUNT": 1,
+                "MEAN": 1.0,
+                "STDEV": 0.0,
+            }
+        ]
+    )
+    limit_sources = {("keep.stdf", "VDD", "1"): {"lower": "STDF", "upper": "STDF"}}
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_summary",
+        lambda measurements, limits: (summary_df, limit_sources),
+    )
+    monkeypatch.setattr(
+        pd.DataFrame,
+        "to_parquet",
+        lambda self, path, *args, **kwargs: Path(path).write_bytes(b"parquet"),
+    )
+    monkeypatch.setattr(workbook_builder, "build_workbook", lambda **kwargs: Workbook())
+
+    source = _make_source(tmp_path, "keep.stdf")
+    config = AnalysisInputs(
+        sources=[source],
+        output=tmp_path / "keep_session.xlsx",
+        generate_yield_pareto=False,
+        enable_site_breakdown=False,
+        keep_session=True,
+    )
+
+    result = pipeline.Pipeline(config, registry=None).run()
+
+    assert cleanup_called is False
+    assert result["session_retained"] is True
+    assert Path(result["session_dir"]) == session_dir
+    assert session_dir.exists()
+
+    metadata_path = config.output.with_suffix(".json")
+    if metadata_path.exists():
+        metadata_path.unlink()
+    if config.output.exists():
+        config.output.unlink()
+    if session_dir.exists():
+        shutil.rmtree(session_dir)

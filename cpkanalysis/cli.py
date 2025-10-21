@@ -186,6 +186,32 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Launch the post-processing menu after the workbook is generated.",
     )
+    run_parser.add_argument(
+        "--keep-session",
+        action="store_true",
+        help="Retain the temporary session directory for inspection after the run completes.",
+    )
+
+    prune_parser = subparsers.add_parser(
+        "prune-sessions",
+        help="Delete temporary session directories created by previous runs.",
+    )
+    prune_parser.add_argument(
+        "--root",
+        type=Path,
+        default=Path("temp"),
+        help="Root directory containing session folders (default: ./temp).",
+    )
+    prune_parser.add_argument(
+        "--older-than",
+        type=float,
+        help="Prune sessions older than the specified number of hours (default: remove all sessions).",
+    )
+    prune_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="List sessions that would be removed without deleting them.",
+    )
 
     move_template_parser = subparsers.add_parser(
         "move-template",
@@ -248,6 +274,34 @@ def main(argv: Sequence[str] | None = None) -> int:
             metadata_path=metadata_path,
         )
         postprocess.open_cli_menu(context)
+        return 0
+
+    if args.command == "prune-sessions":
+        from .session_prune import prune_sessions
+
+        root = args.root.expanduser().resolve()
+        if not root.exists():
+            print(f"No session directory found at {root}")
+            return 0
+        removed = prune_sessions(
+            root,
+            older_than_hours=args.older_than,
+            dry_run=args.dry_run,
+        )
+        if args.dry_run:
+            if removed:
+                print("Sessions eligible for removal:")
+                for path in removed:
+                    print(f"  {path}")
+            else:
+                print("No session directories meet the removal criteria.")
+        else:
+            if removed:
+                print("Removed session directories:")
+                for path in removed:
+                    print(f"  {path}")
+            else:
+                print("No session directories were removed.")
         return 0
 
     if args.command == "run":
@@ -368,6 +422,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             histogram_rug=histogram_rug,
             enable_site_breakdown=enable_site_breakdown,
             site_data_status=site_status,
+            keep_session=bool(args.keep_session),
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:

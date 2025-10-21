@@ -142,6 +142,10 @@ def test_ingest_sources_combines_files_and_writes_parquet(monkeypatch: pytest.Mo
     parquet_frame = pd.read_parquet(result.raw_store_path, engine="pyarrow")
     pd.testing.assert_frame_equal(parquet_frame, result.frame)
 
+    for column in ("stdf_result_format", "stdf_lower_format", "stdf_upper_format"):
+        assert pd.api.types.is_string_dtype(result.frame[column].dtype), f"{column} should use string dtype."
+        assert pd.api.types.is_string_dtype(parquet_frame[column].dtype), f"{column} should use string dtype after round-trip."
+
 
 def test_ingest_sources_tracks_indices_and_status(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ingest, "STDFReader", _FakeSTDFReader)

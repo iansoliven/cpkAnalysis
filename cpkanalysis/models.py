@@ -69,6 +69,7 @@ class AnalysisInputs:
     histogram_rug: bool = False
     enable_site_breakdown: bool = False
     site_data_status: SiteDataStatus = "unknown"
+    keep_session: bool = False
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
@@ -100,6 +101,7 @@ class AnalysisInputs:
         self.enable_site_breakdown = bool(self.enable_site_breakdown)
         if self.site_data_status not in ("available", "unavailable", "unknown"):
             self.site_data_status = "unknown"
+        self.keep_session = bool(self.keep_session)
 
 
 @dataclass(frozen=True)
