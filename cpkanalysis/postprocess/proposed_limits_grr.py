@@ -260,9 +260,8 @@ def compute_proposed_limits(
         ("50% GRR", guardband_full / 2.0),
     ]
 
-    selected_label: Optional[str] = None
-    selected_guardband = 0.0
-    selected_cpk: Optional[float] = None
+    best_choice: Optional[Tuple[str, float, float]] = None
+    selected_choice: Optional[Tuple[str, float, float]] = None
 
     for label, guardband in guardbands:
         if guardband <= 0:
@@ -274,17 +273,18 @@ def compute_proposed_limits(
         cpk_value = _calc_cpk(mean, stdev, ft_lower, ft_upper)
         if cpk_value is None:
             continue
-        if cpk_value >= cpk_min or selected_label is None:
-            selected_label = label
-            selected_guardband = guardband
-            selected_cpk = cpk_value
         if cpk_value >= cpk_min:
+            selected_choice = (label, guardband, cpk_value)
             break
+        if best_choice is None or cpk_value > best_choice[2]:
+            best_choice = (label, guardband, cpk_value)
 
-    if selected_label is None:
-        raise ComputationError("Unable to derive guardband from GRR data.")
+    if selected_choice is None:
+        if best_choice is None:
+            raise ComputationError("Unable to derive guardband from GRR data.")
+        selected_choice = best_choice
 
-    guardband = selected_guardband
+    selected_label, guardband, selected_cpk = selected_choice
     spec_lower_prop = float(spec_lower)
     spec_upper_prop = float(spec_upper)
     spec_widened = False
