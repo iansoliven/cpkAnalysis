@@ -255,7 +255,7 @@ def _compute_group_statistics(values: np.ndarray, limit_info: dict[str, Any]) ->
     ll_3iqr = median - 3 * iqr if iqr > 0 else median
     ul_3iqr = median + 3 * iqr if iqr > 0 else median
     robust_sigma = (iqr / 1.349) if iqr > 0 else stdev
-    cpk_3iqr = _compute_cpk(median, robust_sigma, ll_3iqr, ul_3iqr)
+    cpk_3iqr = _compute_cpk(mean, stdev, ll_3iqr, ul_3iqr)
     yield_loss_3iqr = _yield_loss(clean, ll_3iqr, ul_3iqr)
 
     return {
