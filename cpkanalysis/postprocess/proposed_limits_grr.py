@@ -171,7 +171,24 @@ def load_grr_table(path: Path) -> GRRTable:
 
     xls = pd.ExcelFile(candidate)
     sheet_name = "GRR data" if "GRR data" in xls.sheet_names else xls.sheet_names[0]
-    frame = xls.parse(sheet_name)
+    raw = xls.parse(sheet_name, header=None)
+    header_index: Optional[int] = None
+    for idx, row in raw.iterrows():
+        normalized = [_normalize_header(value) for value in row.tolist()]
+        if "test #" in normalized and (
+            "test name" in normalized or "description" in normalized
+        ):
+            header_index = idx
+            break
+
+    if header_index is not None:
+        header_values = raw.iloc[header_index].tolist()
+        frame = raw.iloc[header_index + 1 :].copy()
+        frame.columns = header_values
+    else:
+        frame = raw.copy()
+
+    frame.dropna(how="all", inplace=True)
     if frame.empty:
         raise ValueError(f"GRR sheet '{sheet_name}' is empty.")
 
@@ -180,7 +197,7 @@ def load_grr_table(path: Path) -> GRRTable:
     unit_col = _find_column(frame, ["Unit", "Units"])
     spec_lower_col = _find_column(frame, ["Min Spec", "Min\nSpec", "Spec Min", "Lower Spec", "Spec Lower"])
     spec_upper_col = _find_column(frame, ["Max Spec", "Max\nSpec", "Spec Max", "Upper Spec", "Spec Upper"])
-    grr_col = _find_column(frame, ["Worst R&R", "R&R", "Total R&R"])
+    grr_col = _find_column(frame, ["Worst R&R", "R&R", "Total R&R", "GRR"])
 
     records: List[GRRRecord] = []
     for _, row in frame.iterrows():
