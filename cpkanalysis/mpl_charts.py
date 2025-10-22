@@ -375,7 +375,7 @@ def _finalize_chart(
         )
     if test_label:
         ax.set_title(test_label, fontsize=title_font_size, fontweight="bold")
-    position = cpk_position or (1.02, 0.12)
+    position = cpk_position or (1.02, 0.25)
     cpk_rendered = False
     text_entries: List[Tuple[str, Optional[float]]] = []
     if proposed_cpk is not None and math.isfinite(proposed_cpk):
@@ -406,7 +406,7 @@ def _finalize_chart(
     else:
         position_y_after = position[1]
     if unit_label:
-        unit_y = position_y_after - 0.12 if cpk_rendered else position_y_after
+        unit_y = position_y_after - 0.08 if cpk_rendered else position_y_after
         if unit_y <= 0.0:
             unit_y = 0.02
         ax.text(
