@@ -75,6 +75,7 @@ def test_cpk_report_includes_site_column() -> None:
         site_summary=site_summary,
         site_limit_sources=None,
         site_plot_links={("lotA.stdf", 1, "VDD", "1"): "#'Histogram_lotA.stdf'!B2"},
+        include_site_rows=True,
     )
     sheet = wb["CPK Report"]
     header = [cell.value for cell in sheet[1]]

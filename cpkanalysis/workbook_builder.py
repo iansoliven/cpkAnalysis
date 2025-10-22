@@ -1372,6 +1372,7 @@ def _populate_cpk_report(
     site_summary: Optional[pd.DataFrame] = None,
     site_limit_sources: Optional[dict[tuple[Any, ...], dict[str, str]]] = None,
     site_plot_links: Optional[dict[tuple[str, Any, str, str], str]] = None,
+    include_site_rows: bool = False,
 ) -> None:
     sheet_name = "CPK Report"
     if sheet_name not in workbook.sheetnames:
@@ -1478,7 +1479,7 @@ def _populate_cpk_report(
             else:
                 _set_number_format(cell, general_format)
 
-    if site_summary is not None and not site_summary.empty:
+    if include_site_rows and site_summary is not None and not site_summary.empty:
         for _, row in site_summary.iterrows():
             excel_row_index = ws.max_row + 1
             ws.append([None] * len(header))
