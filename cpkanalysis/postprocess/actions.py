@@ -273,7 +273,7 @@ def _ensure_proposed_spec_columns(
     if yld_col is None:
         raise ActionCancelled("Template sheet missing %YLD LOSS_PROP column required for proposed spec output.")
 
-    start_col = yld_col + 3  # keep two blank columns for readability
+    start_col = yld_col + 5  # keep four blank columns for readability
     headers = [
         ("Proposed Spec Lower", start_col),
         ("Proposed Spec Upper", start_col + 1),
