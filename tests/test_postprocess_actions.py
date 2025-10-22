@@ -176,7 +176,7 @@ def test_calculate_proposed_limits_populates_proposal_columns(monkeypatch: pytes
     monkeypatch.setattr(
         actions.charts,
         "refresh_tests",
-        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+        lambda ctx, tests, **kwargs: None,
     )
 
     result = actions.calculate_proposed_limits(context, io, {"scope": "all", "target_cpk": 1.0})
@@ -224,7 +224,7 @@ def test_calculate_proposed_limits_respects_user_proposals(monkeypatch: pytest.M
     monkeypatch.setattr(
         actions.charts,
         "refresh_tests",
-        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+        lambda ctx, tests, **kwargs: None,
     )
 
     descriptor_key = "lot1|TestA|1"
@@ -281,7 +281,7 @@ def test_calculate_proposed_limits_computes_blank_side(monkeypatch: pytest.Monke
     monkeypatch.setattr(
         actions.charts,
         "refresh_tests",
-        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+        lambda ctx, tests, **kwargs: None,
     )
 
     descriptor_key = "lot1|TestA|1"
@@ -325,7 +325,7 @@ def test_calculate_proposed_limits_skips_when_no_changes(monkeypatch: pytest.Mon
     monkeypatch.setattr(
         actions.charts,
         "refresh_tests",
-        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+        lambda ctx, tests, **kwargs: None,
     )
 
     descriptor_key = "lot1|TestA|1"
@@ -362,7 +362,7 @@ def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: py
     monkeypatch.setattr(
         actions.charts,
         "refresh_tests",
-        lambda ctx, tests, include_spec=True, include_proposed=True: None,
+        lambda ctx, tests, **kwargs: None,
     )
 
     descriptor_key = "lot1|TestA|1"

@@ -1037,8 +1037,8 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         context,
         updated_tests,
         include_spec=True,
-        include_proposed=True,
-        include_proposed_spec=True,
+        include_proposed=False,
+        include_proposed_spec=False,
         build_proposed_sheets=True,
     )
 
