@@ -393,15 +393,6 @@ def _refresh_all_tests(
                 )
                 if value is not None
             )
-        if include_proposed_spec:
-            data_limits.extend(
-                value
-                for value in (
-                    limit_info.proposed_spec_lower,
-                    limit_info.proposed_spec_upper,
-                )
-                if value is not None
-            )
         lower_limit = limit_info.stdf_lower
         upper_limit = limit_info.stdf_upper
 
@@ -485,28 +476,6 @@ def _refresh_all_tests(
             )
             _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
-
-        if build_proposed_sheets:
-            _render_proposed_overlay(
-                context,
-                workbook,
-                file_key,
-                test_key_str,
-                test_label,
-                index,
-                anchor_row,
-                serial_numbers,
-                values,
-                limit_info,
-                axis_min,
-                axis_max,
-                lower_limit,
-                upper_limit,
-                cpk,
-                proposed_cpk,
-                unit_label,
-                chart_state,
-            )
 
         if build_proposed_sheets:
             _render_proposed_overlay(

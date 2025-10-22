@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git log master..completeLimitProposal --pretty=format:\"%h - %s%n%b\" --reverse)",
       "Bash(dir /B \"d:\\AI_GEN\\cpkAnalysis\")",
-      "Bash(find \"d:\\AI_GEN\\cpkAnalysis\" -type f ( -name \"*.py\" -o -name \"*.md\" ) -exec grep -l \"GRR\\|grr\\|Gauge R&R\" {} ;)"
+      "Bash(find \"d:\\AI_GEN\\cpkAnalysis\" -type f ( -name \"*.py\" -o -name \"*.md\" ) -exec grep -l \"GRR\\|grr\\|Gauge R&R\" {} ;)",
+      "Bash(git show HEAD --format=fuller)"
     ],
     "deny": [],
     "ask": []
