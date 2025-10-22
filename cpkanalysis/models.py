@@ -70,6 +70,7 @@ class AnalysisInputs:
     enable_site_breakdown: bool = False
     site_data_status: SiteDataStatus = "unknown"
     keep_session: bool = False
+    include_site_rows_in_cpk: bool = False
 
     def __post_init__(self) -> None:
         self.output = self.output.expanduser().resolve()
@@ -102,6 +103,7 @@ class AnalysisInputs:
         if self.site_data_status not in ("available", "unavailable", "unknown"):
             self.site_data_status = "unknown"
         self.keep_session = bool(self.keep_session)
+        self.include_site_rows_in_cpk = bool(self.include_site_rows_in_cpk)
 
 
 @dataclass(frozen=True)

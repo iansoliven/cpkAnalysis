@@ -318,6 +318,7 @@ def build_workbook(
     site_yield_summary: Optional[pd.DataFrame] = None,
     site_pareto_summary: Optional[pd.DataFrame] = None,
     site_enabled: bool = False,
+    include_site_rows: bool = False,
     fallback_decimals: Optional[int] = None,
     temp_dir: Path,
     timing_collector: Optional[dict[str, float]] = None,
@@ -363,6 +364,7 @@ def build_workbook(
             site_summary=site_summary if site_enabled else None,
             site_limit_sources=site_limit_sources if site_enabled else None,
             site_plot_links=site_plot_links if site_enabled else None,
+            include_site_rows=include_site_rows and site_enabled,
         )
 
         if include_yield_pareto:

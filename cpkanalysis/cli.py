@@ -191,6 +191,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Retain the temporary session directory for inspection after the run completes.",
     )
+    run_parser.add_argument(
+        "--cpk-include-site-rows",
+        action="store_true",
+        help="Include per-site rows in the CPK Report when site breakdown data is available.",
+    )
+    run_parser.add_argument(
+        "--no-cpk-include-site-rows",
+        action="store_true",
+        help="Omit per-site rows from the CPK Report (default behavior).",
+    )
 
     prune_parser = subparsers.add_parser(
         "prune-sessions",
@@ -406,6 +416,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise SystemExit("Aborted: per-site aggregation requested but SITE_NUM data is unavailable.")
             enable_site_breakdown = False
 
+        if args.cpk_include_site_rows and args.no_cpk_include_site_rows:
+            parser.error("--cpk-include-site-rows and --no-cpk-include-site-rows cannot be used together.")
+
+        include_site_rows = False
+        if args.cpk_include_site_rows:
+            if enable_site_breakdown:
+                include_site_rows = True
+            else:
+                print("Warning: --cpk-include-site-rows ignored because per-site aggregation is disabled.")
+        elif args.no_cpk_include_site_rows:
+            include_site_rows = False
+
         config = AnalysisInputs(
             sources=sources,
             output=output_path,
@@ -423,6 +445,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             enable_site_breakdown=enable_site_breakdown,
             site_data_status=site_status,
             keep_session=bool(args.keep_session),
+            include_site_rows_in_cpk=include_site_rows,
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:

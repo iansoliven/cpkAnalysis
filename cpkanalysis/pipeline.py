@@ -430,6 +430,7 @@ class Pipeline:
             histogram_rug=context.config.generate_histogram and context.config.histogram_rug,
             workbook_obj=context.workbook_obj,
             defer_save=True,
+            include_site_rows=context.config.include_site_rows_in_cpk,
         )
         if workbook_timings:
             details = dict(context.stage_details)
@@ -571,6 +572,7 @@ class Pipeline:
             "yield_pareto_enabled": context.config.generate_yield_pareto,
             "site_breakdown_requested": context.config.enable_site_breakdown,
             "site_data_available": context.site_data_available,
+            "cpk_site_rows_requested": context.config.include_site_rows_in_cpk,
         }
         result["yield_rows"] = int(len(context.yield_summary)) if context.yield_summary is not None else 0
         result["pareto_rows"] = int(len(context.pareto_summary)) if context.pareto_summary is not None else 0
@@ -583,6 +585,9 @@ class Pipeline:
                 int(len(context.site_pareto_summary)) if context.site_pareto_summary is not None else 0
             )
         result["site_breakdown_generated"] = context.site_summary is not None
+        result["cpk_site_rows_included"] = bool(
+            context.config.include_site_rows_in_cpk and context.site_summary is not None
+        )
         if context.warnings:
             result["warnings"] = list(context.warnings)
         stage_timings = dict(context.stage_timings)
@@ -692,6 +697,7 @@ def _build_metadata(
             "generate_yield_pareto": config.generate_yield_pareto,
             "display_decimals": config.display_decimals,
             "enable_site_breakdown": site_breakdown_requested,
+            "include_site_rows_in_cpk": config.include_site_rows_in_cpk,
         },
         "yield_summary": yield_info,
         "pareto_summary": pareto_info,

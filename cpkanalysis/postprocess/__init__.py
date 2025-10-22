@@ -125,4 +125,6 @@ def _analysis_inputs_from_metadata(workbook_path: Path, metadata: dict) -> Analy
         generate_yield_pareto=_bool_option("generate_yield_pareto", False),
         display_decimals=display_decimals,
         plugins=plugin_configs,
+        enable_site_breakdown=_bool_option("enable_site_breakdown", False),
+        include_site_rows_in_cpk=_bool_option("include_site_rows_in_cpk", False),
     )
