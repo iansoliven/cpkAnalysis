@@ -202,8 +202,6 @@ def _compute_summary_table(
     summary = pd.DataFrame(records, columns=columns + ["_LOWER_SRC", "_UPPER_SRC"])
     if "_LOWER_SRC" in summary.columns:
         summary = summary[columns]
-    sort_keys = ["File", "Site", "Test Name", "Test Number"] if include_site else ["File", "Test Name", "Test Number"]
-    summary.sort_values(by=sort_keys, inplace=True, ignore_index=True)
     return summary, limit_sources
 
 

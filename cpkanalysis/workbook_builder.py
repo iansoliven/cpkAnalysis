@@ -848,11 +848,6 @@ def _prepare_measurements_for_plots(measurements: pd.DataFrame) -> pd.DataFrame:
         measurement_numeric = pd.Series(0.0, index=prepared.index, dtype=float)
     prepared["_measurement_index_numeric"] = measurement_numeric
 
-    prepared.sort_values(
-        ["file", "test_name", "test_number", "_serial_number", "_measurement_index_numeric"],
-        kind="mergesort",
-        inplace=True,
-    )
     return prepared
 
 
