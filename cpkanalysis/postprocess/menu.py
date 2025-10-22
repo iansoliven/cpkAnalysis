@@ -27,6 +27,11 @@ ACTION_DEFINITIONS: Tuple[ActionDefinition, ...] = (
     ActionDefinition("update_stdf_limits", "Update STDF Limits", actions.update_stdf_limits),
     ActionDefinition("apply_spec_limits", "Apply Spec / What-If Limits", actions.apply_spec_limits),
     ActionDefinition("calculate_proposed_limits", "Calculate Proposed Limits", actions.calculate_proposed_limits),
+    ActionDefinition(
+        "calculate_proposed_limits_grr",
+        "Calculate Proposed Limits (GRR)",
+        actions.calculate_proposed_limits_grr,
+    ),
 )
 
 logger = logging.getLogger(__name__)

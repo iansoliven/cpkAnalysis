@@ -108,7 +108,11 @@ def test_apply_spec_limits_updates_template_and_limits(monkeypatch: pytest.Monke
     io = DummyIO()
 
     refreshed: dict[str, pd.DataFrame] = {}
-    monkeypatch.setattr(actions.charts, "refresh_tests", lambda ctx, tests, include_spec=True, include_proposed=False: refreshed.setdefault("tests", list(tests)))
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, **kwargs: refreshed.setdefault("tests", list(tests)),
+    )
 
     params = {"scope": "single", "test_key": "lot1|TestA|1", "target_cpk": 1.0}
     result = actions.apply_spec_limits(context, io, params)

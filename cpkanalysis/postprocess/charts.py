@@ -33,7 +33,9 @@ __all__ = ["refresh_tests"]
 SPEC_COLOR = "#4B6CB7"
 WHAT_IF_COLOR = "#FFA500"
 PROPOSED_COLOR = "#008B8B"
+PROPOSED_SPEC_COLOR = "#20B2AA"
 CHART_PREFIXES = ("Histogram", "CDF", "TimeSeries")
+PROPOSED_CHART_PREFIXES = ("HistogramProposed", "CDFProposed", "TimeSeriesProposed")
 
 
 @dataclass
@@ -46,6 +48,8 @@ class LimitInfo:
     what_upper: float | None = None
     proposed_lower: float | None = None
     proposed_upper: float | None = None
+    proposed_spec_lower: float | None = None
+    proposed_spec_upper: float | None = None
 
 
 def _ensure_chart_state(metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -96,7 +100,7 @@ def _get_plot_sheet(workbook, file_key: str, prefix: str):
 
 
 def _has_existing_charts(workbook, file_key: str) -> bool:
-    for prefix in CHART_PREFIXES:
+    for prefix in CHART_PREFIXES + PROPOSED_CHART_PREFIXES:
         sheet_name = _safe_sheet_name(f"{prefix}_{file_key}")
         if sheet_name in workbook.sheetnames:
             sheet = workbook[sheet_name]
@@ -221,6 +225,8 @@ def refresh_tests(
     *,
     include_spec: bool = False,
     include_proposed: bool = False,
+    include_proposed_spec: bool = False,
+    build_proposed_sheets: bool = False,
 ) -> None:
     """Regenerate plot sheets to reflect updated limits."""
     workbook = context.workbook()
@@ -267,6 +273,8 @@ def refresh_tests(
             limit_lookup,
             include_spec,
             include_proposed,
+            include_proposed_spec,
+            build_proposed_sheets,
             chart_state,
         )
     else:
@@ -279,6 +287,8 @@ def refresh_tests(
                 limit_lookup,
                 include_spec,
                 include_proposed,
+                include_proposed_spec,
+                build_proposed_sheets,
                 chart_state,
             )
         else:
@@ -290,6 +300,8 @@ def refresh_tests(
                 limit_lookup,
                 include_spec,
                 include_proposed,
+                include_proposed_spec,
+                build_proposed_sheets,
                 chart_state,
                 target_keys,
             )
@@ -305,6 +317,8 @@ def _refresh_all_tests(
     limit_lookup: Dict[Tuple[str, str], LimitInfo],
     include_spec: bool,
     include_proposed: bool,
+    include_proposed_spec: bool,
+    build_proposed_sheets: bool,
     chart_state: Dict[str, Any],
 ) -> None:
     _prune_plot_sheets(workbook)
@@ -342,7 +356,12 @@ def _refresh_all_tests(
         values = pd.to_numeric(filtered_group["Value"], errors="coerce").to_numpy()
 
         limit_info = limit_lookup.get((safe_test_name, safe_test_number), LimitInfo())
-        markers = _build_markers(limit_info, include_spec=include_spec, include_proposed=include_proposed)
+        markers = _build_markers(
+            limit_info,
+            include_spec=include_spec,
+            include_proposed=include_proposed,
+            include_proposed_spec=include_proposed_spec,
+        )
 
         data_limits = [m.value for m in markers if m.value is not None]
         if include_spec:
@@ -362,6 +381,24 @@ def _refresh_all_tests(
                 for value in (
                     limit_info.proposed_lower,
                     limit_info.proposed_upper,
+                )
+                if value is not None
+            )
+        if include_proposed_spec:
+            data_limits.extend(
+                value
+                for value in (
+                    limit_info.proposed_spec_lower,
+                    limit_info.proposed_spec_upper,
+                )
+                if value is not None
+            )
+        if include_proposed_spec:
+            data_limits.extend(
+                value
+                for value in (
+                    limit_info.proposed_spec_lower,
+                    limit_info.proposed_spec_upper,
                 )
                 if value is not None
             )
@@ -449,6 +486,50 @@ def _refresh_all_tests(
             _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
+        if build_proposed_sheets:
+            _render_proposed_overlay(
+                context,
+                workbook,
+                file_key,
+                test_key_str,
+                test_label,
+                index,
+                anchor_row,
+                serial_numbers,
+                values,
+                limit_info,
+                axis_min,
+                axis_max,
+                lower_limit,
+                upper_limit,
+                cpk,
+                proposed_cpk,
+                unit_label,
+                chart_state,
+            )
+
+        if build_proposed_sheets:
+            _render_proposed_overlay(
+                context,
+                workbook,
+                file_key,
+                test_key_str,
+                test_label,
+                index,
+                anchor_row,
+                serial_numbers,
+                values,
+                limit_info,
+                axis_min,
+                axis_max,
+                lower_limit,
+                upper_limit,
+                cpk,
+                proposed_cpk,
+                unit_label,
+                chart_state,
+            )
+
         axis_ranges[test_key] = {
             "data_min": _safe_float(data_min),
             "data_max": _safe_float(data_max),
@@ -490,6 +571,8 @@ def _refresh_subset_tests(
     limit_lookup: Dict[Tuple[str, str], LimitInfo],
     include_spec: bool,
     include_proposed: bool,
+    include_proposed_spec: bool,
+    build_proposed_sheets: bool,
     chart_state: Dict[str, Any],
     target_keys: Set[Tuple[str, str, str]],
 ) -> None:
@@ -526,7 +609,12 @@ def _refresh_subset_tests(
         values = pd.to_numeric(filtered_group["Value"], errors="coerce").to_numpy()
 
         limit_info = limit_lookup.get((safe_test_name, safe_test_number), LimitInfo())
-        markers = _build_markers(limit_info, include_spec=include_spec, include_proposed=include_proposed)
+        markers = _build_markers(
+            limit_info,
+            include_spec=include_spec,
+            include_proposed=include_proposed,
+            include_proposed_spec=include_proposed_spec,
+        )
 
         data_limits = [m.value for m in markers if m.value is not None]
         if include_spec:
@@ -632,6 +720,29 @@ def _refresh_subset_tests(
             _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
+        if build_proposed_sheets:
+            _render_proposed_overlay(
+                context,
+                workbook,
+                file_key,
+                test_key_str,
+                test_label,
+                index,
+                anchor_row,
+                serial_numbers,
+                values,
+                limit_info,
+                axis_min,
+                axis_max,
+                lower_limit,
+                upper_limit,
+                cpk,
+                proposed_cpk,
+
+                unit_label,
+                chart_state,
+            )
+
         axis_ranges[test_key] = {
             "data_min": _safe_float(data_min),
             "data_max": _safe_float(data_max),
@@ -665,6 +776,91 @@ def _refresh_subset_tests(
 
     if updated:
         _rewrite_axis_ranges(workbook, axis_ranges)
+
+
+def _render_proposed_overlay(
+    context: PostProcessContext,
+    workbook,
+    file_key: str,
+    test_key: str,
+    test_label: str,
+    index: int,
+    anchor_row: int,
+    serial_numbers: np.ndarray,
+    values: np.ndarray,
+    limit_info: LimitInfo,
+    axis_min: float,
+    axis_max: float,
+    lower_limit: float | None,
+    upper_limit: float | None,
+    cpk: float | None,
+    proposed_cpk: float | None,
+    unit_label: str,
+    chart_state: Dict[str, Any],
+) -> None:
+    markers = _build_markers(
+        limit_info,
+        include_spec=True,
+        include_proposed=True,
+        include_proposed_spec=True,
+    )
+    x_range = (axis_min, axis_max)
+    y_range = (axis_min, axis_max)
+
+    if context.analysis_inputs.generate_histogram:
+        hist_sheet = _get_plot_sheet(workbook, file_key, "HistogramProposed")
+        image_bytes = mpl_charts.render_histogram(
+            values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            x_range=x_range,
+            test_label=test_label,
+            cpk=cpk,
+            proposed_cpk=proposed_cpk,
+            unit_label=unit_label,
+            extra_markers=markers,
+            title_font_size=10,
+            cpk_font_size=8,
+        )
+        _replace_chart_image(hist_sheet, index, anchor_row, test_label, image_bytes)
+        _record_prefix_index(chart_state, "HistogramProposed", file_key, test_key, index)
+
+    if context.analysis_inputs.generate_cdf:
+        cdf_sheet = _get_plot_sheet(workbook, file_key, "CDFProposed")
+        image_bytes = mpl_charts.render_cdf(
+            values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            x_range=x_range,
+            test_label=test_label,
+            cpk=cpk,
+            proposed_cpk=proposed_cpk,
+            unit_label=unit_label,
+            extra_markers=markers,
+            title_font_size=10,
+            cpk_font_size=8,
+        )
+        _replace_chart_image(cdf_sheet, index, anchor_row, test_label, image_bytes)
+        _record_prefix_index(chart_state, "CDFProposed", file_key, test_key, index)
+
+    if context.analysis_inputs.generate_time_series:
+        ts_sheet = _get_plot_sheet(workbook, file_key, "TimeSeriesProposed")
+        image_bytes = mpl_charts.render_time_series(
+            x=serial_numbers,
+            y=values,
+            lower_limit=lower_limit,
+            upper_limit=upper_limit,
+            y_range=y_range,
+            test_label=test_label,
+            cpk=cpk,
+            proposed_cpk=proposed_cpk,
+            unit_label=unit_label,
+            extra_markers=_horizontalised_markers(markers),
+            title_font_size=10,
+            cpk_font_size=8,
+        )
+        _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
+        _record_prefix_index(chart_state, "TimeSeriesProposed", file_key, test_key, index)
 
 
 def _refresh_site_charts(
@@ -915,6 +1111,7 @@ def _build_markers(
     *,
     include_spec: bool,
     include_proposed: bool,
+    include_proposed_spec: bool,
 ) -> List[mpl_charts.ChartMarker]:
     markers: List[mpl_charts.ChartMarker] = []
     if include_spec:
@@ -931,6 +1128,27 @@ def _build_markers(
             markers.append(mpl_charts.ChartMarker("Proposed Lower", info.proposed_lower, "vertical", PROPOSED_COLOR, linestyle="-"))
         if info.proposed_upper is not None:
             markers.append(mpl_charts.ChartMarker("Proposed Upper", info.proposed_upper, "vertical", PROPOSED_COLOR, linestyle="-"))
+    if include_proposed_spec:
+        if info.proposed_spec_lower is not None:
+            markers.append(
+                mpl_charts.ChartMarker(
+                    "Proposed Spec Lower",
+                    info.proposed_spec_lower,
+                    "vertical",
+                    PROPOSED_SPEC_COLOR,
+                    linestyle="--",
+                )
+            )
+        if info.proposed_spec_upper is not None:
+            markers.append(
+                mpl_charts.ChartMarker(
+                    "Proposed Spec Upper",
+                    info.proposed_spec_upper,
+                    "vertical",
+                    PROPOSED_SPEC_COLOR,
+                    linestyle="--",
+                )
+            )
     return markers
 
 

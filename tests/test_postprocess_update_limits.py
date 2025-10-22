@@ -73,7 +73,11 @@ def test_update_stdf_limits_writes_limits(monkeypatch: pytest.MonkeyPatch, tmp_p
     context = PostProcessContext(inputs, workbook_path, metadata_path, metadata={})
     io = DummyIO()
     refreshed: dict[str, list] = {}
-    monkeypatch.setattr(actions.charts, "refresh_tests", lambda ctx, tests, include_spec=True, include_proposed=False: refreshed.setdefault("tests", list(tests)))
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, **kwargs: refreshed.setdefault("tests", list(tests)),
+    )
 
     result = actions.update_stdf_limits(context, io, {"scope": "all"})
 
