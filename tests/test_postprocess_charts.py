@@ -7,14 +7,17 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
+import pytest
 import types
 from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
 
-from cpkanalysis import postprocess
+from cpkanalysis import mpl_charts, postprocess
 from cpkanalysis.models import AnalysisInputs, OutlierOptions
 from cpkanalysis.postprocess import charts, actions
 from cpkanalysis.workbook_builder import (
     AXIS_META_SHEET,
+    IMAGE_ANCHOR_COLUMN,
     MEAS_COLUMNS,
     SUMMARY_COLUMNS,
     TEST_LIMIT_COLUMNS,
@@ -64,15 +67,17 @@ def _build_two_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs
         summary_ws.append([row.get(column, "") for column in SUMMARY_COLUMNS])
 
     measurements_ws = wb.create_sheet("Measurements")
-    measurement_headers = [target for _, target in MEAS_COLUMNS]
+    measurement_headers = [target for _, target in MEAS_COLUMNS] + ["Site"]
     measurements_ws.append(measurement_headers)
     measurement_data = [
-        ("lot1", "device-1", "TestA", "1", 1.05, "V", 1),
-        ("lot1", "device-2", "TestA", "1", 0.95, "V", 2),
-        ("lot1", "device-3", "TestA", "1", 1.10, "V", 3),
-        ("lot1", "device-1", "TestB", "2", 2.05, "V", 1),
-        ("lot1", "device-2", "TestB", "2", 1.95, "V", 2),
-        ("lot1", "device-3", "TestB", "2", 2.08, "V", 3),
+        ("lot1", "device-1", "TestA", "1", 1.05, "V", 1, "A"),
+        ("lot1", "device-2", "TestA", "1", 0.95, "V", 2, "A"),
+        ("lot1", "device-3", "TestA", "1", 1.10, "V", 3, "B"),
+        ("lot1", "device-4", "TestA", "1", 0.90, "V", 4, "B"),
+        ("lot1", "device-1", "TestB", "2", 2.05, "V", 1, "A"),
+        ("lot1", "device-2", "TestB", "2", 1.95, "V", 2, "A"),
+        ("lot1", "device-3", "TestB", "2", 2.08, "V", 3, "B"),
+        ("lot1", "device-4", "TestB", "2", 1.85, "V", 4, "B"),
     ]
     for row in measurement_data:
         measurements_ws.append(row)
@@ -132,8 +137,8 @@ def _build_two_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs
             1.35,
             0.6,
             1.4,
-            "",
-            "",
+            0.75,
+            1.25,
             "",
             "",
         ]
@@ -148,8 +153,8 @@ def _build_two_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs
             2.65,
             1.3,
             2.7,
-            "",
-            "",
+            1.5,
+            2.5,
             "",
             "",
         ]
@@ -163,6 +168,7 @@ def _build_two_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs
                 "template_sheet": "Template",
                 "output": str(workbook_path),
                 "summary_counts": {"rows": 2, "tests": 2},
+                "analysis_options": {"enable_site_breakdown": True},
             },
             indent=2,
         ),
@@ -178,6 +184,7 @@ def _build_two_test_workbook(tmp_path: Path) -> tuple[Path, Path, AnalysisInputs
         generate_histogram=True,
         generate_cdf=True,
         generate_time_series=True,
+        enable_site_breakdown=True,
         plugins=[],
     )
     return workbook_path, metadata_path, analysis_inputs
@@ -196,6 +203,17 @@ def _read_axis_sheet(workbook) -> dict[tuple[str, str, str], tuple[float | None,
     return data
 
 
+def _image_anchors(sheet) -> set[str]:
+    anchors: set[str] = set()
+    for image in getattr(sheet, "_images", []):
+        anchor = getattr(image, "anchor", None)
+        if hasattr(anchor, "ref"):
+            anchors.add(anchor.ref)
+        elif isinstance(anchor, str):
+            anchors.add(anchor)
+    return anchors
+
+
 def test_refresh_tests_partial_update_preserves_other_charts(tmp_path: Path) -> None:
     workbook_path, metadata_path, analysis_inputs = _build_two_test_workbook(tmp_path)
     context = postprocess.create_context(
@@ -210,8 +228,12 @@ def test_refresh_tests_partial_update_preserves_other_charts(tmp_path: Path) -> 
     hist_sheet_name = _safe_sheet_name("Histogram_lot1")
     assert hist_sheet_name in workbook.sheetnames
     histogram_sheet = workbook[hist_sheet_name]
-    assert len(histogram_sheet._images) == 2
-    previous_anchor = histogram_sheet._images[1].anchor
+    anchors_before = _image_anchors(histogram_sheet)
+    base_column_letter = get_column_letter(IMAGE_ANCHOR_COLUMN)
+    anchor_row_b = charts._anchor_row_for_index(1)
+    base_anchor_b = f"{base_column_letter}{anchor_row_b}"
+    assert base_anchor_b in anchors_before
+    # Track anchors rather than relying on image ordering
 
     axis_before = _read_axis_sheet(workbook)
     assert ("lot1", "TestA", "1") in axis_before
@@ -230,8 +252,8 @@ def test_refresh_tests_partial_update_preserves_other_charts(tmp_path: Path) -> 
     charts.refresh_tests(context, [descriptor], include_spec=True, include_proposed=True)
     workbook = context.workbook()
     histogram_sheet = workbook[hist_sheet_name]
-    assert len(histogram_sheet._images) == 2
-    assert histogram_sheet._images[1].anchor == previous_anchor
+    anchors_after = _image_anchors(histogram_sheet)
+    assert base_anchor_b in anchors_after
 
     chart_state = context.metadata.get("post_processing_state", {}).get("chart_positions", {})
     hist_positions = chart_state.get("Histogram", {}).get("lot1", {})
@@ -254,6 +276,13 @@ def test_refresh_tests_subset_on_virgin_metadata_triggers_full_refresh(monkeypat
     # Initial full refresh to build the chart sheets, then drop metadata to emulate
     # a workbook produced by the pipeline where chart positions were never recorded.
     charts.refresh_tests(context, [])
+    hist_sheet_name = _safe_sheet_name("Histogram_lot1")
+    histogram_sheet = context.workbook()[hist_sheet_name]
+    anchors_before = _image_anchors(histogram_sheet)
+    base_column_letter = get_column_letter(IMAGE_ANCHOR_COLUMN)
+    anchor_row_b = charts._anchor_row_for_index(1)
+    base_anchor_b = f"{base_column_letter}{anchor_row_b}"
+    assert base_anchor_b in anchors_before
     context.metadata.pop("post_processing_state", None)
 
     descriptor = actions.TestDescriptor(
@@ -281,7 +310,8 @@ def test_refresh_tests_subset_on_virgin_metadata_triggers_full_refresh(monkeypat
 
     workbook = context.workbook()
     hist_sheet = workbook[_safe_sheet_name("Histogram_lot1")]
-    assert len(hist_sheet._images) == 2
+    anchors_after = _image_anchors(hist_sheet)
+    assert base_anchor_b in anchors_after
 
     chart_state = context.metadata.get("post_processing_state", {}).get("chart_positions", {})
     hist_positions = chart_state.get("Histogram", {}).get("lot1", {})
@@ -320,3 +350,32 @@ def test_refresh_tests_handles_empty_measurements_subset(monkeypatch, tmp_path: 
 
     axis_after = charts._load_axis_ranges(context.workbook())
     assert axis_after == axis_before
+
+
+def test_refresh_tests_renders_proposed_cpk_for_sites(monkeypatch, tmp_path: Path) -> None:
+    workbook_path, metadata_path, analysis_inputs = _build_two_test_workbook(tmp_path)
+    context = postprocess.create_context(
+        workbook_path=workbook_path,
+        metadata_path=metadata_path,
+        analysis_inputs=analysis_inputs,
+    )
+
+    hist_calls: list[tuple[str, float | None]] = []
+    original_hist = mpl_charts.render_histogram
+
+    def _spy_histogram(values, *args, **kwargs):
+        label = kwargs.get("test_label", "")
+        hist_calls.append((label, kwargs.get("proposed_cpk")))
+        return original_hist(values, *args, **kwargs)
+
+    monkeypatch.setattr(mpl_charts, "render_histogram", _spy_histogram)
+
+    charts.refresh_tests(context, [])
+
+    base_entry = next((cpk for label, cpk in hist_calls if label == "TestA (Test 1)"), None)
+    assert base_entry is not None
+    assert base_entry == pytest.approx(0.833333, rel=1e-3)
+
+    site_entries = [cpk for label, cpk in hist_calls if "Site" in label]
+    assert site_entries
+    assert all(cpk is not None for cpk in site_entries)

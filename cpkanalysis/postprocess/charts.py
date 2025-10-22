@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
@@ -16,6 +17,9 @@ from ..workbook_builder import (
     ROW_STRIDE,
     _compute_axis_bounds,
     _ensure_row_height,
+    _ensure_site_block_width,
+    _format_site_label,
+    _normalise_site_value,
     _place_image,
     _safe_sheet_name,
     _remove_axis_tracking_sheet,
@@ -118,6 +122,60 @@ def _requires_full_refresh(chart_state: Dict[str, Any], workbook, target_keys: S
                 if axis_key[0] == file_key:
                     return True
     return False
+
+
+def _ensure_site_state(chart_state: Dict[str, Any]) -> Dict[str, Dict[str, Dict[Any, int]]]:
+    return chart_state.setdefault("sites", {})
+
+
+def _resolve_site_column(frame: pd.DataFrame) -> Optional[str]:
+    for candidate in ("Site", "site"):
+        if candidate in frame.columns:
+            return candidate
+    return None
+
+
+def _remove_image(sheet, anchor_cell: str) -> None:
+    for idx, image in enumerate(list(getattr(sheet, "_images", []))):
+        anchor = getattr(image, "anchor", None)
+        ref = None
+        if hasattr(anchor, "ref"):
+            ref = anchor.ref
+        elif isinstance(anchor, str):
+            ref = anchor
+        if ref == anchor_cell:
+            sheet._images.pop(idx)
+            break
+
+
+def _compute_cpk(mean: float | None, stdev: float | None, lower: float | None, upper: float | None) -> float | None:
+    if mean is None or stdev is None or stdev <= 0:
+        return None
+    candidates: List[float] = []
+    if upper is not None:
+        candidates.append((upper - mean) / (3.0 * stdev))
+    if lower is not None:
+        candidates.append((mean - lower) / (3.0 * stdev))
+    if not candidates:
+        return None
+    result = min(candidates)
+    return float(result) if math.isfinite(result) else None
+
+
+def _dataset_stats(values: np.ndarray) -> tuple[float | None, float | None]:
+    if values.size == 0:
+        return None, None
+    mean = float(np.mean(values))
+    stdev = float(np.std(values, ddof=0))
+    if not math.isfinite(mean):
+        mean = None
+    if not math.isfinite(stdev):
+        stdev = None
+    return mean, stdev
+
+
+def _image_cell(column: int, row: int) -> str:
+    return f"{get_column_letter(column)}{row}"
 
 
 def _load_axis_ranges(workbook) -> Dict[Tuple[str, str, str], Dict[str, float | None]]:
@@ -251,7 +309,10 @@ def _refresh_all_tests(
 ) -> None:
     _prune_plot_sheets(workbook)
     chart_state.clear()
-    order_map: Dict[str, Dict[str, int]] = chart_state.setdefault("_order", {})
+    chart_state["_order"] = {}
+    chart_state["sites"] = {}
+    order_map: Dict[str, Dict[str, int]] = chart_state["_order"]
+    site_state: Dict[str, Dict[str, Dict[Any, int]]] = chart_state["sites"]
     axis_ranges: Dict[Tuple[str, str, str], Dict[str, float | None]] = {}
     next_index: Dict[str, int] = {}
 
@@ -314,9 +375,14 @@ def _refresh_all_tests(
         summary_row = summary_lookup.get(test_key)
         cpk = None
         unit_label = ""
+        mean = None
+        stdev = None
         if summary_row is not None:
             cpk = _safe_float(summary_row.get("CPK"))
             unit_label = _safe_text(summary_row.get("Unit"))
+            mean = _safe_float(summary_row.get("MEAN"))
+            stdev = _safe_float(summary_row.get("STDEV"))
+        proposed_cpk = _compute_cpk(mean, stdev, limit_info.proposed_lower, limit_info.proposed_upper)
 
         test_label = safe_test_name if not safe_test_number else f"{safe_test_name} (Test {safe_test_number})"
         index = next_index.get(file_key, 0)
@@ -325,8 +391,9 @@ def _refresh_all_tests(
         order_map.setdefault(file_key, {})[test_key_str] = index
         anchor_row = _anchor_row_for_index(index)
 
+        hist_sheet = None
         if context.analysis_inputs.generate_histogram:
-            sheet = _get_plot_sheet(workbook, file_key, "Histogram")
+            hist_sheet = _get_plot_sheet(workbook, file_key, "Histogram")
             image_bytes = mpl_charts.render_histogram(
                 values,
                 lower_limit=lower_limit,
@@ -334,16 +401,18 @@ def _refresh_all_tests(
                 x_range=x_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(hist_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "Histogram", file_key, test_key_str, index)
 
+        cdf_sheet = None
         if context.analysis_inputs.generate_cdf:
-            sheet_cdf = _get_plot_sheet(workbook, file_key, "CDF")
+            cdf_sheet = _get_plot_sheet(workbook, file_key, "CDF")
             image_bytes = mpl_charts.render_cdf(
                 values,
                 lower_limit=lower_limit,
@@ -351,16 +420,18 @@ def _refresh_all_tests(
                 x_range=x_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet_cdf, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(cdf_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "CDF", file_key, test_key_str, index)
 
+        ts_sheet = None
         if context.analysis_inputs.generate_time_series:
-            sheet_ts = _get_plot_sheet(workbook, file_key, "TimeSeries")
+            ts_sheet = _get_plot_sheet(workbook, file_key, "TimeSeries")
             image_bytes = mpl_charts.render_time_series(
                 x=serial_numbers,
                 y=values,
@@ -369,12 +440,13 @@ def _refresh_all_tests(
                 y_range=y_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=_horizontalised_markers(markers),
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet_ts, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
         axis_ranges[test_key] = {
@@ -385,6 +457,27 @@ def _refresh_all_tests(
             "axis_min": _safe_float(axis_min),
             "axis_max": _safe_float(axis_max),
         }
+
+        _refresh_site_charts(
+            site_state,
+            workbook,
+            file_key,
+            test_key_str,
+            test_label,
+            anchor_row,
+            filtered_group,
+            markers,
+            axis_min,
+            axis_max,
+            limit_info,
+            unit_label,
+            context.analysis_inputs.generate_histogram,
+            context.analysis_inputs.generate_cdf,
+            context.analysis_inputs.generate_time_series,
+            hist_sheet,
+            cdf_sheet,
+            ts_sheet,
+        )
 
     _rewrite_axis_ranges(workbook, axis_ranges)
 
@@ -403,6 +496,7 @@ def _refresh_subset_tests(
     existing_axis = _load_axis_ranges(workbook)
     axis_ranges = dict(existing_axis)
     order_map: Dict[str, Dict[str, int]] = chart_state.setdefault("_order", {})
+    site_state = _ensure_site_state(chart_state)
     updated = False
 
     grouped = measurements_df.groupby(["File", "Test Name", "Test Number"], sort=False, dropna=False)
@@ -465,9 +559,14 @@ def _refresh_subset_tests(
         summary_row = summary_lookup.get(test_key)
         cpk = None
         unit_label = ""
+        mean = None
+        stdev = None
         if summary_row is not None:
             cpk = _safe_float(summary_row.get("CPK"))
             unit_label = _safe_text(summary_row.get("Unit"))
+            mean = _safe_float(summary_row.get("MEAN"))
+            stdev = _safe_float(summary_row.get("STDEV"))
+        proposed_cpk = _compute_cpk(mean, stdev, limit_info.proposed_lower, limit_info.proposed_upper)
 
         test_label = safe_test_name if not safe_test_number else f"{safe_test_name} (Test {safe_test_number})"
         test_key_str = _make_test_key(file_key, safe_test_name, safe_test_number)
@@ -475,8 +574,9 @@ def _refresh_subset_tests(
         order_map.setdefault(file_key, {})[test_key_str] = index
         anchor_row = _anchor_row_for_index(index)
 
+        hist_sheet = None
         if context.analysis_inputs.generate_histogram:
-            sheet = _get_plot_sheet(workbook, file_key, "Histogram")
+            hist_sheet = _get_plot_sheet(workbook, file_key, "Histogram")
             image_bytes = mpl_charts.render_histogram(
                 values,
                 lower_limit=lower_limit,
@@ -484,16 +584,18 @@ def _refresh_subset_tests(
                 x_range=x_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(hist_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "Histogram", file_key, test_key_str, index)
 
+        cdf_sheet = None
         if context.analysis_inputs.generate_cdf:
-            sheet_cdf = _get_plot_sheet(workbook, file_key, "CDF")
+            cdf_sheet = _get_plot_sheet(workbook, file_key, "CDF")
             image_bytes = mpl_charts.render_cdf(
                 values,
                 lower_limit=lower_limit,
@@ -501,16 +603,18 @@ def _refresh_subset_tests(
                 x_range=x_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=markers,
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet_cdf, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(cdf_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "CDF", file_key, test_key_str, index)
 
+        ts_sheet = None
         if context.analysis_inputs.generate_time_series:
-            sheet_ts = _get_plot_sheet(workbook, file_key, "TimeSeries")
+            ts_sheet = _get_plot_sheet(workbook, file_key, "TimeSeries")
             image_bytes = mpl_charts.render_time_series(
                 x=serial_numbers,
                 y=values,
@@ -519,12 +623,13 @@ def _refresh_subset_tests(
                 y_range=y_range,
                 test_label=test_label,
                 cpk=cpk,
+                proposed_cpk=proposed_cpk,
                 unit_label=unit_label,
                 extra_markers=_horizontalised_markers(markers),
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _replace_chart_image(sheet_ts, index, anchor_row, test_label, image_bytes)
+            _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
         axis_ranges[test_key] = {
@@ -537,8 +642,186 @@ def _refresh_subset_tests(
         }
         updated = True
 
+        _refresh_site_charts(
+            site_state,
+            workbook,
+            file_key,
+            test_key_str,
+            test_label,
+            anchor_row,
+            filtered_group,
+            markers,
+            axis_min,
+            axis_max,
+            limit_info,
+            unit_label,
+            context.analysis_inputs.generate_histogram,
+            context.analysis_inputs.generate_cdf,
+            context.analysis_inputs.generate_time_series,
+            hist_sheet,
+            cdf_sheet,
+            ts_sheet,
+        )
+
     if updated:
         _rewrite_axis_ranges(workbook, axis_ranges)
+
+
+def _refresh_site_charts(
+    site_state: Dict[str, Dict[str, Dict[Any, int]]],
+    workbook,
+    file_key: str,
+    test_key: str,
+    test_label: str,
+    anchor_row: int,
+    filtered_group: pd.DataFrame,
+    markers: Sequence[mpl_charts.ChartMarker],
+    axis_min: float,
+    axis_max: float,
+    limit_info: LimitInfo,
+    unit_label: str,
+    include_histogram: bool,
+    include_cdf: bool,
+    include_time_series: bool,
+    hist_sheet,
+    cdf_sheet,
+    ts_sheet,
+) -> None:
+    site_column = _resolve_site_column(filtered_group)
+    if site_column is None:
+        return
+
+    file_sites = site_state.setdefault(file_key, {})
+    test_sites = file_sites.setdefault(test_key, {})
+    processed_sites: Set[Any] = set()
+
+    site_groups = filtered_group.groupby(site_column, dropna=False, sort=False)
+    for site_value_raw, site_group in site_groups:
+        site_value_norm = _normalise_site_value(site_value_raw)
+        processed_sites.add(site_value_norm)
+        block_index = test_sites.get(site_value_norm)
+        if block_index is None:
+            block_index = len(test_sites) + 1
+            test_sites[site_value_norm] = block_index
+
+        sort_keys_site = ["_serial_number"]
+        if "Measurement Index" in site_group.columns:
+            sort_keys_site.append("Measurement Index")
+        elif "measurement_index" in site_group.columns:
+            sort_keys_site.append("measurement_index")
+        site_group_sorted = site_group.sort_values(by=sort_keys_site, kind="mergesort")
+        site_values = pd.to_numeric(site_group_sorted["Value"], errors="coerce").to_numpy()
+        site_serials = site_group_sorted["_serial_number"].to_numpy()
+        site_mean, site_stdev = _dataset_stats(site_values)
+        site_cpk = _compute_cpk(site_mean, site_stdev, limit_info.stdf_lower, limit_info.stdf_upper)
+        site_proposed_cpk = _compute_cpk(site_mean, site_stdev, limit_info.proposed_lower, limit_info.proposed_upper)
+        display_label = f"{test_label} – Site {_format_site_label(site_value_raw)}"
+        x_range = (axis_min, axis_max)
+        y_range = (axis_min, axis_max)
+
+        if include_histogram and hist_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(hist_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(hist_sheet, target_cell)
+            image_bytes = mpl_charts.render_histogram(
+                site_values,
+                lower_limit=limit_info.stdf_lower,
+                upper_limit=limit_info.stdf_upper,
+                x_range=x_range,
+                test_label=display_label,
+                cpk=site_cpk,
+                proposed_cpk=site_proposed_cpk,
+                unit_label=unit_label,
+                extra_markers=markers,
+                title_font_size=10,
+                cpk_font_size=8,
+            )
+            _place_image(
+                hist_sheet,
+                image_bytes,
+                anchor_row,
+                label=display_label,
+                label_column=label_col,
+                image_column=image_col,
+                anchor_cell=target_cell,
+            )
+            _ensure_row_height(hist_sheet, anchor_row)
+
+        if include_cdf and cdf_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(cdf_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(cdf_sheet, target_cell)
+            image_bytes = mpl_charts.render_cdf(
+                site_values,
+                lower_limit=limit_info.stdf_lower,
+                upper_limit=limit_info.stdf_upper,
+                x_range=x_range,
+                test_label=display_label,
+                cpk=site_cpk,
+                proposed_cpk=site_proposed_cpk,
+                unit_label=unit_label,
+                extra_markers=markers,
+                title_font_size=10,
+                cpk_font_size=8,
+            )
+            _place_image(
+                cdf_sheet,
+                image_bytes,
+                anchor_row,
+                label=display_label,
+                label_column=label_col,
+                image_column=image_col,
+                anchor_cell=target_cell,
+            )
+            _ensure_row_height(cdf_sheet, anchor_row)
+
+        if include_time_series and ts_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(ts_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(ts_sheet, target_cell)
+            image_bytes = mpl_charts.render_time_series(
+                x=site_serials,
+                y=site_values,
+                lower_limit=limit_info.stdf_lower,
+                upper_limit=limit_info.stdf_upper,
+                y_range=y_range,
+                test_label=display_label,
+                cpk=site_cpk,
+                proposed_cpk=site_proposed_cpk,
+                unit_label=unit_label,
+                extra_markers=_horizontalised_markers(markers),
+                title_font_size=10,
+                cpk_font_size=8,
+            )
+            _place_image(
+                ts_sheet,
+                image_bytes,
+                anchor_row,
+                label=display_label,
+                label_column=label_col,
+                image_column=image_col,
+                anchor_cell=target_cell,
+            )
+            _ensure_row_height(ts_sheet, anchor_row)
+
+    stale_sites = set(test_sites.keys()) - processed_sites
+    for stale_site in stale_sites:
+        block_index = test_sites.pop(stale_site)
+        if include_histogram and hist_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(hist_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(hist_sheet, target_cell)
+            hist_sheet.cell(row=anchor_row, column=label_col, value="")
+        if include_cdf and cdf_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(cdf_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(cdf_sheet, target_cell)
+            cdf_sheet.cell(row=anchor_row, column=label_col, value="")
+        if include_time_series and ts_sheet is not None:
+            label_col, image_col = _ensure_site_block_width(ts_sheet, block_index)
+            target_cell = _image_cell(image_col, anchor_row)
+            _remove_image(ts_sheet, target_cell)
+            ts_sheet.cell(row=anchor_row, column=label_col, value="")
 
 
 def _collect_limit_info(limits_df: pd.DataFrame, template_ws) -> Dict[Tuple[str, str], LimitInfo]:

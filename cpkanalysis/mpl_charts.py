@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from io import BytesIO
-from typing import Literal, Optional, Sequence, Tuple
+from typing import List, Literal, Optional, Sequence, Tuple
 
 import matplotlib
 
@@ -65,6 +65,7 @@ def render_histogram(
     x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
     test_label: str = "",
     cpk: Optional[float] = None,
+    proposed_cpk: Optional[float] = None,
     unit_label: str = "",
     extra_markers: Optional[Sequence[ChartMarker]] = None,
     title_font_size: int = 11,
@@ -164,6 +165,7 @@ def render_histogram(
         ax,
         test_label,
         cpk,
+        proposed_cpk,
         unit_label,
         title_font_size=title_font_size,
         cpk_font_size=cpk_font_size,
@@ -184,6 +186,7 @@ def render_cdf(
     x_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
     test_label: str = "",
     cpk: Optional[float] = None,
+    proposed_cpk: Optional[float] = None,
     unit_label: str = "",
     extra_markers: Optional[Sequence[ChartMarker]] = None,
     title_font_size: int = 11,
@@ -221,6 +224,7 @@ def render_cdf(
         ax,
         test_label,
         cpk,
+        proposed_cpk,
         unit_label,
         title_font_size=title_font_size,
         cpk_font_size=cpk_font_size,
@@ -239,6 +243,7 @@ def render_time_series(
     y_range: Optional[Tuple[Optional[float], Optional[float]]] = None,
     test_label: str = "",
     cpk: Optional[float] = None,
+    proposed_cpk: Optional[float] = None,
     unit_label: str = "",
     x_label: str = "Timestamp / Index",
     extra_markers: Optional[Sequence[ChartMarker]] = None,
@@ -278,6 +283,7 @@ def render_time_series(
         ax,
         test_label,
         cpk,
+        proposed_cpk,
         unit_label,
         title_font_size=title_font_size,
         cpk_font_size=cpk_font_size,
@@ -346,6 +352,7 @@ def _finalize_chart(
     ax,
     test_label: str,
     cpk: Optional[float],
+    proposed_cpk: Optional[float],
     unit_label: str,
     *,
     title_font_size: int = 11,
@@ -370,25 +377,36 @@ def _finalize_chart(
         ax.set_title(test_label, fontsize=title_font_size, fontweight="bold")
     position = cpk_position or (1.02, 0.12)
     cpk_rendered = False
+    text_entries: List[Tuple[str, Optional[float]]] = []
+    if proposed_cpk is not None and math.isfinite(proposed_cpk):
+        text_entries.append((f"Proposed CPK: {proposed_cpk:.3f}", proposed_cpk))
     if cpk is not None and math.isfinite(cpk):
+        text_entries.append((f"CPK: {cpk:.3f}", cpk))
+    if text_entries:
         ha = "left"
         va = "bottom"
         if position[0] <= 1.0:
             ha = "right" if position[0] >= 0.5 else "left"
         if position[1] >= 0.5:
             va = "top"
-        ax.text(
-            position[0],
-            position[1],
-            f"CPK: {cpk:.3f}",
-            transform=ax.transAxes,
-            ha=ha,
-            va=va,
-            fontsize=cpk_font_size,
-        )
-        cpk_rendered = True
+        current_y = position[1]
+        for label, _ in text_entries:
+            ax.text(
+                position[0],
+                current_y,
+                label,
+                transform=ax.transAxes,
+                ha=ha,
+                va=va,
+                fontsize=cpk_font_size,
+            )
+            cpk_rendered = True
+            current_y -= 0.1
+        position_y_after = current_y + 0.1 if text_entries else position[1]
+    else:
+        position_y_after = position[1]
     if unit_label:
-        unit_y = position[1] - 0.12 if cpk_rendered else position[1]
+        unit_y = position_y_after - 0.12 if cpk_rendered else position_y_after
         if unit_y <= 0.0:
             unit_y = 0.02
         ax.text(
