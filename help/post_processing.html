@@ -328,7 +328,7 @@
         </div>
 
         <h2>Menu Options Overview</h2>
-        <p>The post-processing menu presents seven primary operations:</p>
+        <p>The post-processing menu presents eight primary operations:</p>
 
         <table>
           <thead>
@@ -355,22 +355,27 @@
               <td>Creating new spec proposals for approval</td>
             </tr>
             <tr>
-              <td><strong>4. Re-run Last Action</strong></td>
+              <td><strong>4. Calculate Proposed Limits (GRR-Based)</strong></td>
+              <td>GRR-aware limit proposals with guardband protection</td>
+              <td>Production limit setting with measurement system capability</td>
+            </tr>
+            <tr>
+              <td><strong>5. Re-run Last Action</strong></td>
               <td>Repeat previous operation</td>
               <td>Iterative refinement of single test</td>
             </tr>
             <tr>
-              <td><strong>5. Reload Workbook</strong></td>
+              <td><strong>6. Reload Workbook</strong></td>
               <td>Discard changes and reload from disk</td>
               <td>Abandoning experimental changes</td>
             </tr>
             <tr>
-              <td><strong>6. View Audit Log</strong></td>
+              <td><strong>7. View Audit Log</strong></td>
               <td>Review operation history</td>
               <td>Understanding what changes were made</td>
             </tr>
             <tr>
-              <td><strong>7. Exit Menu</strong></td>
+              <td><strong>8. Exit Menu</strong></td>
               <td>Save and close</td>
               <td>Finalizing changes</td>
             </tr>
@@ -503,7 +508,197 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
         </div>
 
         <div class="action-card">
-          <h3>4. Re-run Last Action</h3>
+          <h3>4. Calculate Proposed Limits (GRR-Based)</h3>
+          <p><span class="badge">GRR Data Required</span> <span class="badge">Guardband Protection</span> <span class="badge">New Columns</span></p>
+
+          <h4>Purpose</h4>
+          <p>Generate production-ready limit proposals that account for measurement system capability (Gauge R&R). This advanced action computes both specification limits and Final Test (FT) limits with automatic guardband protection, preventing false rejects caused by test equipment variation.</p>
+
+          <div class="info-box">
+            <strong>What is GRR Guardband?</strong>
+            Gauge Repeatability & Reproducibility (GRR) measures test equipment variation. A guardband is a safety margin between spec limits and test limits that accounts for this variation. Common practice: Reserve 50% or 100% of GRR magnitude as buffer to prevent good parts from failing due to measurement noise.
+          </div>
+
+          <h4>Workflow</h4>
+          <ol>
+            <li><strong>Confirm GRR availability:</strong> User confirms GRR data is available</li>
+            <li><strong>Provide GRR directory:</strong> Path to directory containing <code>Total_GRR.xlsx</code></li>
+            <li><strong>Enter CPK targets:</strong>
+              <ul>
+                <li>Minimum FT CPK (e.g., 1.33)</li>
+                <li>Maximum FT CPK (e.g., 2.0)</li>
+              </ul>
+            </li>
+            <li><strong>Select scope:</strong> All tests or single test</li>
+            <li><strong>Choose test:</strong> If single test, select from list</li>
+            <li><strong>Calculate:</strong> Algorithm applies guardband ladder and computes limits</li>
+            <li><strong>Review:</strong> Check proposed values, guardband selections, and any spec widening</li>
+          </ol>
+
+          <h4>Guardband Selection Algorithm</h4>
+          <p>The system automatically selects the optimal guardband using a three-tier ladder:</p>
+          <ol>
+            <li><strong>Try 100% GRR:</strong> Apply full GRR as guardband (most conservative)
+              <ul>
+                <li>If resulting FT CPK ≥ minimum target: Use 100% GRR ✓</li>
+                <li>Otherwise: Proceed to step 2</li>
+              </ul>
+            </li>
+            <li><strong>Try 50% GRR:</strong> Apply half GRR as guardband (balanced approach)
+              <ul>
+                <li>If resulting FT CPK ≥ minimum target: Use 50% GRR ✓</li>
+                <li>Otherwise: Proceed to step 3</li>
+              </ul>
+            </li>
+            <li><strong>Widen Spec:</strong> Use 50% GRR but expand spec limits
+              <ul>
+                <li>Calculate required spec width to meet minimum CPK target</li>
+                <li>Add 50% GRR guardband on top of widened spec</li>
+                <li>Flag test as requiring spec widening</li>
+              </ul>
+            </li>
+          </ol>
+
+          <h4>What Gets Updated</h4>
+          <ul>
+            <li>Template sheet: LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP columns (FT limits)</li>
+            <li>Template sheet: Four new columns added:
+              <ul>
+                <li><strong>Proposed Spec Lower:</strong> Lower specification limit (possibly widened)</li>
+                <li><strong>Proposed Spec Upper:</strong> Upper specification limit (possibly widened)</li>
+                <li><strong>CPK Proposed Spec:</strong> CPK calculated against proposed spec</li>
+                <li><strong>Guardband Selection:</strong> Text indicator ("100% GRR" or "50% GRR")</li>
+              </ul>
+            </li>
+            <li>Charts: New overlay chart sheets created (e.g., "Histogram_lot2 (Proposed)")
+              <ul>
+                <li>Shows original measurement data</li>
+                <li>Overlays original spec limits (dashed lines)</li>
+                <li>Overlays proposed spec limits (solid blue lines)</li>
+                <li>Overlays proposed FT limits (solid red lines)</li>
+                <li>Annotates with original and proposed CPK values</li>
+              </ul>
+            </li>
+            <li>Metadata: Complete audit trail including:
+              <ul>
+                <li>GRR directory path</li>
+                <li>Min/max CPK targets</li>
+                <li>Tests processed and tests widened</li>
+                <li>Per-test guardband decisions</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h4>GRR File Format</h4>
+          <p>The system expects a file named <code>Total_GRR.xlsx</code> in the specified directory, containing a sheet named <code>"GRR data"</code> (or using the first sheet as fallback) with these columns:</p>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Column</th>
+                <th>Accepted Variations</th>
+                <th>Description</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Test Number</strong></td>
+                <td><code>Test #</code>, <code>Test Num</code>, <code>Test</code></td>
+                <td>Numeric test ID (leading zeros and "T" prefix stripped)</td>
+              </tr>
+              <tr>
+                <td><strong>Test Name</strong></td>
+                <td><code>Test Name</code>, <code>Description</code></td>
+                <td>Test name for matching (normalized, whitespace collapsed)</td>
+              </tr>
+              <tr>
+                <td><strong>Unit</strong></td>
+                <td><code>Unit</code>, <code>Units</code></td>
+                <td>Measurement units (normalized: V→VOLTS, mA→MILLIAMPS)</td>
+              </tr>
+              <tr>
+                <td><strong>Spec Min</strong></td>
+                <td><code>Min\nSpec</code>, <code>Spec Min</code>, <code>Lower Spec</code></td>
+                <td>Lower specification limit</td>
+              </tr>
+              <tr>
+                <td><strong>Spec Max</strong></td>
+                <td><code>Max\nSpec</code>, <code>Spec Max</code>, <code>Upper Spec</code></td>
+                <td>Upper specification limit</td>
+              </tr>
+              <tr>
+                <td><strong>GRR</strong></td>
+                <td><code>Worst R&R</code>, R&R columns</td>
+                <td>GRR magnitude (worst case across conditions)</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="info-box">
+            <strong>Unit Normalization</strong>
+            The system automatically normalizes units to handle common aliases:
+            <ul>
+              <li>V, VOLT → VOLTS</li>
+              <li>MV, MILLIVOLT → MILLIVOLTS</li>
+              <li>A, AMP → AMPS</li>
+              <li>MA, MILLIAMP → MILLIAMPS</li>
+              <li>UA, UAMP → UAMPS</li>
+            </ul>
+            If normalized units still don't match between GRR and workbook data, you'll be warned and the test will be skipped (with optional override).
+          </div>
+
+          <h4>Example Calculation</h4>
+          <pre><code>Test: VDD_CORE
+Original Spec: 0.95V - 1.05V
+GRR (Worst R&R): 0.02V
+Statistics: Mean = 1.00V, Stdev = 0.015V
+Targets: Min FT CPK = 1.33, Max FT CPK = 2.0
+
+Step 1: Try 100% GRR guardband (0.02V)
+  FT Limits = [0.95 + 0.02, 1.05 - 0.02] = [0.97V, 1.03V]
+  FT CPK = min((1.03-1.00), (1.00-0.97)) / (3×0.015) = 0.67
+  Result: 0.67 < 1.33 ❌ (too low, proceed to step 2)
+
+Step 2: Try 50% GRR guardband (0.01V)
+  FT Limits = [0.95 + 0.01, 1.05 - 0.01] = [0.96V, 1.04V]
+  FT CPK = min((1.04-1.00), (1.00-0.96)) / (3×0.015) = 0.89
+  Result: 0.89 < 1.33 ❌ (too low, proceed to step 3)
+
+Step 3: Widen spec and use 50% GRR
+  Required FT range for CPK=1.33: 1.00 ± (1.33 × 3 × 0.015) = [0.9401V, 1.0599V]
+  Add 50% GRR buffer: Spec must be [0.9401 - 0.01, 1.0599 + 0.01] = [0.9301V, 1.0699V]
+
+Final Proposal:
+  Proposed Spec Lower: 0.93V (widened from 0.95V)
+  Proposed Spec Upper: 1.07V (widened from 1.05V)
+  Proposed FT Lower: 0.94V
+  Proposed FT Upper: 1.06V
+  FT CPK: 1.33 ✓
+  Spec CPK: 1.48
+  Guardband Selection: "50% GRR"
+  Spec Widening: Yes (flagged for approval)</code></pre>
+
+          <h4>Use Cases</h4>
+          <ul>
+            <li><strong>Production qualification:</strong> Set initial limits that account for ATE capability</li>
+            <li><strong>Limit optimization:</strong> Balance yield protection with measurement uncertainty</li>
+            <li><strong>Spec negotiation:</strong> Justify spec widening requests with quantitative GRR data</li>
+            <li><strong>Multi-site correlation:</strong> Ensure limits work across test equipment with different GRR</li>
+            <li><strong>Cost-benefit analysis:</strong> Compare guardband protection levels (50% vs 100%)</li>
+          </ul>
+
+          <h4>Best Practices</h4>
+          <ul>
+            <li>Run GRR studies at production-representative conditions (temperature, voltage, etc.)</li>
+            <li>Use "Worst R&R" column from GRR workbook (accounts for all variation sources)</li>
+            <li>Review tests flagged for spec widening with design/product engineering</li>
+            <li>Validate proposed limits against actual measurement data using overlay charts</li>
+            <li>Document guardband decisions in audit log for regulatory compliance</li>
+          </ul>
+        </div>
+
+        <div class="action-card">
+          <h3>5. Re-run Last Action</h3>
           <p><span class="badge">Quick Repeat</span></p>
 
           <h4>Purpose</h4>
@@ -518,7 +713,7 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
         </div>
 
         <div class="action-card">
-          <h3>5. Reload Workbook</h3>
+          <h3>6. Reload Workbook</h3>
           <p><span class="badge">Discard Changes</span></p>
 
           <h4>Purpose</h4>
@@ -541,7 +736,7 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
         </div>
 
         <div class="action-card">
-          <h3>6. View Audit Log</h3>
+          <h3>7. View Audit Log</h3>
           <p><span class="badge">Traceability</span></p>
 
           <h4>Purpose</h4>
@@ -550,16 +745,17 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
           <h4>Information Displayed</h4>
           <ul>
             <li>Timestamp of each operation</li>
-            <li>Action type (Update STDF, Apply Spec, Calculate Proposed, etc.)</li>
+            <li>Action type (Update STDF, Apply Spec, Calculate Proposed, Calculate Proposed GRR, etc.)</li>
             <li>Scope (all tests or specific test)</li>
             <li>Test identifiers (test numbers and names)</li>
-            <li>Parameters (target CPK, limit values)</li>
+            <li>Parameters (target CPK, limit values, GRR directory, guardband selections)</li>
             <li>Warnings or errors encountered</li>
+            <li>Tests widened (for GRR-based actions)</li>
           </ul>
         </div>
 
         <div class="action-card">
-          <h3>7. Exit Menu</h3>
+          <h3>8. Exit Menu</h3>
           <p><span class="badge">Save & Close</span></p>
 
           <h4>Purpose</h4>

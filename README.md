@@ -95,6 +95,7 @@ python -m cpkanalysis.cli run Sample/lot2.stdf --postprocess
 - **Interactive menu** for limit updates without re-ingestion
 - **Chart regeneration** with new markers
 - **Target CPK calculations**: Compute proposed limits for desired capability
+- **GRR-based proposed limits**: Calculate spec and FT limits with guardband protection from metrology (Gauge R&R) data
 - **Audit logging**: Full traceability of changes
 - Available via CLI and GUI
 
@@ -590,7 +591,25 @@ python -m cpkanalysis.gui  # Then type 'post' at the prompt
 - Updates charts with "Proposed" markers
 - Extends axis bounds as needed
 
-#### 4. Utility Functions
+#### 4. Calculate Proposed Limits (GRR-Based)
+- **GRR-aware limit calculation** for production readiness
+- Ingests Gauge R&R data from `Total_GRR.xlsx` workbook
+- Applies **guardband protection** (50% or 100% GRR) to spec walls
+- Computes both **spec limits** and **FT (Final Test) limits**
+- Automatically widens specs when guardband causes CPK violations
+- Adds four new columns: Proposed Spec Lower/Upper, CPK Proposed Spec, Guardband Selection
+- Generates overlay charts showing original and proposed limits
+- Ensures measurement capability (GRR) won't compromise yield
+
+**GRR Workflow:**
+1. Prompt for GRR data directory containing `Total_GRR.xlsx`
+2. Enter minimum and maximum target FT CPK values
+3. Select scope (all tests or single test)
+4. Algorithm applies guardband ladder (100% → 50% → spec widening)
+5. Writes proposed spec and FT limits to new columns
+6. Regenerates charts with proposed limit overlays
+
+#### 5. Utility Functions
 - **Re-run last action** — Repeat with same parameters
 - **Reload workbook** — Discard unsaved changes
 - **View audit log** — Display all post-processing runs
@@ -623,10 +642,101 @@ All changes logged to metadata JSON:
         "target_cpk": 2.0,
         "warnings": [],
         "timestamp": "2025-10-11T04:38:12.123456"
+      },
+      {
+        "action": "calculate_proposed_limits_grr",
+        "scope": "all",
+        "grr_directory": "GRR_Data/",
+        "min_ft_cpk": 1.33,
+        "max_ft_cpk": 2.0,
+        "tests_processed": 45,
+        "tests_widened": 3,
+        "warnings": [],
+        "timestamp": "2025-10-22T14:23:45.678901"
       }
     ]
   }
 }
+```
+
+### GRR-Based Proposed Limits
+
+**New in 2025-10-22**: Post-processing now supports **Gauge R&R (GRR) driven limit proposals** that account for measurement system capability when setting production limits.
+
+#### Why GRR Matters
+
+In semiconductor testing, measurement repeatability and reproducibility (Gauge R&R) affects how tightly you can set limits:
+- **Tight limits + poor GRR** = False rejects (good parts fail due to measurement noise)
+- **GRR guardband** = Safety margin between spec and test limits
+- **Common practice**: Reserve 50% or 100% of GRR as buffer
+
+#### What This Feature Does
+
+1. **Reads GRR Data**: Ingests `Total_GRR.xlsx` with per-test GRR measurements
+2. **Applies Guardband Ladder**:
+   - Try 100% GRR guardband first
+   - If CPK too low, try 50% GRR
+   - If still too low, widen spec to meet minimum CPK target
+3. **Computes Dual Limits**:
+   - **Spec Limits**: Customer/design requirements (possibly widened)
+   - **FT Limits**: Tighter limits for production test (spec minus guardband)
+4. **Outputs**:
+   - Four new template columns (Proposed Spec Lower/Upper, CPK Proposed Spec, Guardband Selection)
+   - Overlay charts showing original vs proposed limits
+   - Audit trail with guardband decisions
+
+#### Example Scenario
+
+```
+Test: VDD_CORE
+Original Spec: 0.95V - 1.05V
+GRR: 0.02V (worst case)
+Mean: 1.00V, Stdev: 0.015V
+Min FT CPK Target: 1.33
+
+Calculation:
+1. Try 100% GRR guardband (0.02V):
+   FT Limits: 0.97V - 1.03V
+   FT CPK = min((1.03-1.00), (1.00-0.97)) / (3×0.015) = 0.67 ❌ (< 1.33)
+
+2. Try 50% GRR guardband (0.01V):
+   FT Limits: 0.96V - 1.04V
+   FT CPK = min((1.04-1.00), (1.00-0.96)) / (3×0.015) = 0.89 ❌ (< 1.33)
+
+3. Widen spec to meet CPK target:
+   Required FT range: 1.00V ± (1.33 × 3 × 0.015) = 0.9401V - 1.0599V
+   Add 50% GRR guardband: Spec must be 0.9301V - 1.0699V
+
+Result:
+   Proposed Spec: 0.93V - 1.07V (widened)
+   Proposed FT: 0.94V - 1.06V (with 0.01V guardband)
+   FT CPK: 1.33 ✓
+   Guardband: "50% GRR"
+```
+
+#### GRR File Format
+
+The `Total_GRR.xlsx` file should contain a sheet named `"GRR data"` (or use the first sheet) with these columns:
+
+| Column | Variations Accepted | Description |
+|--------|---------------------|-------------|
+| Test Number | `Test #`, `Test Num`, `Test` | Numeric test ID (leading zeros stripped) |
+| Test Name | `Test Name`, `Description` | Test name for matching |
+| Unit | `Unit`, `Units` | Measurement units (normalized: V→VOLTS) |
+| Spec Min | `Min\nSpec`, `Spec Min`, `Lower Spec` | Lower specification limit |
+| Spec Max | `Max\nSpec`, `Spec Max`, `Upper Spec` | Upper specification limit |
+| GRR | `Worst R&R` | GRR magnitude (worst case across conditions) |
+
+**Header normalization** handles whitespace, newlines, and case variations automatically.
+
+#### Access via CLI
+
+```bash
+# Launch post-processing menu
+python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx
+
+# Select option 4: "Calculate Proposed Limits (GRR-Based)"
+# Follow prompts for GRR directory, CPK targets, and scope
 ```
 
 ---
@@ -794,6 +904,53 @@ All code contributions **must include tests**. See [CONTRIBUTING.md](CONTRIBUTIN
 ---
 
 ## 🎉 Recent Improvements
+
+### ✨ NEW: GRR-Based Proposed Limits (2025-10-22)
+
+**Production-ready limit proposals with Gauge R&R guardband protection**
+
+#### Features Added
+- **GRR-aware calculations**: Ingests metrology data from `Total_GRR.xlsx` workbook
+- **Guardband ladder logic**: Automatically tries 100% GRR → 50% GRR → spec widening
+- **Dual limit computation**: Calculates both spec limits and FT (Final Test) limits
+- **Intelligent spec adjustment**: Widens specs when guardband causes CPK violations below target
+- **New workbook columns**: Proposed Spec Lower/Upper, CPK Proposed Spec, Guardband Selection
+- **Overlay charts**: Generates new chart sheets showing original vs proposed limits side-by-side
+- **Unit normalization**: Handles common unit aliases (V→VOLTS, mA→MILLIAMPS) and mismatches
+- **Audit logging**: Tracks guardband decisions, spec widening events, and CPK targets
+
+#### Benefits
+✅ **Measurement-aware limits**: Prevents false rejects by accounting for test equipment capability
+✅ **Automated guardband selection**: No manual calculation of GRR offsets
+✅ **Spec optimization**: Identifies when specs need widening to meet CPK targets
+✅ **Visual validation**: Side-by-side charts make proposal review easy
+✅ **Production readiness**: Follows industry best practices for limit setting
+✅ **Traceability**: Full audit trail of guardband and limit decisions
+
+#### Example Workflow
+```bash
+# Run post-processing menu
+python -m cpkanalysis.cli post-process --workbook CPK_Workbook.xlsx
+
+# Select: 4. Calculate Proposed Limits (GRR-Based)
+# Prompts:
+#   GRR directory: ./GRR_Data/
+#   Min FT CPK: 1.33
+#   Max FT CPK: 2.0
+#   Scope: All tests
+
+# Result:
+#   45 tests processed
+#   3 specs widened (VDD_CORE, ILOAD, FREQ_OSC)
+#   New columns populated with proposed limits
+#   Overlay charts created in "Histogram_lot2 (Proposed)" sheet
+```
+
+**Documentation**: See [GRR-Based Proposed Limits](#grr-based-proposed-limits) section above
+
+**Implementation**: [cpkanalysis/postprocess/proposed_limits_grr.py](cpkanalysis/postprocess/proposed_limits_grr.py)
+
+---
 
 ### ✨ NEW: Per-Site Aggregation (2025-10-19)
 
