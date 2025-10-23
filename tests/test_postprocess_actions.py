@@ -6,6 +6,7 @@ import sys
 import pandas as pd
 import pytest
 from openpyxl import Workbook, load_workbook
+from openpyxl.utils import get_column_letter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -70,13 +71,55 @@ def _build_workbook(path: Path) -> None:
             "Spec Upper",
             "What-if Lower",
             "What-if Upper",
+            "LL_ATE",
+            "UL_ATE",
+            "MEAN",
+            "MEDIAN",
+            "STDEV",
+            "IQR",
+            "CPL",
+            "CPU",
+            "CPK",
+            "LL_2CPK",
+            "UL_2CPK",
+            "CPK_2.0",
+            "LL_3IQR",
+            "UL_3IQR",
+            "CPK_3IQR",
             "LL_PROP",
             "UL_PROP",
             "CPK_PROP",
             "%YLD LOSS_PROP",
         ]
     )
-    template.append(["TestA", "1", None, None, None, None, None, None, None, None])
+    template.append(
+        [
+            "TestA",
+            "1",
+            None,
+            None,
+            None,
+            None,
+            0.7,
+            1.3,
+            1.0,
+            1.0,
+            0.2,
+            0.25,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ]
+    )
 
     measurements = wb.create_sheet("Measurements")
     measurements.append(["Test Name", "Test Number", "Value"])
@@ -99,6 +142,33 @@ def _load_context(workbook_path: Path, tmp_path: Path) -> PostProcessContext:
     metadata_path = tmp_path / "meta.json"
     metadata_path.write_text("{}", encoding="utf-8")
     return PostProcessContext(inputs, workbook_path, metadata_path, metadata={})
+
+
+def _column_ref(header_map: dict[str, int], header: str, row: int) -> str:
+    column = header_map[sheet_utils.normalize_header(header)]
+    return f"${get_column_letter(column)}{row}"
+
+
+def _expected_cpk_prop_formula(header_map: dict[str, int], row: int) -> str:
+    mean = _column_ref(header_map, "MEAN", row)
+    stdev = _column_ref(header_map, "STDEV", row)
+    ll_prop = _column_ref(header_map, "LL_PROP", row)
+    ul_prop = _column_ref(header_map, "UL_PROP", row)
+    return (
+        f"=IF(AND({stdev}>0,{ll_prop}<>\"\",{ul_prop}<>\"\"),"
+        f"MIN(({mean}-{ll_prop})/(3*{stdev}),({ul_prop}-{mean})/(3*{stdev})),\"\")"
+    )
+
+
+def _compute_cpk(mean: float, stdev: float, lower: float | None, upper: float | None) -> float | None:
+    if stdev is None or stdev <= 0:
+        return None
+    candidates: list[float] = []
+    if upper is not None:
+        candidates.append((upper - mean) / (3 * stdev))
+    if lower is not None:
+        candidates.append((mean - lower) / (3 * stdev))
+    return min(candidates) if candidates else None
 
 
 def test_apply_spec_limits_updates_template_and_limits(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -190,12 +260,21 @@ def test_calculate_proposed_limits_populates_proposal_columns(monkeypatch: pytes
     row_idx = header_row + 1
 
     width = 3.0 * 1.0 * 0.2
-    expected_ll = pytest.approx(1.0 - width)
-    expected_ul = pytest.approx(1.0 + width)
+    expected_ll_value = 1.0 - width
+    expected_ul_value = 1.0 + width
 
-    assert template_ws.cell(row=row_idx, column=ll_prop).value == expected_ll
-    assert template_ws.cell(row=row_idx, column=ul_prop).value == expected_ul
-    assert template_ws.cell(row=row_idx, column=cpk_prop).value == pytest.approx(1.0)
+    assert template_ws.cell(row=row_idx, column=ll_prop).value == pytest.approx(expected_ll_value)
+    assert template_ws.cell(row=row_idx, column=ul_prop).value == pytest.approx(expected_ul_value)
+
+    cpk_cell = template_ws.cell(row=row_idx, column=cpk_prop)
+    assert cpk_cell.data_type == "f"
+    expected_form = _expected_cpk_prop_formula(headers, row_idx)
+    assert cpk_cell.value == expected_form
+    mean = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("STDEV")]).value
+    computed_cpk = _compute_cpk(mean, stdev, expected_ll_value, expected_ul_value)
+    assert computed_cpk == pytest.approx(1.0)
+
     assert template_ws.cell(row=row_idx, column=yld_prop).value == pytest.approx(2 / 3, rel=1e-3)
 
     assert result["summary"] == "Updated proposed limits for 1 test(s). Recomputed metrics for 1 test(s)."
@@ -211,8 +290,8 @@ def test_calculate_proposed_limits_populates_proposal_columns(monkeypatch: pytes
 
     proposal_state = context.metadata["post_processing_state"]["proposed_limits"]
     entry = proposal_state["lot1|TestA|1"]
-    assert entry["ll"] == pytest.approx(expected_ll)
-    assert entry["ul"] == pytest.approx(expected_ul)
+    assert entry["ll"] == pytest.approx(expected_ll_value)
+    assert entry["ul"] == pytest.approx(expected_ul_value)
 
 
 def test_calculate_proposed_limits_respects_user_proposals(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -256,9 +335,14 @@ def test_calculate_proposed_limits_respects_user_proposals(monkeypatch: pytest.M
     assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(user_lower)
     assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(user_upper)
 
-    cpk_value = template_ws.cell(row=data_row, column=cpk_prop).value
+    cpk_cell = template_ws.cell(row=data_row, column=cpk_prop)
     yld_value = template_ws.cell(row=data_row, column=yld_prop).value
-    assert cpk_value == pytest.approx(0.833333, rel=1e-3)
+    assert cpk_cell.data_type == "f"
+    assert cpk_cell.value == _expected_cpk_prop_formula(headers, data_row)
+    mean = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("STDEV")]).value
+    expected_cpk = _compute_cpk(mean, stdev, user_lower, user_upper)
+    assert expected_cpk == pytest.approx(0.833333, rel=1e-3)
     assert yld_value == pytest.approx(2 / 3, rel=1e-3)
 
     per_test = result["audit"]["parameters"]["per_test"][0]
@@ -310,6 +394,14 @@ def test_calculate_proposed_limits_computes_blank_side(monkeypatch: pytest.Monke
 
     assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(0.4)
     assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(1.6)
+
+    cpk_cell = template_ws.cell(row=data_row, column=cpk_prop)
+    assert cpk_cell.data_type == "f"
+    assert cpk_cell.value == _expected_cpk_prop_formula(headers, data_row)
+    mean = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("STDEV")]).value
+    expected_cpk = _compute_cpk(mean, stdev, 0.4, 1.6)
+    assert expected_cpk == pytest.approx(1.0)
 
     per_test = result["audit"]["parameters"]["per_test"][0]
     assert per_test["lower_origin"] == "unchanged"
@@ -388,7 +480,13 @@ def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: py
         {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
     )
 
-    assert template_ws.cell(row=data_row, column=cpk_prop).value == pytest.approx(0.5)
+    cpk_cell = template_ws.cell(row=data_row, column=cpk_prop)
+    assert cpk_cell.data_type == "f"
+    assert cpk_cell.value == _expected_cpk_prop_formula(headers, data_row)
+    mean = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=data_row, column=headers[sheet_utils.normalize_header("STDEV")]).value
+    expected_cpk = _compute_cpk(mean, stdev, 0.7, 1.3)
+    assert expected_cpk == pytest.approx(0.5)
     assert template_ws.cell(row=data_row, column=yld_prop).value == pytest.approx(2 / 3, rel=1e-3)
 
     per_test = result["audit"]["parameters"]["per_test"][0]

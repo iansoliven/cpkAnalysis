@@ -42,7 +42,8 @@
 2. **Scripted Injection**  
    - Use Python + openpyxl to populate formulas from row 11 to the last populated row, taking the pipeline-provided template sheet name as input.  
    - Rebuild the hidden `cpk_helpers` sheet on each run, writing the Spec CPL/CPU/CPK helper formulas there and marking the sheet hidden.  
-   - Update the visible sheet headers (e.g., ensure `AE10` is `CPK_SPEC`) without moving existing columns.
+   - Update the visible sheet headers (e.g., ensure `AE10` is `CPK_SPEC`) without moving existing columns.  
+   - Reuse the same helper during post-processing actions so that recalculated limits leave the template cells as formulas instead of static values.
 3. **Manual Validation**  
    - Load a copy of the workbook in Excel, enable calculation, and edit sample stats/limits to confirm every CPK column reacts immediately.  
    - Spot-check at least one row where ATE limits are blank to ensure the spec fallback works.  

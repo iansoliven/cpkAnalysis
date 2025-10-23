@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+import logging
 
 import numpy as np
 import pandas as pd
@@ -27,6 +28,18 @@ __all__ = [
 
 PROPOSAL_TOLERANCE = 1e-6
 
+logger = logging.getLogger(__name__)
+
+
+def _reapply_cpk_formulas(context: PostProcessContext) -> None:
+    """Ensure template CPK columns remain formula-driven after updates."""
+    try:
+        template_ws = context.template_sheet()
+        from ..tools import update_cpk_formulas
+
+        update_cpk_formulas.apply_formulas(template_ws.parent, template_ws)
+    except ValueError as exc:
+        logger.warning("Skipping CPK formula refresh: %s", exc)
 
 class ActionCancelled(RuntimeError):
     """Raised when the user aborts an action."""
@@ -427,6 +440,7 @@ def update_stdf_limits(context: PostProcessContext, io: PostProcessIO, params: O
 
     context.invalidate_frames("limits")
     charts.refresh_tests(context, updated_tests)
+    _reapply_cpk_formulas(context)
 
     summary_text = f"Updated STDF limits for {len(updated_tests)} test(s)."
     return {
@@ -552,6 +566,7 @@ def apply_spec_limits(context: PostProcessContext, io: PostProcessIO, params: Op
 
     context.invalidate_frames("limits")
     charts.refresh_tests(context, updated_tests, include_spec=True)
+    _reapply_cpk_formulas(context)
 
     summary_text = f"Applied Spec/What-If limits for {len(updated_tests)} test(s)."
     return {
@@ -767,6 +782,7 @@ def calculate_proposed_limits(context: PostProcessContext, io: PostProcessIO, pa
         raise ActionCancelled("No tests updated.")
 
     charts.refresh_tests(context, updated_tests, include_spec=True, include_proposed=True)
+    _reapply_cpk_formulas(context)
 
     summary_parts = [f"Updated proposed limits for {len(updated_tests)} test(s)."]
     if metrics_updates:
@@ -1041,6 +1057,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         include_proposed_spec=False,
         build_proposed_sheets=True,
     )
+    _reapply_cpk_formulas(context)
 
     summary_parts = [f"Calculated GRR-based proposed limits for {len(updated_tests)} test(s)."]
     if metrics_updates:
