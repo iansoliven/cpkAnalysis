@@ -18,6 +18,7 @@ from . import ingest, outliers, stats, workbook_builder
 from .models import AnalysisInputs, IngestResult
 from .plugins import PluginRegistry, PluginRegistryError
 from .move_to_template import run as move_to_template, apply_template
+from .tools.update_cpk_formulas import update_workbook as apply_cpk_formulas
 from openpyxl import Workbook
 from .event_names import (
     DEFAULT_EVENT_NAMES,
@@ -455,10 +456,22 @@ class Pipeline:
             stage_details["workbook"] = workbook_detail
 
             workbook_obj.close()
+            update_sheet = template_sheet_used or context.config.template_sheet
+            if update_sheet:
+                try:
+                    apply_cpk_formulas(context.config.output, update_sheet)
+                except ValueError as exc:
+                    logger.warning("Skipping CPK formula update: %s", exc)
             return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None, stage_details=stage_details)
 
         if context.config.template or context.config.template_sheet:
             template_sheet_used = move_to_template(context.config.output, context.config.template_sheet)
+        update_sheet = template_sheet_used or context.config.template_sheet
+        if update_sheet:
+            try:
+                apply_cpk_formulas(context.config.output, update_sheet)
+            except ValueError as exc:
+                logger.warning("Skipping CPK formula update: %s", exc)
         return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None)
 
     def _stage_metadata(self, context: PipelineContext) -> PipelineContext:
