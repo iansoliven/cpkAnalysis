@@ -282,29 +282,34 @@ def _ensure_proposed_spec_columns(
     header_row: int,
     header_map: Dict[str, int],
 ) -> dict[str, int]:
-    yld_col = _resolve_column(header_map, ["%YLD LOSS_PROP", "%YLD Loss Proposed"])
-    if yld_col is None:
-        raise ActionCancelled("Template sheet missing %YLD LOSS_PROP column required for proposed spec output.")
+    from ..tools import update_cpk_formulas
 
-    start_col = yld_col + 5  # keep four blank columns for readability
-    headers = [
-        ("Proposed Spec Lower", start_col),
-        ("Proposed Spec Upper", start_col + 1),
-        ("CPK Proposed Spec", start_col + 2),
-        ("Guardband Selection", start_col + 3),
-    ]
+    # Ensure formulas (and columns) are present via shared helper
+    update_cpk_formulas.apply_formulas(template_ws.parent, template_ws)
 
-    for title, column in headers:
-        cell = template_ws.cell(row=header_row, column=column)
-        if _safe_str(cell.value) == "":
-            cell.value = title
-        header_map[sheet_utils.normalize_header(title)] = column
+    updated_header_row, updated_header_map = sheet_utils.build_header_map(template_ws)
+    header_map.clear()
+    header_map.update(updated_header_map)
+    header_row = updated_header_row
+
+    spec_lower_col = _resolve_column(updated_header_map, ["Proposed Spec Lower"])
+    spec_upper_col = _resolve_column(updated_header_map, ["Proposed Spec Upper"])
+    spec_cpk_col = _resolve_column(updated_header_map, ["CPK Proposed Spec"])
+    guardband_col = _resolve_column(updated_header_map, ["Guardband Selection"])
+
+    if spec_lower_col is None or spec_upper_col is None or spec_cpk_col is None:
+        raise ActionCancelled("Template sheet missing Proposed Spec columns after formula injection.")
+
+    if guardband_col is None:
+        guardband_col = template_ws.max_column + 1
+        template_ws.cell(row=header_row, column=guardband_col, value="Guardband Selection")
+        header_map[sheet_utils.normalize_header("Guardband Selection")] = guardband_col
 
     return {
-        "spec_lower": start_col,
-        "spec_upper": start_col + 1,
-        "spec_cpk": start_col + 2,
-        "guardband": start_col + 3,
+        "spec_lower": spec_lower_col,
+        "spec_upper": spec_upper_col,
+        "spec_cpk": spec_cpk_col,
+        "guardband": guardband_col,
     }
 
 
