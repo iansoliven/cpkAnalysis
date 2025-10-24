@@ -292,8 +292,11 @@
         </p>
 
         <div class="success-box">
-          <strong>Key Advantage</strong>
-          Post-processing operates directly on the existing workbook and intermediate Parquet files. This means you can experiment with different limit scenarios, target CPK values, and specification changes in seconds rather than minutes, without re-parsing large STDF files.
+          <strong>Key Advantages</strong>
+          <ul>
+            <li><strong>Fast iteration:</strong> Post-processing operates directly on the existing workbook and intermediate Parquet files. Experiment with different limit scenarios in seconds rather than minutes, without re-parsing large STDF files.</li>
+            <li><strong>Formula preservation:</strong> All CPK, CPL, CPU calculations remain as Excel formulas (not static values). This enables dynamic recalculation when limits change and allows for manual what-if analysis directly in Excel.</li>
+          </ul>
         </div>
 
         <h2>Launching the Menu</h2>
@@ -409,6 +412,7 @@
             <li>Template sheet: LL (lower limit) and UL (upper limit) columns</li>
             <li>Test List & Limits sheet: STDF limit columns synchronized</li>
             <li>Charts: All histogram, CDF, and time-series charts regenerated with new limit markers</li>
+            <li>Excel formulas: CPK, CPL, CPU calculations preserved as formulas (not static values)</li>
             <li>Metadata: Operation logged with timestamp, scope, tests affected, and target CPK</li>
           </ul>
 
@@ -445,6 +449,7 @@
             <li>Template sheet: LL_SPEC, UL_SPEC, CPK_SPEC, %YLD LOSS_SPEC columns (or What-If equivalents)</li>
             <li>Test List & Limits: Spec columns synchronized</li>
             <li>Charts: Spec/What-If limit markers added (STDF markers remain)</li>
+            <li>Excel formulas: CPK calculations remain formula-driven for dynamic updates</li>
             <li>CPK annotation: Positioned above chart title to show multiple CPK values</li>
           </ul>
 
@@ -477,6 +482,7 @@
           <ul>
             <li>Template sheet: LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP columns</li>
             <li>Charts: "Proposed" limit markers added to all chart types</li>
+            <li>Excel formulas: CPK_PROP remains formula-driven for easy adjustments</li>
             <li>Axis ranges: Automatically expanded to accommodate proposed limits if needed</li>
             <li>Hidden metadata: _PlotAxisRanges sheet updated for consistency</li>
           </ul>
