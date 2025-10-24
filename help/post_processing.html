@@ -542,16 +542,45 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
           </ol>
 
           <h4>Guardband Selection Algorithm</h4>
-          <p>The system automatically selects the optimal guardband using a three-tier ladder:</p>
+          <p>The system first checks if existing ATE limits already satisfy the guardband requirement. If not, it selects the optimal guardband using a three-tier ladder:</p>
+
+          <div class="info-box">
+            <strong>Step 0: Check Existing ATE Limits (Skip Logic)</strong>
+            Before computing new limits, the system checks if the current LL_ATE and UL_ATE already provide adequate guardband protection:
+            <ul>
+              <li>Calculate existing guardband widths:
+                <ul>
+                  <li>Lower guardband width = |LL_ATE - Spec Lower|</li>
+                  <li>Upper guardband width = |Spec Upper - UL_ATE|</li>
+                </ul>
+              </li>
+              <li>Check if both widths ≥ GRR requirement (with small tolerance)</li>
+              <li>Check if current CPK is within [min CPK, max CPK] range</li>
+              <li>If all conditions met:
+                <ul>
+                  <li><strong>Skip computation and keep existing ATE limits</strong></li>
+                  <li>Copy LL_ATE → LL_PROP, UL_ATE → UL_PROP</li>
+                  <li>Copy Spec Lower/Upper → Proposed Spec Lower/Upper</li>
+                  <li>Calculate guardband percentages for documentation</li>
+                  <li>Flag test as "skipped" with reason "guardband_satisfied"</li>
+                  <li>This avoids unnecessary limit changes when existing limits are already adequate</li>
+                </ul>
+              </li>
+            </ul>
+          </div>
+
+          <p>If existing limits do not satisfy the guardband requirement, proceed with the ladder algorithm:</p>
           <ol>
             <li><strong>Try 100% GRR:</strong> Apply full GRR as guardband (most conservative)
               <ul>
+                <li>FT Lower = Spec Lower + GRR, FT Upper = Spec Upper - GRR</li>
                 <li>If resulting FT CPK ≥ minimum target: Use 100% GRR ✓</li>
                 <li>Otherwise: Proceed to step 2</li>
               </ul>
             </li>
             <li><strong>Try 50% GRR:</strong> Apply half GRR as guardband (balanced approach)
               <ul>
+                <li>FT Lower = Spec Lower + (GRR/2), FT Upper = Spec Upper - (GRR/2)</li>
                 <li>If resulting FT CPK ≥ minimum target: Use 50% GRR ✓</li>
                 <li>Otherwise: Proceed to step 3</li>
               </ul>
@@ -559,8 +588,10 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
             <li><strong>Widen Spec:</strong> Use 50% GRR but expand spec limits
               <ul>
                 <li>Calculate required spec width to meet minimum CPK target</li>
-                <li>Add 50% GRR guardband on top of widened spec</li>
-                <li>Flag test as requiring spec widening</li>
+                <li>Expand spec symmetrically around mean if needed</li>
+                <li>Apply 50% GRR guardband on top of widened spec</li>
+                <li>Flag test as requiring spec widening (triggers yellow conditional formatting)</li>
+                <li>If max CPK constraint is violated, tighten FT limits (not spec limits)</li>
               </ul>
             </li>
           </ol>
@@ -568,12 +599,29 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
           <h4>What Gets Updated</h4>
           <ul>
             <li>Template sheet: LL_PROP, UL_PROP, CPK_PROP, %YLD LOSS_PROP columns (FT limits)</li>
-            <li>Template sheet: Four new columns added:
+            <li>Template sheet: Seven new columns added:
               <ul>
-                <li><strong>Proposed Spec Lower:</strong> Lower specification limit (possibly widened)</li>
-                <li><strong>Proposed Spec Upper:</strong> Upper specification limit (possibly widened)</li>
-                <li><strong>CPK Proposed Spec:</strong> CPK calculated against proposed spec</li>
-                <li><strong>Guardband Selection:</strong> Text indicator ("100% GRR" or "50% GRR")</li>
+                <li><strong>Proposed Spec Lower:</strong> Lower specification limit (possibly widened to accommodate guardband + CPK target)</li>
+                <li><strong>Proposed Spec Upper:</strong> Upper specification limit (possibly widened to accommodate guardband + CPK target)</li>
+                <li><strong>CPK Proposed Spec:</strong> CPK calculated against proposed spec limits (always ≥ FT CPK)</li>
+                <li><strong>Lower Guardband:</strong> Absolute guardband width on lower side (FT Lower - Spec Lower, in native units)</li>
+                <li><strong>Upper Guardband:</strong> Absolute guardband width on upper side (Spec Upper - FT Upper, in native units)</li>
+                <li><strong>Lower Guardband Percent:</strong> Lower guardband as percentage of spec width: (LL_PROP - Proposed Spec Lower) / (Proposed Spec Upper - Proposed Spec Lower) × 100%</li>
+                <li><strong>Upper Guardband Percent:</strong> Upper guardband as percentage of spec width: (Proposed Spec Upper - UL_PROP) / (Proposed Spec Upper - Proposed Spec Lower) × 100%</li>
+              </ul>
+            </li>
+            <li>Hidden reference sheet: <code>_GRR_reference</code> created with test-to-GRR mappings
+              <ul>
+                <li>Used for conditional formatting to highlight spec differences</li>
+                <li>Contains test key, name, number, spec limits, and guardband requirement</li>
+                <li>Hidden from normal view but accessible for debugging</li>
+              </ul>
+            </li>
+            <li>Conditional formatting: Proposed Spec Lower/Upper columns
+              <ul>
+                <li>Yellow highlight applied when proposed spec differs from GRR reference spec by more than 1E-6</li>
+                <li>Helps identify which tests required spec widening</li>
+                <li>Uses Excel formula-based conditional formatting for dynamic updates</li>
               </ul>
             </li>
             <li>Charts: New overlay chart sheets created (e.g., "Histogram_lot2 (Proposed)")
@@ -589,8 +637,9 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
               <ul>
                 <li>GRR directory path</li>
                 <li>Min/max CPK targets</li>
-                <li>Tests processed and tests widened</li>
-                <li>Per-test guardband decisions</li>
+                <li>Tests processed, tests skipped (guardband already satisfied), and tests widened</li>
+                <li>Per-test guardband decisions ("100% GRR", "50% GRR", or "Existing ATE")</li>
+                <li>Per-test skip reasons and guardband percentages</li>
               </ul>
             </li>
           </ul>
@@ -653,12 +702,51 @@ YLD_LOSS_PROP = proportion outside [LL_PROP, UL_PROP]</code></pre>
             If normalized units still don't match between GRR and workbook data, you'll be warned and the test will be skipped (with optional override).
           </div>
 
-          <h4>Example Calculation</h4>
+          <h4>Example Calculation: Guardband Already Satisfied (Skip Case)</h4>
+          <pre><code>Test: VDD_IO
+Original Spec: 3.0V - 3.6V (width = 0.6V)
+GRR (Worst R&R): 0.05V
+Statistics: Mean = 3.30V, Stdev = 0.04V
+Existing ATE Limits: LL_ATE = 3.06V, UL_ATE = 3.54V
+Targets: Min FT CPK = 1.33, Max FT CPK = 2.0
+
+Step 0: Check existing ATE limits
+  Lower guardband width = |3.06 - 3.0| = 0.06V
+  Upper guardband width = |3.6 - 3.54| = 0.06V
+  GRR requirement = 0.05V
+  Lower check: 0.06V ≥ 0.05V ✓
+  Upper check: 0.06V ≥ 0.05V ✓
+  Current CPK = min((3.54-3.30)/(3×0.04), (3.30-3.06)/(3×0.04)) = 2.0
+  CPK check: 1.33 ≤ 2.0 ≤ 2.0 ✓
+  Result: All checks passed → SKIP guardband computation
+
+Final Proposal (No Changes):
+  LL_PROP: 3.06V (kept existing LL_ATE)
+  UL_PROP: 3.54V (kept existing UL_ATE)
+  Proposed Spec Lower: 3.0V (no widening needed)
+  Proposed Spec Upper: 3.6V (no widening needed)
+  Lower Guardband: 0.06V
+  Upper Guardband: 0.06V
+  Lower Guardband Percent: (3.06 - 3.0) / 0.6 = 10.0%
+  Upper Guardband Percent: (3.6 - 3.54) / 0.6 = 10.0%
+  FT CPK: 2.0 ✓
+  Spec CPK: 2.5
+  Guardband Selection: "Existing ATE"
+  Spec Widening: No
+  Skipped: Yes (reason: "guardband_satisfied")</code></pre>
+
+          <h4>Example Calculation: Spec Widening Required</h4>
           <pre><code>Test: VDD_CORE
-Original Spec: 0.95V - 1.05V
+Original Spec: 0.95V - 1.05V (width = 0.10V)
 GRR (Worst R&R): 0.02V
 Statistics: Mean = 1.00V, Stdev = 0.015V
+Existing ATE Limits: LL_ATE = 0.96V, UL_ATE = 1.04V (insufficient guardband)
 Targets: Min FT CPK = 1.33, Max FT CPK = 2.0
+
+Step 0: Check existing ATE limits
+  Lower guardband width = |0.96 - 0.95| = 0.01V < 0.02V ❌
+  Upper guardband width = |1.05 - 1.04| = 0.01V < 0.02V ❌
+  Result: Existing guardband insufficient → Proceed to ladder algorithm
 
 Step 1: Try 100% GRR guardband (0.02V)
   FT Limits = [0.95 + 0.02, 1.05 - 0.02] = [0.97V, 1.03V]
@@ -672,17 +760,21 @@ Step 2: Try 50% GRR guardband (0.01V)
 
 Step 3: Widen spec and use 50% GRR
   Required FT range for CPK=1.33: 1.00 ± (1.33 × 3 × 0.015) = [0.9401V, 1.0599V]
-  Add 50% GRR buffer: Spec must be [0.9401 - 0.01, 1.0599 + 0.01] = [0.9301V, 1.0699V]
+  Add 50% GRR buffer (0.01V): Spec must be [0.9401 - 0.01, 1.0599 + 0.01] = [0.9301V, 1.0699V]
 
 Final Proposal:
-  Proposed Spec Lower: 0.93V (widened from 0.95V)
-  Proposed Spec Upper: 1.07V (widened from 1.05V)
-  Proposed FT Lower: 0.94V
-  Proposed FT Upper: 1.06V
+  LL_PROP: 0.94V
+  UL_PROP: 1.06V
+  Proposed Spec Lower: 0.93V (widened from 0.95V) ← Yellow highlight
+  Proposed Spec Upper: 1.07V (widened from 1.05V) ← Yellow highlight
+  Lower Guardband: 0.01V
+  Upper Guardband: 0.01V
+  Lower Guardband Percent: (0.94 - 0.93) / (1.07 - 0.93) ≈ 7.1%
+  Upper Guardband Percent: (1.07 - 1.06) / (1.07 - 0.93) ≈ 7.1%
   FT CPK: 1.33 ✓
   Spec CPK: 1.48
   Guardband Selection: "50% GRR"
-  Spec Widening: Yes (flagged for approval)</code></pre>
+  Spec Widening: Yes (flagged with conditional formatting)</code></pre>
 
           <h4>Use Cases</h4>
           <ul>
