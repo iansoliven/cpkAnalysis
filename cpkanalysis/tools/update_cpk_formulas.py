@@ -14,6 +14,7 @@ from openpyxl.worksheet.worksheet import Worksheet
 from ..postprocess import sheet_utils
 
 HELPER_SHEET = "cpk_helpers"
+GRR_REFERENCE_SHEET = "_GRR_reference"
 
 
 def _set(cell, formula: str) -> None:
@@ -109,6 +110,8 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
     ll_prop_col = _require_column(header_map, "LL_PROP", "Proposed LL", "LL Proposed")
     ul_prop_col = _require_column(header_map, "UL_PROP", "Proposed UL", "UL Proposed")
     cpk_prop_col = _require_column(header_map, "CPK_PROP", "CPK Proposed")
+    test_name_col = _require_column(header_map, "Test Name", "TEST NAME", "Test_Name")
+    test_number_col = _require_column(header_map, "Test Number", "TEST NUM", "Test_Num")
 
     cpk_spec_col = _ensure_column(ws, header_row, header_map, "CPK_SPEC")
     spec_prop_lower_col = _ensure_column(ws, header_row, header_map, "Proposed Spec Lower")
@@ -140,6 +143,8 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
         "ll_prop": get_column_letter(ll_prop_col),
         "ul_prop": get_column_letter(ul_prop_col),
         "cpk_prop": get_column_letter(cpk_prop_col),
+        "test_name": get_column_letter(test_name_col),
+        "test_number": get_column_letter(test_number_col),
         "cpk_spec": get_column_letter(cpk_spec_col),
         "spec_prop_lower": get_column_letter(spec_prop_lower_col),
         "spec_prop_upper": get_column_letter(spec_prop_upper_col),
@@ -163,6 +168,26 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
     helper_ws.cell(row=header_row, column=2, value="CPU_SPEC")
     helper_ws.cell(row=header_row, column=3, value="CPK_SPEC")
 
+    guardband_lookup: dict[str, str] | None = None
+    if GRR_REFERENCE_SHEET in workbook.sheetnames:
+        ref_ws = workbook[GRR_REFERENCE_SHEET]
+        ref_header_row, ref_headers = sheet_utils.build_header_map(ref_ws)
+        gb_col = ref_headers.get(sheet_utils.normalize_header("Guardband Requirement"))
+        name_col = ref_headers.get(sheet_utils.normalize_header("Test Name"))
+        number_col = ref_headers.get(sheet_utils.normalize_header("Test Number"))
+        if gb_col and name_col and number_col:
+            ref_start_row = ref_header_row + 1
+            ref_end_row = max(ref_ws.max_row, ref_start_row)
+            if ref_start_row <= ref_end_row:
+                gb_letter = get_column_letter(gb_col)
+                name_letter = get_column_letter(name_col)
+                number_letter = get_column_letter(number_col)
+                guardband_lookup = {
+                    "guardband_range": f"'{GRR_REFERENCE_SHEET}'!${gb_letter}${ref_start_row}:${gb_letter}${ref_end_row}",
+                    "name_range": f"'{GRR_REFERENCE_SHEET}'!${name_letter}${ref_start_row}:${name_letter}${ref_end_row}",
+                    "number_range": f"'{GRR_REFERENCE_SHEET}'!${number_letter}${ref_start_row}:${number_letter}${ref_end_row}",
+                }
+
     max_row = ws.max_row
     for row in range(data_start_row, max_row + 1):
         mean = _cell(letters["mean"], row)
@@ -181,6 +206,8 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
         ul_3 = _cell(letters["ul_3iqr"], row)
         ll_prop = _cell(letters["ll_prop"], row)
         ul_prop = _cell(letters["ul_prop"], row)
+        test_name = _sheet_cell(sheet_ref, letters["test_name"], row)
+        test_number = _sheet_cell(sheet_ref, letters["test_number"], row)
 
         _set(
             ws.cell(row=row, column=cpl_col),
@@ -238,14 +265,32 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
             f"=IF(OR({ul_prop}=\"\",{spec_prop_upper}=\"\"),\"\",ABS({spec_prop_upper}-{ul_prop}))",
         )
         spec_width = f"({spec_prop_upper}-{spec_prop_lower})"
-        _set(
-            ws.cell(row=row, column=lower_guardband_pct_col),
-            f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ll_prop}=\"\"),\"\",ABS({ll_prop}-{spec_prop_lower})/{spec_width})",
-        )
-        _set(
-            ws.cell(row=row, column=upper_guardband_pct_col),
-            f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ul_prop}=\"\"),\"\",ABS({spec_prop_upper}-{ul_prop})/{spec_width})",
-        )
+        if guardband_lookup:
+            guardband_expr = (
+                f"IFERROR(SUMIFS({guardband_lookup['guardband_range']},"
+                f"{guardband_lookup['name_range']},{test_name},"
+                f"{guardband_lookup['number_range']},{test_number}),\"\")"
+            )
+            lower_pct_formula = (
+                f"=IF(OR({spec_prop_lower}=\"\",{ll_prop}=\"\",{guardband_expr}=\"\",{guardband_expr}=0),\"\","
+                f"ABS({ll_prop}-{spec_prop_lower})/{guardband_expr})"
+            )
+            upper_pct_formula = (
+                f"=IF(OR({spec_prop_upper}=\"\",{ul_prop}=\"\",{guardband_expr}=\"\",{guardband_expr}=0),\"\","
+                f"ABS({spec_prop_upper}-{ul_prop})/{guardband_expr})"
+            )
+        else:
+            lower_pct_formula = (
+                f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ll_prop}=\"\"),\"\","
+                f"ABS({ll_prop}-{spec_prop_lower})/{spec_width})"
+            )
+            upper_pct_formula = (
+                f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ul_prop}=\"\"),\"\","
+                f"ABS({spec_prop_upper}-{ul_prop})/{spec_width})"
+            )
+
+        _set(ws.cell(row=row, column=lower_guardband_pct_col), lower_pct_formula)
+        _set(ws.cell(row=row, column=upper_guardband_pct_col), upper_pct_formula)
 
         sheet_mean = _sheet_cell(sheet_ref, letters["mean"], row)
         sheet_stdev = _sheet_cell(sheet_ref, letters["stdev"], row)
@@ -348,3 +393,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

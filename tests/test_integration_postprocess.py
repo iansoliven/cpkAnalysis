@@ -105,3 +105,10 @@ def test_calculate_proposed_limits_grr_roundtrip(monkeypatch: pytest.MonkeyPatch
     state = context.metadata["post_processing_state"]["proposed_limits"]["lot1|TestA|1"]
     assert state["skipped"] is True
     assert state.get("required_guardband") == pytest.approx(0.05)
+
+    lower_pct_col = headers_reloaded[sheet_utils.normalize_header("Lower Guardband Percent")]
+    upper_pct_col = headers_reloaded[sheet_utils.normalize_header("Upper Guardband Percent")]
+    lower_pct_formula = template_reloaded.cell(row=data_row, column=lower_pct_col).value
+    upper_pct_formula = template_reloaded.cell(row=data_row, column=upper_pct_col).value
+    assert isinstance(lower_pct_formula, str) and "_GRR_reference" in lower_pct_formula and "SUMIFS" in lower_pct_formula
+    assert isinstance(upper_pct_formula, str) and "_GRR_reference" in upper_pct_formula and "SUMIFS" in upper_pct_formula

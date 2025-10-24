@@ -68,7 +68,16 @@ def _ensure_grr_reference_sheet(workbook, grr_table) -> Optional[Worksheet]:
     else:
         ref_ws = workbook.create_sheet(GRR_REFERENCE_SHEET)
 
-    ref_ws.append(["Key", "Test Name", "Test Number", "Spec Lower", "Spec Upper"])
+    ref_ws.append(
+        [
+            "Key",
+            "Test Name",
+            "Test Number",
+            "Spec Lower",
+            "Spec Upper",
+            "Guardband Requirement",
+        ]
+    )
     seen: set[str] = set()
     for record in records:
         name = record.test_name or ""
@@ -86,6 +95,7 @@ def _ensure_grr_reference_sheet(workbook, grr_table) -> Optional[Worksheet]:
                 record.test_number,
                 record.spec_lower,
                 record.spec_upper,
+                record.guardband_full,
             ]
         )
     ref_ws.sheet_state = SHEET_HIDDEN
