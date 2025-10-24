@@ -746,10 +746,10 @@ reason: Large file not available in CI environment</code></pre>
         <h2>Continuous Integration</h2>
 
         <div class="card">
-          <h3>GitHub Actions Integration</h3>
+          <h3>Remote Actions Integration</h3>
           <p>Integrate pytest into CI pipeline with automatic test execution on every commit:</p>
 
-          <h4>Example Workflow (.github/workflows/test.yml)</h4>
+          <h4>Example Workflow (remote/workflows/test.yml)</h4>
           <pre><code>name: Test Suite
 
 on: [push, pull_request]
@@ -1026,7 +1026,7 @@ def test_proposed_limits_always_symmetric(mean, std_dev, target_cpk):
 
         <div class="info-box">
           <strong>Developer Guidelines</strong>
-          <p>All code contributions must include tests. See <a href="https://github.com/iansoliven/cpkAnalysis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for full guidelines.</p>
+          <p>All code contributions must include tests. See <a href="https://remote.example.com/cpkAnalysis/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> for full guidelines.</p>
         </div>
 
         <div class="card">
@@ -1110,7 +1110,7 @@ def test_ingest_sources_combines_files_and_writes_parquet():</code></pre>
         <div class="card">
           <h3>Development Setup</h3>
           <pre><code># Clone with submodules
-git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
+git clone --recursive https://remote.example.com/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
@@ -1156,3 +1156,4 @@ pytest</code></pre>
     </div>
   </body>
 </html>
+
