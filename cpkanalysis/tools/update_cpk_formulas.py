@@ -31,9 +31,14 @@ def _clear_conditional_formatting(ws: Worksheet, range_str: str) -> None:
     rules = getattr(cf, "_cf_rules", None)
     if rules is None:
         return
-    filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
-    if len(filtered) != len(rules):
-        rules[:] = filtered  # type: ignore[index]
+    if isinstance(rules, dict):
+        keys_to_delete = [key for key in list(rules.keys()) if str(key) == range_str]
+        for key in keys_to_delete:
+            del rules[key]
+    else:
+        filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
+        if len(filtered) != len(rules):
+            setattr(cf, "_cf_rules", filtered)
 
 
 def _quote_sheet(name: str) -> str:
