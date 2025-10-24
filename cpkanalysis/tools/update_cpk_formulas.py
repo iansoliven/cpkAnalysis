@@ -33,7 +33,7 @@ def _clear_conditional_formatting(ws: Worksheet, range_str: str) -> None:
         return
     filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
     if len(filtered) != len(rules):
-        cf._cf_rules = filtered  # type: ignore[attr-defined]
+        rules[:] = filtered  # type: ignore[index]
 
 
 def _quote_sheet(name: str) -> str:

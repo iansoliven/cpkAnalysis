@@ -110,7 +110,11 @@ class GRRRecord:
 
 
 class GRRTable:
-    """Lookup helper for GRR records keyed by test number/name."""
+    """Lookup helper for GRR records keyed by test number/name.
+
+    The supplied ``records`` iterable is fully materialised so that the table can
+    service repeated lookups without re-reading upstream sources.
+    """
 
     def __init__(self, records: Iterable[GRRRecord]):
         records = list(records)
@@ -136,6 +140,7 @@ class GRRTable:
         return self._by_name.get(name_key)
 
     def records(self) -> List[GRRRecord]:
+        """Return a shallow copy of the GRR records backing this table."""
         return list(self._records)
 
 

@@ -14,6 +14,7 @@ import pandas as pd
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import PatternFill
 from openpyxl.formatting.rule import FormulaRule
+from openpyxl.worksheet.worksheet import Worksheet
 
 from .context import PostProcessContext
 from .io_adapters import PostProcessIO
@@ -31,6 +32,8 @@ __all__ = [
 
 PROPOSAL_TOLERANCE = 1e-6
 GRR_REFERENCE_SHEET = "_GRR_reference"
+SHEET_VISIBLE = "visible"
+SHEET_HIDDEN = "hidden"
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +49,7 @@ def _reapply_cpk_formulas(context: PostProcessContext) -> None:
         logger.warning("Skipping CPK formula refresh: %s", exc)
 
 
-def _ensure_grr_reference_sheet(workbook, grr_table):
+def _ensure_grr_reference_sheet(workbook, grr_table) -> Optional[Worksheet]:
     try:
         records = list(grr_table.records())
     except AttributeError:
@@ -59,7 +62,7 @@ def _ensure_grr_reference_sheet(workbook, grr_table):
 
     if GRR_REFERENCE_SHEET in workbook.sheetnames:
         ref_ws = workbook[GRR_REFERENCE_SHEET]
-        ref_ws.sheet_state = "visible"
+        ref_ws.sheet_state = SHEET_VISIBLE
         if ref_ws.max_row:
             ref_ws.delete_rows(1, ref_ws.max_row)
     else:
@@ -85,7 +88,7 @@ def _ensure_grr_reference_sheet(workbook, grr_table):
                 record.spec_upper,
             ]
         )
-    ref_ws.sheet_state = "hidden"
+    ref_ws.sheet_state = SHEET_HIDDEN
     return ref_ws
 
 
@@ -101,7 +104,7 @@ def _clear_conditional_formatting_range(ws, range_str: str) -> None:
         return
     filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
     if len(filtered) != len(rules):
-        cf._cf_rules = filtered  # type: ignore[attr-defined]
+        rules[:] = filtered  # type: ignore[index]
 
 
 def _apply_spec_difference_cf(template_ws, header_map: Dict[str, int], header_row: int) -> None:
@@ -120,27 +123,57 @@ def _apply_spec_difference_cf(template_ws, header_map: Dict[str, int], header_ro
         return
 
     ref_ws = workbook[GRR_REFERENCE_SHEET]
-    ref_max_row = max(ref_ws.max_row, 2)
-    key_range = f"'{GRR_REFERENCE_SHEET}'!$A$2:$A${ref_max_row}"
-    lower_ref_range = f"'{GRR_REFERENCE_SHEET}'!$D$2:$D${ref_max_row}"
-    upper_ref_range = f"'{GRR_REFERENCE_SHEET}'!$E$2:$E${ref_max_row}"
+    ref_header_row, ref_headers = sheet_utils.build_header_map(ref_ws)
+    key_col = ref_headers.get(sheet_utils.normalize_header("Key"))
+    name_col = ref_headers.get(sheet_utils.normalize_header("Test Name"))
+    number_col = ref_headers.get(sheet_utils.normalize_header("Test Number"))
+    lower_col = ref_headers.get(sheet_utils.normalize_header("Spec Lower"))
+    upper_col = ref_headers.get(sheet_utils.normalize_header("Spec Upper"))
+    if not all([key_col, name_col, number_col, lower_col, upper_col]):
+        return
+
+    ref_start_row = ref_header_row + 1
+    if ref_start_row > ref_ws.max_row:
+        return
+
+    def _col_range(col_idx: int) -> str:
+        letter = get_column_letter(col_idx)
+        return f"'{GRR_REFERENCE_SHEET}'!${letter}${ref_start_row}:${letter}${ref_ws.max_row}"
+
+    key_range = _col_range(key_col)
+    lower_ref_range = _col_range(lower_col)
+    upper_ref_range = _col_range(upper_col)
+    # Build name/number ranges for INDEX/MATCH guardband lookups.
+    test_name_col = _resolve_column(
+        header_map,
+        ["Test Name", "Test", "TEST NAME", "Test_Name"],
+    )
+    test_number_col = _resolve_column(
+        header_map,
+        ["Test Number", "Test Num", "Number", "TEST NUM", "Test_Num"],
+    )
+    if test_name_col is None or test_number_col is None:
+        return
+
+    name_letter = get_column_letter(test_name_col)
+    number_letter = get_column_letter(test_number_col)
 
     lower_letter = get_column_letter(spec_lower_col)
     upper_letter = get_column_letter(spec_upper_col)
     lower_range = f"{lower_letter}{data_start}:{lower_letter}{max_row}"
     upper_range = f"{upper_letter}{data_start}:{upper_letter}{max_row}"
-    key_expr = f"$C{data_start}&\"|\"&$B{data_start}"
+    key_expr = f"${name_letter}{data_start}&\"|\"&${number_letter}{data_start}"
 
     base_guard = "1E-6"
     highlight_fill = PatternFill(start_color="FFFFF2CC", end_color="FFFFF2CC", fill_type="solid")
 
     lower_formula = (
-        f"IF(OR(${lower_letter}{data_start}=\"\",$B{data_start}=\"\",$C{data_start}=\"\"),FALSE,"
+        f"IF(OR(${lower_letter}{data_start}=\"\",${number_letter}{data_start}=\"\",${name_letter}{data_start}=\"\"),FALSE,"
         f"IF(COUNTIF({key_range},{key_expr})=0,FALSE,"
         f"ABS(${lower_letter}{data_start}-SUMIFS({lower_ref_range},{key_range},{key_expr}))>{base_guard}))"
     )
     upper_formula = (
-        f"IF(OR(${upper_letter}{data_start}=\"\",$B{data_start}=\"\",$C{data_start}=\"\"),FALSE,"
+        f"IF(OR(${upper_letter}{data_start}=\"\",${number_letter}{data_start}=\"\",${name_letter}{data_start}=\"\"),FALSE,"
         f"IF(COUNTIF({key_range},{key_expr})=0,FALSE,"
         f"ABS(${upper_letter}{data_start}-SUMIFS({upper_ref_range},{key_range},{key_expr}))>{base_guard}))"
     )
@@ -171,8 +204,16 @@ def _should_skip_grr(
     if not template_rows:
         return False, info
 
+    info["spec_lower"] = spec_lower
+    info["spec_upper"] = spec_upper
+
+    if spec_upper <= spec_lower:
+        info["reason"] = "invalid_spec_range"
+        return False, info
+
     spec_width = spec_upper - spec_lower
     if spec_width <= PROPOSAL_TOLERANCE:
+        info["reason"] = "insufficient_spec_width"
         return False, info
 
     ll_ate_col = _resolve_column(template_headers, ["LL_ATE", "LL ATE", "Lower ATE", "LL"])
@@ -275,7 +316,9 @@ def _prompt_scope(
     default_target: float | None = None,
     prompt_target: bool = True,
 ) -> dict:
-    scope = (params or {}).get("scope")
+    params_dict: Dict[str, object] = dict(params or {})
+
+    scope = params_dict.get("scope")
     if scope not in {"all", "single"}:
         options = ["All tests"]
         if allow_single:
@@ -283,56 +326,57 @@ def _prompt_scope(
         choice = io.prompt_choice("Select scope for this action:", options)
         scope = "all" if choice == 0 else "single"
 
-    target_cpk = None
-    if prompt_target:
-        target_cpk = (params or {}).get("target_cpk")
-        if require_target and target_cpk is not None:
-            try:
-                target_cpk = float(target_cpk)
-            except (TypeError, ValueError):
-                io.warn("Target CPK must be numeric.")
-                target_cpk = None
-            else:
-                if target_cpk <= 0:
-                    io.warn("Target CPK must be positive.")
-                    target_cpk = None
+    def _parse_target(value) -> tuple[float | None, str | None]:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None, "Target CPK must be numeric."
+        if not math.isfinite(number) or number <= 0:
+            return None, "Target CPK must be positive."
+        return number, None
 
-    if prompt_target and (require_target or (params is None)):
-        prompt = (
+    target_cpk = None
+    if "target_cpk" in params_dict:
+        raw_target = params_dict.get("target_cpk")
+        target_cpk, error = _parse_target(raw_target)
+        if error:
+            io.warn(error)
+
+    needs_prompt = False
+    if require_target and target_cpk is None:
+        needs_prompt = True
+    elif prompt_target and target_cpk is None:
+        needs_prompt = True
+
+    if needs_prompt:
+        prompt_message = (
             "Enter target CPK (blank to keep existing limits):"
             if not require_target
             else "Enter target CPK (must be greater than zero):"
         )
-        default_text = "" if default_target is None else str(default_target)
-        if require_target:
-            while target_cpk is None:
-                value = io.prompt(prompt, default=default_text)
-                value = value.strip()
-                if not value:
+        default_candidate: float | None = target_cpk if target_cpk is not None else default_target
+        default_text = "" if default_candidate is None else str(default_candidate)
+
+        while True:
+            response = io.prompt(prompt_message, default=default_text) or ""
+            value = response.strip()
+            if not value:
+                if require_target:
                     io.warn("Target CPK is required.")
                     continue
-                try:
-                    target_cpk = float(value)
-                    if target_cpk <= 0:
-                        io.warn("Target CPK must be positive.")
-                        target_cpk = None
-                except ValueError:
-                    io.warn("Enter a numeric value.")
-        else:
-            if target_cpk is None:
-                value = io.prompt(prompt, default=default_text)
-                value = value.strip()
-                if value:
-                    try:
-                        target_cpk = float(value)
-                        if target_cpk <= 0:
-                            io.warn("Target CPK must be positive.")
-                            target_cpk = None
-                    except ValueError:
-                        io.warn("Ignoring invalid CPK entry.")
-                        target_cpk = None
+                target_cpk = None
+                break
+            parsed, error = _parse_target(value)
+            if error:
+                io.warn(error)
+                continue
+            target_cpk = parsed
+            break
 
-    selection = (params or {}).get("test_key")
+    if require_target and target_cpk is None:
+        raise ActionCancelled("Target CPK is required for this action.")
+
+    selection = params_dict.get("test_key")
 
     return {"scope": scope, "target_cpk": target_cpk, "test_key": selection}
 
@@ -1142,12 +1186,11 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         if spec_lower_value is None or spec_upper_value is None:
             spec_lower_value = _read_first_from_rows(template_ws, template_rows, spec_lower_col)
             spec_upper_value = _read_first_from_rows(template_ws, template_rows, spec_upper_col)
-        if spec_lower_value is None or spec_upper_value is None:
-            _warn_if_missing(io, warnings, f"Spec limits missing for {descriptor.label()} - skipping.")
+        spec_lower_f = _safe_float(spec_lower_value)
+        spec_upper_f = _safe_float(spec_upper_value)
+        if spec_lower_f is None or spec_upper_f is None:
+            _warn_if_missing(io, warnings, f"Spec limits missing or non-numeric for {descriptor.label()} - skipping.")
             continue
-
-        spec_lower_f = float(spec_lower_value)
-        spec_upper_f = float(spec_upper_value)
 
         skip_guardband, skip_info = _should_skip_grr(
             descriptor,
@@ -1335,8 +1378,8 @@ def _compute_yield_loss(
     measurements: pd.DataFrame,
     test_name: str,
     test_number: str,
-    lower: float,
-    upper: float,
+    lower: float | None,
+    upper: float | None,
 ) -> float:
     if measurements.empty:
         return float("nan")
@@ -1376,4 +1419,8 @@ def _compute_yield_loss(
         failures += int(np.sum(finite_values < lower))
     if upper is not None:
         failures += int(np.sum(finite_values > upper))
+
+    if lower is None and upper is None:
+        return float("nan")
+
     return failures / len(finite_values)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import math
 
 import pandas as pd
 import pytest
@@ -126,8 +127,81 @@ def _build_workbook(path: Path) -> None:
     measurements.append(["TestA", "1", 0.2])
     measurements.append(["TestA", "1", 1.8])
     measurements.append(["TestA", "1", 1.0])
-
     wb.save(path)
+
+
+def test_prompt_scope_reprompts_until_target_valid(monkeypatch: pytest.MonkeyPatch) -> None:
+    class PromptingIO(DummyIO):
+        def __init__(self) -> None:
+            super().__init__()
+            self._responses = iter(["", "1.5"])
+
+        def prompt(self, prompt: str, default: str | None = None) -> str:
+            return next(self._responses, "1.5")
+
+    io = PromptingIO()
+    result = actions._prompt_scope(io, {"scope": "all", "target_cpk": "invalid"}, allow_single=True, require_target=True)
+    assert result["target_cpk"] == pytest.approx(1.5)
+    assert any("numeric" in warning.lower() for warning in io.warnings)
+
+
+def test_prompt_scope_optional_invalid_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    io = DummyIO()
+    result = actions._prompt_scope(
+        io,
+        {"scope": "all", "target_cpk": "not-anumber"},
+        allow_single=True,
+        require_target=False,
+        prompt_target=False,
+    )
+    assert result["target_cpk"] is None
+    assert any("numeric" in warning.lower() for warning in io.warnings)
+
+
+def test_should_skip_grr_rejects_reversed_spec_limits() -> None:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Template"
+    ws.append(["Test Name", "Test Number", "LL_ATE", "UL_ATE"])
+    ws.append(["TestA", "1", -1.2, 1.2])
+    header_row, header_map = sheet_utils.build_header_map(ws)
+    template_rows = [header_row + 1]
+
+    descriptor = actions.TestDescriptor(
+        file="lot",
+        test_name="TestA",
+        test_number="1",
+        unit="V",
+        mean=0.0,
+        stdev=0.2,
+        cpk=1.4,
+    )
+
+    skip, info = actions._should_skip_grr(
+        descriptor,
+        ws,
+        template_rows,
+        header_map,
+        spec_lower=0.6,
+        spec_upper=-0.6,
+        min_cpk=1.0,
+        max_cpk=2.0,
+    )
+    assert skip is False
+    assert info.get("reason") == "invalid_spec_range"
+    assert "lower_guardband_percent" not in info
+
+
+def test_compute_yield_loss_returns_nan_without_limits() -> None:
+    measurements = pd.DataFrame(
+        {
+            "Test Name": ["TestA", "TestA"],
+            "Test Number": ["1", "1"],
+            "Value": [0.1, 0.2],
+        }
+    )
+    result = actions._compute_yield_loss(measurements, "TestA", "1", None, None)
+    assert math.isnan(result)
 
 
 def _load_context(workbook_path: Path, tmp_path: Path) -> PostProcessContext:
