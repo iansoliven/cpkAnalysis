@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from cpkanalysis.postprocess import actions, sheet_utils
+from cpkanalysis.postprocess import actions, sheet_utils, proposed_limits_grr
 from cpkanalysis.postprocess.context import PostProcessContext
 from cpkanalysis.models import AnalysisInputs
 
@@ -157,6 +157,17 @@ def _expected_cpk_prop_formula(header_map: dict[str, int], row: int) -> str:
     return (
         f"=IF(AND({stdev}>0,{ll_prop}<>\"\",{ul_prop}<>\"\"),"
         f"MIN(({mean}-{ll_prop})/(3*{stdev}),({ul_prop}-{mean})/(3*{stdev})),\"\")"
+    )
+
+
+def _expected_cpk_proposed_spec_formula(header_map: dict[str, int], row: int) -> str:
+    mean = _column_ref(header_map, "MEAN", row)
+    stdev = _column_ref(header_map, "STDEV", row)
+    spec_ll = _column_ref(header_map, "Proposed Spec Lower", row)
+    spec_ul = _column_ref(header_map, "Proposed Spec Upper", row)
+    return (
+        f"=IF(AND({stdev}>0,{spec_ll}<>\"\",{spec_ul}<>\"\"),"
+        f"MIN(({mean}-{spec_ll})/(3*{stdev}),({spec_ul}-{mean})/(3*{stdev})),\"\")"
     )
 
 
@@ -494,3 +505,90 @@ def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: py
     assert per_test["upper_origin"] == "unchanged"
     assert per_test["cpk_updated"] is True
     assert per_test["yield_updated"] is True
+
+
+def test_calculate_proposed_limits_grr_inserts_formula(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, **kwargs: None,
+    )
+
+    grr_dir = tmp_path / "grr"
+    grr_dir.mkdir()
+    (grr_dir / "Total_GRR.xlsx").write_bytes(b"dummy")
+
+    record = proposed_limits_grr.GRRRecord(
+        test_number="1",
+        test_name="testa",
+        unit_raw="V",
+        unit_normalized="VOLTS",
+        spec_lower=0.64,
+        spec_upper=1.36,
+        guardband_full=0.05,
+    )
+
+    class DummyGRRTable:
+        def find(self, test_number: str, test_name: str) -> proposed_limits_grr.GRRRecord | None:
+            return record
+
+    monkeypatch.setattr(actions.proposed_limits_grr, "load_grr_table", lambda path: DummyGRRTable())
+
+    comp_result = proposed_limits_grr.ComputationResult(
+        guardband_label="100% GRR",
+        guardband_value=0.05,
+        guardband_cpk=None,
+        ft_lower=0.7,
+        ft_upper=1.3,
+        ft_cpk=1.1,
+        spec_lower=0.62,
+        spec_upper=1.38,
+        spec_cpk=(1.38 - 1.0) / (3 * 0.2),
+        spec_widened=False,
+        notes=[],
+    )
+    monkeypatch.setattr(
+        actions.proposed_limits_grr,
+        "compute_proposed_limits",
+        lambda **kwargs: comp_result,
+    )
+
+    descriptor_key = "lot1|TestA|1"
+    params = {
+        "scope": "single",
+        "test_key": descriptor_key,
+        "grr_path": str(grr_dir),
+        "grr_available": True,
+        "cpk_min": 1.0,
+        "cpk_max": 2.0,
+    }
+
+    result = actions.calculate_proposed_limits_grr(context, io, params)
+
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    row_idx = header_row + 1
+    spec_lower_col = headers[sheet_utils.normalize_header("Proposed Spec Lower")]
+    spec_upper_col = headers[sheet_utils.normalize_header("Proposed Spec Upper")]
+    spec_cpk_col = headers[sheet_utils.normalize_header("CPK Proposed Spec")]
+
+    spec_lower = template_ws.cell(row=row_idx, column=spec_lower_col).value
+    spec_upper = template_ws.cell(row=row_idx, column=spec_upper_col).value
+    assert spec_lower == pytest.approx(comp_result.spec_lower)
+    assert spec_upper == pytest.approx(comp_result.spec_upper)
+
+    spec_cpk_cell = template_ws.cell(row=row_idx, column=spec_cpk_col)
+    assert spec_cpk_cell.data_type == "f"
+    assert spec_cpk_cell.value == _expected_cpk_proposed_spec_formula(headers, row_idx)
+
+    mean = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("STDEV")]).value
+    expected_cpk = _compute_cpk(mean, stdev, spec_lower, spec_upper)
+    assert expected_cpk == pytest.approx(comp_result.spec_cpk)
+
+    assert result["summary"] == "Calculated GRR-based proposed limits for 1 test(s). Updated metrics for 2 test(s)."

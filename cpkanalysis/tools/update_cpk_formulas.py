@@ -88,6 +88,9 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
     cpk_prop_col = _require_column(header_map, "CPK_PROP", "CPK Proposed")
 
     cpk_spec_col = _ensure_column(ws, header_row, header_map, "CPK_SPEC")
+    spec_prop_lower_col = _ensure_column(ws, header_row, header_map, "Proposed Spec Lower")
+    spec_prop_upper_col = _ensure_column(ws, header_row, header_map, "Proposed Spec Upper")
+    spec_prop_cpk_col = _ensure_column(ws, header_row, header_map, "CPK Proposed Spec")
 
     letters = {
         "mean": get_column_letter(mean_col),
@@ -111,6 +114,9 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
         "ul_prop": get_column_letter(ul_prop_col),
         "cpk_prop": get_column_letter(cpk_prop_col),
         "cpk_spec": get_column_letter(cpk_spec_col),
+        "spec_prop_lower": get_column_letter(spec_prop_lower_col),
+        "spec_prop_upper": get_column_letter(spec_prop_upper_col),
+        "spec_prop_cpk": get_column_letter(spec_prop_cpk_col),
     }
 
     if HELPER_SHEET in workbook.sheetnames:
@@ -184,6 +190,13 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
         _set(
             ws.cell(row=row, column=cpk_prop_col),
             f"=IF(AND({stdev}>0,{ll_prop}<>\"\",{ul_prop}<>\"\"),MIN(({mean}-{ll_prop})/(3*{stdev}),({ul_prop}-{mean})/(3*{stdev})),\"\")",
+        )
+        spec_prop_lower = _cell(letters["spec_prop_lower"], row)
+        spec_prop_upper = _cell(letters["spec_prop_upper"], row)
+        _set(
+            ws.cell(row=row, column=spec_prop_cpk_col),
+            f"=IF(AND({stdev}>0,{spec_prop_lower}<>\"\",{spec_prop_upper}<>\"\"),"
+            f"MIN(({mean}-{spec_prop_lower})/(3*{stdev}),({spec_prop_upper}-{mean})/(3*{stdev})),\"\")",
         )
 
         sheet_mean = _sheet_cell(sheet_ref, letters["mean"], row)
