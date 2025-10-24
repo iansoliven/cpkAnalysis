@@ -171,6 +171,45 @@ def _expected_cpk_proposed_spec_formula(header_map: dict[str, int], row: int) ->
     )
 
 
+
+
+
+
+
+def _expected_lower_guardband_pct_formula(header_map: dict[str, int], row: int) -> str:
+    spec_ll = _column_ref(header_map, 'Proposed Spec Lower', row)
+    spec_ul = _column_ref(header_map, 'Proposed Spec Upper', row)
+    ll_prop = _column_ref(header_map, 'LL_PROP', row)
+    spec_width = f'({spec_ul}-{spec_ll})'
+    return (
+        f'=IF(OR({spec_width}=0,{spec_ll}="",{spec_ul}="",{ll_prop}=""),"",'
+        f'ABS({ll_prop}-{spec_ll})/{spec_width})'
+    )
+
+
+def _expected_upper_guardband_pct_formula(header_map: dict[str, int], row: int) -> str:
+    spec_ll = _column_ref(header_map, 'Proposed Spec Lower', row)
+    spec_ul = _column_ref(header_map, 'Proposed Spec Upper', row)
+    ul_prop = _column_ref(header_map, 'UL_PROP', row)
+    spec_width = f'({spec_ul}-{spec_ll})'
+    return (
+        f'=IF(OR({spec_width}=0,{spec_ll}="",{spec_ul}="",{ul_prop}=""),"",'
+        f'ABS({spec_ul}-{ul_prop})/{spec_width})'
+    )
+
+
+def _expected_lower_guardband_formula(header_map: dict[str, int], row: int) -> str:
+    spec_ll = _column_ref(header_map, 'Proposed Spec Lower', row)
+    ll_prop = _column_ref(header_map, 'LL_PROP', row)
+    return f'=IF(OR({ll_prop}="",{spec_ll}=""),"",ABS({ll_prop}-{spec_ll}))'
+
+
+def _expected_upper_guardband_formula(header_map: dict[str, int], row: int) -> str:
+    spec_ul = _column_ref(header_map, 'Proposed Spec Upper', row)
+    ul_prop = _column_ref(header_map, 'UL_PROP', row)
+    return f'=IF(OR({ul_prop}="",{spec_ul}=""),"",ABS({spec_ul}-{ul_prop}))'
+
+
 def _compute_cpk(mean: float, stdev: float, lower: float | None, upper: float | None) -> float | None:
     if stdev is None or stdev <= 0:
         return None
@@ -281,6 +320,30 @@ def test_calculate_proposed_limits_populates_proposal_columns(monkeypatch: pytes
     assert cpk_cell.data_type == "f"
     expected_form = _expected_cpk_prop_formula(headers, row_idx)
     assert cpk_cell.value == expected_form
+    lower_pct_col = headers[sheet_utils.normalize_header("Lower Guardband Percent")]
+    upper_pct_col = headers[sheet_utils.normalize_header("Upper Guardband Percent")]
+    lower_guard_col = headers[sheet_utils.normalize_header("Lower Guardband")]
+    upper_guard_col = headers[sheet_utils.normalize_header("Upper Guardband")]
+
+    lower_pct_cell = template_ws.cell(row=row_idx, column=lower_pct_col)
+    upper_pct_cell = template_ws.cell(row=row_idx, column=upper_pct_col)
+    lower_guard_cell = template_ws.cell(row=row_idx, column=lower_guard_col)
+    upper_guard_cell = template_ws.cell(row=row_idx, column=upper_guard_col)
+
+    assert lower_pct_cell.data_type == "f"
+    assert lower_pct_cell.value == _expected_lower_guardband_pct_formula(headers, row_idx)
+    assert lower_pct_cell.number_format == "0.0%"
+    assert upper_pct_cell.data_type == "f"
+    assert upper_pct_cell.value == _expected_upper_guardband_pct_formula(headers, row_idx)
+    assert upper_pct_cell.number_format == "0.0%"
+
+    assert lower_guard_cell.data_type == "f"
+    assert lower_guard_cell.value == _expected_lower_guardband_formula(headers, row_idx)
+    assert lower_guard_cell.number_format == "0.000"
+    assert upper_guard_cell.data_type == "f"
+    assert upper_guard_cell.value == _expected_upper_guardband_formula(headers, row_idx)
+    assert upper_guard_cell.number_format == "0.000"
+
     mean = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("MEAN")]).value
     stdev = template_ws.cell(row=row_idx, column=headers[sheet_utils.normalize_header("STDEV")]).value
     computed_cpk = _compute_cpk(mean, stdev, expected_ll_value, expected_ul_value)
@@ -534,8 +597,14 @@ def test_calculate_proposed_limits_grr_inserts_formula(monkeypatch: pytest.Monke
     )
 
     class DummyGRRTable:
+        def __init__(self):
+            self._records = [record]
+
         def find(self, test_number: str, test_name: str) -> proposed_limits_grr.GRRRecord | None:
             return record
+
+        def records(self):
+            return list(self._records)
 
     monkeypatch.setattr(actions.proposed_limits_grr, "load_grr_table", lambda path: DummyGRRTable())
 
@@ -591,4 +660,105 @@ def test_calculate_proposed_limits_grr_inserts_formula(monkeypatch: pytest.Monke
     expected_cpk = _compute_cpk(mean, stdev, spec_lower, spec_upper)
     assert expected_cpk == pytest.approx(comp_result.spec_cpk)
 
+    assert "_GRR_reference" in context.workbook().sheetnames
     assert result["summary"] == "Calculated GRR-based proposed limits for 1 test(s). Updated metrics for 2 test(s)."
+
+
+
+def test_calculate_proposed_limits_grr_skips_when_guardband_met(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "report.xlsx"
+    _build_workbook(workbook_path)
+
+    wb = load_workbook(workbook_path)
+    template_ws = wb["Template"]
+    header_row, header_map = sheet_utils.build_header_map(template_ws)
+    ll_ate_col = header_map[sheet_utils.normalize_header("LL_ATE")]
+    ul_ate_col = header_map[sheet_utils.normalize_header("UL_ATE")]
+    template_ws.cell(row=header_row + 1, column=ll_ate_col, value=-1.6)
+    template_ws.cell(row=header_row + 1, column=ul_ate_col, value=1.6)
+
+    summary_ws = wb["Summary"]
+    summary_header_row, summary_headers = sheet_utils.build_header_map(summary_ws)
+    cpk_col = summary_headers[sheet_utils.normalize_header("CPK")]
+    summary_ws.cell(row=summary_header_row + 1, column=cpk_col, value=1.2)
+    wb.save(workbook_path)
+    wb.close()
+
+    context = _load_context(workbook_path, tmp_path)
+    io = DummyIO()
+
+    monkeypatch.setattr(
+        actions.charts,
+        "refresh_tests",
+        lambda ctx, tests, **kwargs: None,
+    )
+
+    grr_dir = tmp_path / "grr"
+    grr_dir.mkdir()
+    (grr_dir / "Total_GRR.xlsx").write_bytes(b"dummy")
+
+    record = proposed_limits_grr.GRRRecord(
+        test_number="1",
+        test_name="TestA",
+        unit_raw="V",
+        unit_normalized="VOLTS",
+        spec_lower=-0.5,
+        spec_upper=0.5,
+        guardband_full=0.05,
+    )
+
+    class SkipDummyGRRTable:
+        def __init__(self):
+            self._records = [record]
+
+        def find(self, test_number: str, test_name: str) -> proposed_limits_grr.GRRRecord | None:
+            return record
+
+        def records(self):
+            return list(self._records)
+
+    monkeypatch.setattr(actions.proposed_limits_grr, "load_grr_table", lambda path: SkipDummyGRRTable())
+
+    result = actions.calculate_proposed_limits_grr(
+        context,
+        io,
+        {
+            "scope": "single",
+            "test_key": "lot1|TestA|1",
+            "grr_path": str(grr_dir),
+            "grr_available": True,
+            "cpk_min": 1.0,
+            "cpk_max": 2.0,
+        },
+    )
+
+    template_ws = context.template_sheet()
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    data_row = header_row + 1
+    ll_prop_col = headers[sheet_utils.normalize_header("LL_PROP")]
+    ul_prop_col = headers[sheet_utils.normalize_header("UL_PROP")]
+    spec_lower_col = headers[sheet_utils.normalize_header("Proposed Spec Lower")]
+    spec_upper_col = headers[sheet_utils.normalize_header("Proposed Spec Upper")]
+
+    assert template_ws.cell(row=data_row, column=ll_prop_col).value == pytest.approx(-1.6)
+    assert template_ws.cell(row=data_row, column=ul_prop_col).value == pytest.approx(1.6)
+    assert template_ws.cell(row=data_row, column=spec_lower_col).value == pytest.approx(record.spec_lower)
+    assert template_ws.cell(row=data_row, column=spec_upper_col).value == pytest.approx(record.spec_upper)
+
+    assert "Skipped 1 test(s) (guardband already satisfied)." in result["summary"]
+
+    state = context.metadata["post_processing_state"]["proposed_limits"]["lot1|TestA|1"]
+    assert state["skipped"] is True
+
+    per_test = result["audit"]["parameters"]["per_test"][0]
+    assert per_test.get("skipped") is True
+
+    lower_guardband_col = headers[sheet_utils.normalize_header("Lower Guardband")]
+    upper_guardband_col = headers[sheet_utils.normalize_header("Upper Guardband")]
+    lower_guard_cell = template_ws.cell(row=data_row, column=lower_guardband_col)
+    upper_guard_cell = template_ws.cell(row=data_row, column=upper_guardband_col)
+    assert lower_guard_cell.data_type == "f"
+    assert lower_guard_cell.value == _expected_lower_guardband_formula(headers, data_row)
+    assert upper_guard_cell.data_type == "f"
+    assert upper_guard_cell.value == _expected_upper_guardband_formula(headers, data_row)
+

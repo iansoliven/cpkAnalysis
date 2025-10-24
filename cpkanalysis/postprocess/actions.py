@@ -11,6 +11,9 @@ import logging
 
 import numpy as np
 import pandas as pd
+from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill
+from openpyxl.formatting.rule import FormulaRule
 
 from .context import PostProcessContext
 from .io_adapters import PostProcessIO
@@ -27,6 +30,7 @@ __all__ = [
 ]
 
 PROPOSAL_TOLERANCE = 1e-6
+GRR_REFERENCE_SHEET = "_GRR_reference"
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +44,167 @@ def _reapply_cpk_formulas(context: PostProcessContext) -> None:
         update_cpk_formulas.apply_formulas(template_ws.parent, template_ws)
     except ValueError as exc:
         logger.warning("Skipping CPK formula refresh: %s", exc)
+
+
+def _ensure_grr_reference_sheet(workbook, grr_table):
+    try:
+        records = list(grr_table.records())
+    except AttributeError:
+        records = []
+
+    if not records:
+        if GRR_REFERENCE_SHEET in workbook.sheetnames:
+            workbook.remove(workbook[GRR_REFERENCE_SHEET])
+        return None
+
+    if GRR_REFERENCE_SHEET in workbook.sheetnames:
+        ref_ws = workbook[GRR_REFERENCE_SHEET]
+        ref_ws.sheet_state = "visible"
+        if ref_ws.max_row:
+            ref_ws.delete_rows(1, ref_ws.max_row)
+    else:
+        ref_ws = workbook.create_sheet(GRR_REFERENCE_SHEET)
+
+    ref_ws.append(["Key", "Test Name", "Test Number", "Spec Lower", "Spec Upper"])
+    seen: set[str] = set()
+    for record in records:
+        name = record.test_name or ""
+        number = record.test_number or ""
+        key = f"{name}|{number}".strip("|")
+        if not key:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        ref_ws.append(
+            [
+                key,
+                record.test_name,
+                record.test_number,
+                record.spec_lower,
+                record.spec_upper,
+            ]
+        )
+    ref_ws.sheet_state = "hidden"
+    return ref_ws
+
+
+def _clear_conditional_formatting_range(ws, range_str: str) -> None:
+    cf = ws.conditional_formatting
+    try:
+        cf.remove(range_str)  # type: ignore[attr-defined]
+        return
+    except (AttributeError, KeyError):
+        pass
+    rules = getattr(cf, "_cf_rules", None)
+    if not rules:
+        return
+    filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
+    if len(filtered) != len(rules):
+        cf._cf_rules = filtered  # type: ignore[attr-defined]
+
+
+def _apply_spec_difference_cf(template_ws, header_map: Dict[str, int], header_row: int) -> None:
+    workbook = template_ws.parent
+    if GRR_REFERENCE_SHEET not in workbook.sheetnames:
+        return
+
+    data_start = header_row + 1
+    max_row = template_ws.max_row
+    if data_start > max_row:
+        return
+
+    spec_lower_col = header_map.get(sheet_utils.normalize_header("Proposed Spec Lower"))
+    spec_upper_col = header_map.get(sheet_utils.normalize_header("Proposed Spec Upper"))
+    if spec_lower_col is None or spec_upper_col is None:
+        return
+
+    ref_ws = workbook[GRR_REFERENCE_SHEET]
+    ref_max_row = max(ref_ws.max_row, 2)
+    key_range = f"'{GRR_REFERENCE_SHEET}'!$A$2:$A${ref_max_row}"
+    lower_ref_range = f"'{GRR_REFERENCE_SHEET}'!$D$2:$D${ref_max_row}"
+    upper_ref_range = f"'{GRR_REFERENCE_SHEET}'!$E$2:$E${ref_max_row}"
+
+    lower_letter = get_column_letter(spec_lower_col)
+    upper_letter = get_column_letter(spec_upper_col)
+    lower_range = f"{lower_letter}{data_start}:{lower_letter}{max_row}"
+    upper_range = f"{upper_letter}{data_start}:{upper_letter}{max_row}"
+    key_expr = f"$C{data_start}&\"|\"&$B{data_start}"
+
+    base_guard = "1E-6"
+    highlight_fill = PatternFill(start_color="FFFFF2CC", end_color="FFFFF2CC", fill_type="solid")
+
+    lower_formula = (
+        f"IF(OR(${lower_letter}{data_start}=\"\",$B{data_start}=\"\",$C{data_start}=\"\"),FALSE,"
+        f"IF(COUNTIF({key_range},{key_expr})=0,FALSE,"
+        f"ABS(${lower_letter}{data_start}-SUMIFS({lower_ref_range},{key_range},{key_expr}))>{base_guard}))"
+    )
+    upper_formula = (
+        f"IF(OR(${upper_letter}{data_start}=\"\",$B{data_start}=\"\",$C{data_start}=\"\"),FALSE,"
+        f"IF(COUNTIF({key_range},{key_expr})=0,FALSE,"
+        f"ABS(${upper_letter}{data_start}-SUMIFS({upper_ref_range},{key_range},{key_expr}))>{base_guard}))"
+    )
+
+    for target_range in (lower_range, upper_range):
+        _clear_conditional_formatting_range(template_ws, target_range)
+
+    template_ws.conditional_formatting.add(
+        lower_range, FormulaRule(formula=[lower_formula], fill=highlight_fill)
+    )
+    template_ws.conditional_formatting.add(
+        upper_range, FormulaRule(formula=[upper_formula], fill=highlight_fill)
+    )
+
+
+def _should_skip_grr(
+    descriptor: TestDescriptor,
+    template_ws,
+    template_rows: List[int],
+    template_headers: Dict[str, int],
+    *,
+    spec_lower: float,
+    spec_upper: float,
+    min_cpk: float,
+    max_cpk: float,
+) -> tuple[bool, Dict[str, float | None | str]]:
+    info: Dict[str, float | None | str] = {}
+    if not template_rows:
+        return False, info
+
+    spec_width = spec_upper - spec_lower
+    if spec_width <= PROPOSAL_TOLERANCE:
+        return False, info
+
+    ll_ate_col = _resolve_column(template_headers, ["LL_ATE", "LL ATE", "Lower ATE", "LL"])
+    ul_ate_col = _resolve_column(template_headers, ["UL_ATE", "UL ATE", "Upper ATE", "UL"])
+    ll_ate = _read_first_from_rows(template_ws, template_rows, ll_ate_col)
+    ul_ate = _read_first_from_rows(template_ws, template_rows, ul_ate_col)
+    info["ll_ate"] = ll_ate
+    info["ul_ate"] = ul_ate
+
+    if ll_ate is None or ul_ate is None:
+        return False, info
+
+    lower_percent = abs(ll_ate - spec_lower) / spec_width
+    upper_percent = abs(spec_upper - ul_ate) / spec_width
+    info["lower_guardband_percent"] = lower_percent
+    info["upper_guardband_percent"] = upper_percent
+
+    guardband_met = (
+        lower_percent >= 1.0 - PROPOSAL_TOLERANCE
+        and upper_percent >= 1.0 - PROPOSAL_TOLERANCE
+    )
+    if not guardband_met:
+        return False, info
+
+    current_cpk = descriptor.cpk
+    if current_cpk is None:
+        return False, info
+    if current_cpk < min_cpk - PROPOSAL_TOLERANCE or current_cpk > max_cpk + PROPOSAL_TOLERANCE:
+        return False, info
+
+    info["reason"] = "guardband_satisfied"
+    return True, info
 
 class ActionCancelled(RuntimeError):
     """Raised when the user aborts an action."""
@@ -284,7 +449,6 @@ def _ensure_proposed_spec_columns(
 ) -> dict[str, int]:
     from ..tools import update_cpk_formulas
 
-    # Ensure formulas (and columns) are present via shared helper
     update_cpk_formulas.apply_formulas(template_ws.parent, template_ws)
 
     updated_header_row, updated_header_map = sheet_utils.build_header_map(template_ws)
@@ -295,21 +459,23 @@ def _ensure_proposed_spec_columns(
     spec_lower_col = _resolve_column(updated_header_map, ["Proposed Spec Lower"])
     spec_upper_col = _resolve_column(updated_header_map, ["Proposed Spec Upper"])
     spec_cpk_col = _resolve_column(updated_header_map, ["CPK Proposed Spec"])
-    guardband_col = _resolve_column(updated_header_map, ["Guardband Selection"])
+    lower_pct_col = _resolve_column(updated_header_map, ["Lower Guardband Percent"])
+    upper_pct_col = _resolve_column(updated_header_map, ["Upper Guardband Percent"])
+    lower_guardband_col = _resolve_column(updated_header_map, ["Lower Guardband"])
+    upper_guardband_col = _resolve_column(updated_header_map, ["Upper Guardband"])
 
     if spec_lower_col is None or spec_upper_col is None or spec_cpk_col is None:
         raise ActionCancelled("Template sheet missing Proposed Spec columns after formula injection.")
-
-    if guardband_col is None:
-        guardband_col = template_ws.max_column + 1
-        template_ws.cell(row=header_row, column=guardband_col, value="Guardband Selection")
-        header_map[sheet_utils.normalize_header("Guardband Selection")] = guardband_col
 
     return {
         "spec_lower": spec_lower_col,
         "spec_upper": spec_upper_col,
         "spec_cpk": spec_cpk_col,
-        "guardband": guardband_col,
+        "lower_pct": lower_pct_col,
+        "upper_pct": upper_pct_col,
+        "lower_guardband": lower_guardband_col,
+        "upper_guardband": upper_guardband_col,
+        "header_row": header_row,
     }
 
 
@@ -847,6 +1013,8 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
     except (FileNotFoundError, ValueError) as exc:
         raise ActionCancelled(str(exc))
 
+    _ensure_grr_reference_sheet(context.workbook(), grr_table)
+
     min_cpk = _coerce_positive_float(params.get("cpk_min"))
     while min_cpk is None:
         value = io.prompt_float("Enter minimum FT CPK:", default=None)
@@ -902,10 +1070,10 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         )
 
     spec_columns = _ensure_proposed_spec_columns(template_ws, template_header_row, template_headers)
+    template_header_row = spec_columns["header_row"]
     spec_prop_lower_col = spec_columns["spec_lower"]
     spec_prop_upper_col = spec_columns["spec_upper"]
-    spec_prop_cpk_col = spec_columns["spec_cpk"]
-    guardband_col = spec_columns["guardband"]
+    _ = spec_columns["spec_cpk"]
 
     spec_lower_col = _resolve_column(template_headers, ["Spec Lower", "Spec Lower Limit"])
     spec_upper_col = _resolve_column(template_headers, ["Spec Upper", "Spec Upper Limit"])
@@ -918,6 +1086,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
 
     warnings: List[str] = []
     updated_tests: List[TestDescriptor] = []
+    skipped_tests: List[TestDescriptor] = []
     metrics_updates = 0
     audit_details: List[dict] = []
     unit_override_cache: Dict[Tuple[str, str], bool] = {}
@@ -977,12 +1146,83 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
             _warn_if_missing(io, warnings, f"Spec limits missing for {descriptor.label()} - skipping.")
             continue
 
+        spec_lower_f = float(spec_lower_value)
+        spec_upper_f = float(spec_upper_value)
+
+        skip_guardband, skip_info = _should_skip_grr(
+            descriptor,
+            template_ws,
+            template_rows,
+            template_headers,
+            spec_lower=spec_lower_f,
+            spec_upper=spec_upper_f,
+            min_cpk=float(min_cpk),
+            max_cpk=float(max_cpk),
+        )
+
+        if skip_guardband:
+            ll_ate = skip_info.get("ll_ate")
+            ul_ate = skip_info.get("ul_ate")
+            for row_idx in template_rows:
+                if ll_ate is not None:
+                    sheet_utils.set_cell(template_ws, row_idx, ll_prop_col, ll_ate)
+                if ul_ate is not None:
+                    sheet_utils.set_cell(template_ws, row_idx, ul_prop_col, ul_ate)
+                sheet_utils.set_cell(template_ws, row_idx, spec_prop_lower_col, spec_lower_f)
+                sheet_utils.set_cell(template_ws, row_idx, spec_prop_upper_col, spec_upper_f)
+            mark_dirty = True
+
+            if measurements_df.empty:
+                _warn_if_missing(io, warnings, f"No measurements available to compute yield for {descriptor.label()}.")
+            elif ll_ate is not None and ul_ate is not None:
+                yield_value = _compute_yield_loss(
+                    measurements_df,
+                    descriptor.test_name,
+                    descriptor.test_number,
+                    ll_ate,
+                    ul_ate,
+                )
+                if yield_value is not None and np.isfinite(yield_value):
+                    for row_idx in template_rows:
+                        sheet_utils.set_cell(template_ws, row_idx, yld_prop_col, yield_value)
+                    metrics_updates += 1
+
+            metadata_proposals[descriptor.key()] = {
+                "ll": ll_ate,
+                "ul": ul_ate,
+                "spec_ll": spec_lower_f,
+                "spec_ul": spec_upper_f,
+                "guardband": "Existing ATE",
+                "timestamp": timestamp,
+                "skipped": True,
+                "skip_reason": skip_info.get("reason"),
+            }
+
+            audit_entry = {
+                "test": descriptor.key(),
+                "skipped": True,
+                "skip_reason": skip_info.get("reason"),
+                "ft_lower": ll_ate,
+                "ft_upper": ul_ate,
+                "ft_cpk": descriptor.cpk,
+                "spec_lower": spec_lower_f,
+                "spec_upper": spec_upper_f,
+                "existing_lower_guardband_percent": skip_info.get("lower_guardband_percent"),
+                "existing_upper_guardband_percent": skip_info.get("upper_guardband_percent"),
+            }
+            if grr_record.guardband_full is not None:
+                audit_entry["grr_full"] = grr_record.guardband_full
+            audit_details.append(audit_entry)
+            skipped_tests.append(descriptor)
+            updated_tests.append(descriptor)
+            continue
+
         try:
             computation = proposed_limits_grr.compute_proposed_limits(
                 mean=float(mean),
                 stdev=float(stdev),
-                spec_lower=float(spec_lower_value),
-                spec_upper=float(spec_upper_value),
+                spec_lower=spec_lower_f,
+                spec_upper=spec_upper_f,
                 guardband_full=float(grr_record.guardband_full),
                 cpk_min=float(min_cpk),
                 cpk_max=float(max_cpk),
@@ -996,14 +1236,8 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
             sheet_utils.set_cell(template_ws, row_idx, ul_prop_col, computation.ft_upper)
             sheet_utils.set_cell(template_ws, row_idx, spec_prop_lower_col, computation.spec_lower)
             sheet_utils.set_cell(template_ws, row_idx, spec_prop_upper_col, computation.spec_upper)
-            sheet_utils.set_cell(template_ws, row_idx, guardband_col, computation.guardband_label)
-            if computation.ft_cpk is not None:
-                sheet_utils.set_cell(template_ws, row_idx, cpk_prop_col, computation.ft_cpk)
-            if computation.spec_cpk is not None:
-                sheet_utils.set_cell(template_ws, row_idx, spec_prop_cpk_col, computation.spec_cpk)
         mark_dirty = True
 
-        yield_value = None
         if measurements_df.empty:
             _warn_if_missing(io, warnings, f"No measurements available to compute yield for {descriptor.label()}.")
         else:
@@ -1014,12 +1248,10 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
                 computation.ft_lower,
                 computation.ft_upper,
             )
-            if yield_value is not None and not np.isfinite(yield_value):
-                yield_value = None
-        if yield_value is not None:
-            for row_idx in template_rows:
-                sheet_utils.set_cell(template_ws, row_idx, yld_prop_col, yield_value)
-            metrics_updates += 1
+            if yield_value is not None and np.isfinite(yield_value):
+                for row_idx in template_rows:
+                    sheet_utils.set_cell(template_ws, row_idx, yld_prop_col, yield_value)
+                metrics_updates += 1
 
         if computation.ft_cpk is not None:
             metrics_updates += 1
@@ -1031,6 +1263,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
             "spec_ul": computation.spec_upper,
             "guardband": computation.guardband_label,
             "timestamp": timestamp,
+            "skipped": False,
         }
 
         audit_entry = {
@@ -1063,10 +1296,15 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         build_proposed_sheets=True,
     )
     _reapply_cpk_formulas(context)
+    template_ws = context.template_sheet()
+    template_header_row, template_headers = sheet_utils.build_header_map(template_ws)
+    _apply_spec_difference_cf(template_ws, template_headers, template_header_row)
 
     summary_parts = [f"Calculated GRR-based proposed limits for {len(updated_tests)} test(s)."]
     if metrics_updates:
         summary_parts.append(f"Updated metrics for {metrics_updates} test(s).")
+    if skipped_tests:
+        summary_parts.append(f"Skipped {len(skipped_tests)} test(s) (guardband already satisfied).")
     summary_text = " ".join(summary_parts)
 
     return {
@@ -1080,6 +1318,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
                 "cpk_min": min_cpk,
                 "cpk_max": max_cpk,
                 "per_test": audit_details,
+                "skipped": _tests_to_strings(skipped_tests),
             },
         },
         "replay_params": {
@@ -1092,13 +1331,6 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
         },
         "mark_dirty": mark_dirty,
     }
-
-
-# ---------------------------------------------------------------------------
-# Supporting calculations
-# ---------------------------------------------------------------------------
-
-
 def _compute_yield_loss(
     measurements: pd.DataFrame,
     test_name: str,

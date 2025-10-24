@@ -6,6 +6,8 @@ from typing import Union
 
 import openpyxl
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import PatternFill
+from openpyxl.formatting.rule import CellIsRule
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -16,6 +18,22 @@ HELPER_SHEET = "cpk_helpers"
 
 def _set(cell, formula: str) -> None:
     cell.value = formula
+
+
+def _clear_conditional_formatting(ws: Worksheet, range_str: str) -> None:
+    """Remove existing conditional formatting rule for the given range if present."""
+    cf = ws.conditional_formatting
+    try:
+        cf.remove(range_str)  # type: ignore[attr-defined]
+        return
+    except (AttributeError, KeyError):
+        pass
+    rules = getattr(cf, "_cf_rules", None)
+    if rules is None:
+        return
+    filtered = [rule for rule in rules if str(getattr(rule, "sqref", "")) != range_str]
+    if len(filtered) != len(rules):
+        cf._cf_rules = filtered  # type: ignore[attr-defined]
 
 
 def _quote_sheet(name: str) -> str:
@@ -91,6 +109,10 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
     spec_prop_lower_col = _ensure_column(ws, header_row, header_map, "Proposed Spec Lower")
     spec_prop_upper_col = _ensure_column(ws, header_row, header_map, "Proposed Spec Upper")
     spec_prop_cpk_col = _ensure_column(ws, header_row, header_map, "CPK Proposed Spec")
+    lower_guardband_pct_col = _ensure_column(ws, header_row, header_map, "Lower Guardband Percent")
+    upper_guardband_pct_col = _ensure_column(ws, header_row, header_map, "Upper Guardband Percent")
+    lower_guardband_col = _ensure_column(ws, header_row, header_map, "Lower Guardband")
+    upper_guardband_col = _ensure_column(ws, header_row, header_map, "Upper Guardband")
 
     letters = {
         "mean": get_column_letter(mean_col),
@@ -117,6 +139,10 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
         "spec_prop_lower": get_column_letter(spec_prop_lower_col),
         "spec_prop_upper": get_column_letter(spec_prop_upper_col),
         "spec_prop_cpk": get_column_letter(spec_prop_cpk_col),
+        "lower_guardband_pct": get_column_letter(lower_guardband_pct_col),
+        "upper_guardband_pct": get_column_letter(upper_guardband_pct_col),
+        "lower_guardband": get_column_letter(lower_guardband_col),
+        "upper_guardband": get_column_letter(upper_guardband_col),
     }
 
     if HELPER_SHEET in workbook.sheetnames:
@@ -198,6 +224,23 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
             f"=IF(AND({stdev}>0,{spec_prop_lower}<>\"\",{spec_prop_upper}<>\"\"),"
             f"MIN(({mean}-{spec_prop_lower})/(3*{stdev}),({spec_prop_upper}-{mean})/(3*{stdev})),\"\")",
         )
+        _set(
+            ws.cell(row=row, column=lower_guardband_col),
+            f"=IF(OR({ll_prop}=\"\",{spec_prop_lower}=\"\"),\"\",ABS({ll_prop}-{spec_prop_lower}))",
+        )
+        _set(
+            ws.cell(row=row, column=upper_guardband_col),
+            f"=IF(OR({ul_prop}=\"\",{spec_prop_upper}=\"\"),\"\",ABS({spec_prop_upper}-{ul_prop}))",
+        )
+        spec_width = f"({spec_prop_upper}-{spec_prop_lower})"
+        _set(
+            ws.cell(row=row, column=lower_guardband_pct_col),
+            f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ll_prop}=\"\"),\"\",ABS({ll_prop}-{spec_prop_lower})/{spec_width})",
+        )
+        _set(
+            ws.cell(row=row, column=upper_guardband_pct_col),
+            f"=IF(OR({spec_width}=0,{spec_prop_lower}=\"\",{spec_prop_upper}=\"\",{ul_prop}=\"\"),\"\",ABS({spec_prop_upper}-{ul_prop})/{spec_width})",
+        )
 
         sheet_mean = _sheet_cell(sheet_ref, letters["mean"], row)
         sheet_stdev = _sheet_cell(sheet_ref, letters["stdev"], row)
@@ -221,6 +264,55 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
             ws.cell(row=row, column=cpk_spec_col),
             f"=IF('{HELPER_SHEET}'!$C{row}=\"\",\"\",'{HELPER_SHEET}'!$C{row})",
         )
+
+    if data_start_row > max_row:
+        return
+
+    decimal_columns = {
+        ll_spec_col,
+        ul_spec_col,
+        ll_ate_col,
+        ul_ate_col,
+        cpl_col,
+        cpu_col,
+        cpk_col,
+        ll_2cpk_col,
+        ul_2cpk_col,
+        cpk_2_col,
+        ll_3iqr_col,
+        ul_3iqr_col,
+        cpk_3iqr_col,
+        ll_prop_col,
+        ul_prop_col,
+        cpk_prop_col,
+        cpk_spec_col,
+        spec_prop_lower_col,
+        spec_prop_upper_col,
+        spec_prop_cpk_col,
+        lower_guardband_col,
+        upper_guardband_col,
+    }
+    for col in decimal_columns:
+        if not col:
+            continue
+        for row in range(data_start_row, max_row + 1):
+            ws.cell(row=row, column=col).number_format = "0.000"
+
+    percent_columns = {lower_guardband_pct_col, upper_guardband_pct_col}
+    for col in percent_columns:
+        if not col:
+            continue
+        for row in range(data_start_row, max_row + 1):
+            ws.cell(row=row, column=col).number_format = "0.0%"
+
+    red_fill = PatternFill(start_color="FFFFC7CE", end_color="FFFFC7CE", fill_type="solid")
+    for key in ("lower_guardband_pct", "upper_guardband_pct"):
+        col_letter = letters.get(key)
+        if not col_letter:
+            continue
+        range_str = f"{col_letter}{data_start_row}:{col_letter}{max_row}"
+        _clear_conditional_formatting(ws, range_str)
+        ws.conditional_formatting.add(range_str, CellIsRule(operator="lessThan", formula=["0.5"], fill=red_fill))
 
 
 def update_workbook(path: Path, template_sheet: str) -> None:

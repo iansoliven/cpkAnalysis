@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from openpyxl import Workbook
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -339,12 +340,17 @@ def test_cli_run_invalid_plugin_directive_exits(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(cli, "PluginRegistry", fake_registry)
     monkeypatch.setattr(cli, "run_analysis", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("run_analysis should not execute")))
 
+    template_path = tmp_path / "template.xlsx"
+    Workbook().save(template_path)
+
     with pytest.raises(SystemExit) as exc:
         cli.main(
             [
                 "run",
                 "--metadata",
                 str(metadata_path),
+                "--template",
+                str(template_path),
                 "--plugin",
                 "param:plugin.a",
             ]

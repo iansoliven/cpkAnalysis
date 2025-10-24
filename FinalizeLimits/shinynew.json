@@ -1,0 +1,880 @@
+{
+  "output": "D:\\AI_GEN\\cpkAnalysis\\FinalizeLimits\\shinynew.xlsx",
+  "template": "D:\\AI_GEN\\cpkAnalysis\\template\\cpk_report_output_template.xlsx",
+  "sources": [
+    {
+      "file": "allHandlerData.stdf",
+      "path": "D:\\AI_GEN\\cpkAnalysis\\FinalizeLimits\\allHandlerData.stdf",
+      "measurement_count": 241381,
+      "device_count": 1184,
+      "invalid_measurements_filtered": 4891
+    }
+  ],
+  "outlier_filter": {
+    "method": "iqr",
+    "k": 3.0,
+    "removed": 962
+  },
+  "template_sheet": "J95323",
+  "limit_sources": {
+    "allHandlerData.stdf|Cont_Vss_TMON|100001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PWM|100002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_IMON|100003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_VCC|100004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_EN|100005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_BOOT|100006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PHASE|100007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_VIN|100008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_GL|100009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PVCC|100010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_NC23_SDA|100011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_VCC|200001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_PVCC|200002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_VIN|200003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_BOOT|200004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Hi_EN_Unpowered|300001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Rpd_GL_Unpowered|300002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Lo_PWM|300003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Lo_EN|300004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Lo_SDA|300005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Lo_SW|300006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Mid_PWM|300007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Hi_PWM|300008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Hi_EN|300009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Leakage_Hi_SDA|300010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Rpd_TMON_FAULT|300011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|BOOT_intleak_hiEven|2700001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VCC_intleak_hiEven|2700002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PVCC_intleak_hiEven|2700003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TMON_intleak_hiEven|2700004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PH_intleak_hiOdd|2700005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_intleak_hiOdd|2700006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|GL_intleak_hiOdd|2700007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IMON_intleak_hiOdd|2700008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|EN_intleak_hiOdd|2700009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VCC_UVLO_Rising|400001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VCC_UVLO_Falling|400002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VCC_UVLO_Hysteresis|400003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|POR_TD|400004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Shutdown_FUNC2|400005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_NormalLoad_FUNC1|500001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_NormalLoad_FUNC3|500002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_NormalLoad_FUNC5|500003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_NormalLoad_FUNC6|500004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_NormalLoad_FUNC7|500005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_LightLoad_FUNC1|500006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_LightLoad_FUNC2|500007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_LightLoad_FUNC3|500008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_LightLoad_FUNC6|500009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_UltraLightLoad_FUNC1|500010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_UltraLightLoad_FUNC4|500011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_UltraLightLoad_FUNC6|500012": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_UltraLightLoad_FUNC9|500013": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Shutdown_FUNC1|500014": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Shutdown_FUNC6|500015": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VIN_Dynamic_5p0|500016": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VIN_Dynamic_5p5|500017": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VIN_Dynamic_Ratio|500018": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VCC_Dynamic_5p5|500019": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_PVCC_Dynamic_5p5|500020": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VCC_LightLoad_5p5|500021": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_PVCC_LightLoad_5p5|500022": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VCC_ULL_5p5|500023": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_PVCC_ULL_5p5|500024": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_VCC_Shutdown_5p5|500025": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IQ_PVCC_Shutdown_5p5|500026": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TD_ENT_LP_PWM|500027": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|POR_success|500028": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|shutdownTMONV|500029": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|StuckAtFault_MaxSup|600001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|LSDriver_FUNC_1|700001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_FUNC_2|700002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_FUNC_3|700003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|EN_Func_VIL|700004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|EN_Func_VIH|700005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_Func_VIL|700006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_Func_VImid_Lo|700007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_Func_VImid_Hi|700008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_Func_VIH|700009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TMON_I_SRC|700010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TMON_I_SINK|700011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|EN_TPHL|700012": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|EN_TPLH|700013": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|GL_VOH_100mA|700014": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|GL_VOL_100mA|700015": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_TPLZ|700016": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_TPZH|700017": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_TPHZ|700018": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_TPZL|700019": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|HSFET_RDSON|800001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|LSFET_RDSON|800002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|HSFET_IDSS_pre|900001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|HSFET_BVDSS_pre|900002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|HSFET_ID_pk|900003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|HSFET_IDSS_post|900004": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|HSFET_BVDSS_post|900005": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_IDSS_pre|900006": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_BVDSS_pre|900007": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_ID_pk|900008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|LSFET_IDSS_post|900009": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_BVDSS_post|900010": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|HSFET_IDSS_delta|900011": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|HSFET_BVDSS_delta|900012": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_IDSS_delta|900013": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LSFET_BVDSS_delta|900014": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|AMUX_Vio_1p2|1000001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|VBG_PreTrim|1100001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VBG_MeasTrim|1100002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VBG_Deviation|1100003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Iztc_PreTrim|1200001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Iztc_MeasTrim|1200002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Iztc_Deviation|1200003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LDO_PreTrim|1300001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|LDO_MeasTrim|1300002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|LDO_Deviation|1300003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|MeasTemp|1500001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TmonOffset_25C_PreTrim|1500002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|TmonOffset_25C_MeasTrim|1500003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|TmonOffset_Deviation|1500004": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|ImonGain_PreTrim|1700001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|ImonGain_MeasTrim|1700002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|ImonGain_Deviation|1700003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Zcd_Deviation|1600001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|ImonOffset_PreTrim_0code|1600002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|ImonOffset_MeasTrim|1600003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|ImonOffset_Deviation|1600004": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|ImonOffset_PreTrim|1600005": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Nocp_Deviation|1800001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Pocp_Deviation|1800002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x90_read|1900001": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x91_read|1900002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x92_read|1900003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x93_read|1900004": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x94_read|1900005": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x95_read|1900006": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x96_read|1900007": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x97_read|1900008": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x98_read|1900009": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x99_read|1900010": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9A_read|1900011": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9B_read|1900012": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9C_read|1900013": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9D_read|1900014": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9E_read|1900015": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9F_read|1900016": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x90_margin_expected|1900017": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x91_margin_expected|1900018": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x92_margin_expected|1900019": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x93_margin_expected|1900020": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x94_margin_expected|1900021": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x95_margin_expected|1900022": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x96_margin_expected|1900023": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x97_margin_expected|1900024": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x98_margin_expected|1900025": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x99_margin_expected|1900026": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9A_margin_expected|1900027": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9B_margin_expected|1900028": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9C_margin_expected|1900029": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9D_margin_expected|1900030": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9E_margin_expected|1900031": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|0x9F_margin_expected|1900032": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|BOOT_VF|2000001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VBOOT_UVLO_R|2000002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VBOOT_UVLO_L|2000003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Imon_1p4_offset|2100001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Imon_1p4_1A|2100002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Imon_1p4_5A|2100003": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Imon_1p4_10A|2100004": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Imon_1p4_35A|2100005": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|IGAIN_TOT_L|2100006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IGAIN_TOT_M|2100007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IGAIN_TOT_H|2100008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Nocp_PostTrim|2200001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Wocp_Trip|2200002": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|Wocp_Hyst|2200003": {
+      "lower": "unset",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Pocp_PostTrim|2200004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Pocp_Hyst|2200005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|VTMON_FAULT|2200006": {
+      "lower": "unset",
+      "upper": "unset"
+    },
+    "allHandlerData.stdf|POCP_FUNC5|2200007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|POCP_FUNC6|2200008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|FAULT_TMON_FUNC1|2200009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Fault_FUNC1|2200010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Fault_FUNC2|2200011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PS_Fault_FUNC3|2200012": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|V_ZCD|2300001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|NZCD_LP_CNT|2300002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PWM_FUNC_1|2300003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PreOVP_GoNogo_High|2400001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PreOVP_GoNogo_Low|2400002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PreOVP_FUNC_1|2400003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PreOVP_FUNC_3|2400004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|PreOVP_FUNC_4|2400005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|FAULT_PreOV_FUNC2|2400006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_VCC|2600001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_PVCC|2600002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_VIN|2600003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|IddShort_BOOT|2600004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_TMON|2500001": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PWM|2500002": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_IMON|2500003": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_VCC|2500004": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_EN|2500005": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_BOOT|2500006": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PHASE|2500007": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_VIN|2500008": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_GL|2500009": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_PVCC|2500010": {
+      "lower": "stdf",
+      "upper": "stdf"
+    },
+    "allHandlerData.stdf|Cont_Vss_NC23_SDA|2500011": {
+      "lower": "stdf",
+      "upper": "stdf"
+    }
+  },
+  "generated_at": "2025-10-24T04:02:25Z",
+  "summary_counts": {
+    "rows": 208,
+    "tests": 193
+  },
+  "analysis_options": {
+    "generate_histogram": false,
+    "generate_cdf": false,
+    "generate_time_series": false,
+    "generate_yield_pareto": false,
+    "display_decimals": 4,
+    "enable_site_breakdown": false,
+    "include_site_rows_in_cpk": false
+  },
+  "yield_summary": null,
+  "pareto_summary": null,
+  "site_summary": null,
+  "site_yield_summary": null,
+  "site_pareto_summary": null,
+  "site_configuration": null,
+  "site_breakdown": {
+    "requested": false,
+    "available": true,
+    "generated": false
+  },
+  "warnings": [],
+  "plugins": []
+}
