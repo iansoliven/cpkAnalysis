@@ -186,10 +186,83 @@ def test_should_skip_grr_rejects_reversed_spec_limits() -> None:
         spec_upper=-0.6,
         min_cpk=1.0,
         max_cpk=2.0,
+        guardband_full=0.05,
     )
     assert skip is False
     assert info.get("reason") == "invalid_spec_range"
     assert "lower_guardband_percent" not in info
+
+
+def test_should_skip_grr_when_guardband_met() -> None:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Template"
+    ws.append(["Test Name", "Test Number", "LL_ATE", "UL_ATE"])
+    ws.append(["TestA", "1", -0.55, 0.55])
+    header_row, header_map = sheet_utils.build_header_map(ws)
+    template_rows = [header_row + 1]
+
+    descriptor = actions.TestDescriptor(
+        file="lot",
+        test_name="TestA",
+        test_number="1",
+        unit="V",
+        mean=0.0,
+        stdev=0.2,
+        cpk=1.5,
+    )
+
+    skip, info = actions._should_skip_grr(
+        descriptor,
+        ws,
+        template_rows,
+        header_map,
+        spec_lower=-0.5,
+        spec_upper=0.5,
+        min_cpk=1.0,
+        max_cpk=2.0,
+        guardband_full=0.05,
+    )
+    assert skip is True
+    assert info.get("reason") == "guardband_satisfied"
+    assert info.get("lower_guardband_width") == pytest.approx(0.05)
+    assert info.get("upper_guardband_width") == pytest.approx(0.05)
+
+
+def test_should_skip_grr_when_guardband_insufficient() -> None:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Template"
+    ws.append(["Test Name", "Test Number", "LL_ATE", "UL_ATE"])
+    ws.append(["TestA", "1", -0.52, 0.52])
+    header_row, header_map = sheet_utils.build_header_map(ws)
+    template_rows = [header_row + 1]
+
+    descriptor = actions.TestDescriptor(
+        file="lot",
+        test_name="TestA",
+        test_number="1",
+        unit="V",
+        mean=0.0,
+        stdev=0.2,
+        cpk=1.5,
+    )
+
+    skip, info = actions._should_skip_grr(
+        descriptor,
+        ws,
+        template_rows,
+        header_map,
+        spec_lower=-0.5,
+        spec_upper=0.5,
+        min_cpk=1.0,
+        max_cpk=2.0,
+        guardband_full=0.05,
+    )
+    assert skip is False
+    assert info.get("reason") == "guardband_insufficient"
+    assert info.get("lower_guardband_width") == pytest.approx(0.02)
+    assert info.get("upper_guardband_width") == pytest.approx(0.02)
 
 
 def test_compute_yield_loss_returns_nan_without_limits() -> None:
@@ -647,6 +720,15 @@ def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: py
 def test_calculate_proposed_limits_grr_inserts_formula(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     workbook_path = tmp_path / "report.xlsx"
     _build_workbook(workbook_path)
+    wb = load_workbook(workbook_path)
+    template_ws = wb["Template"]
+    header_row, header_map = sheet_utils.build_header_map(template_ws)
+    ll_ate_col = header_map[sheet_utils.normalize_header("LL_ATE")]
+    ul_ate_col = header_map[sheet_utils.normalize_header("UL_ATE")]
+    template_ws.cell(row=header_row + 1, column=ll_ate_col, value=0.66)
+    template_ws.cell(row=header_row + 1, column=ul_ate_col, value=1.34)
+    wb.save(workbook_path)
+    wb.close()
     context = _load_context(workbook_path, tmp_path)
     io = DummyIO()
 
@@ -823,9 +905,13 @@ def test_calculate_proposed_limits_grr_skips_when_guardband_met(monkeypatch: pyt
 
     state = context.metadata["post_processing_state"]["proposed_limits"]["lot1|TestA|1"]
     assert state["skipped"] is True
+    assert state.get("required_guardband") == pytest.approx(record.guardband_full)
 
     per_test = result["audit"]["parameters"]["per_test"][0]
     assert per_test.get("skipped") is True
+    assert per_test.get("existing_lower_guardband_width") == pytest.approx(abs(-1.6 - record.spec_lower))
+    assert per_test.get("existing_upper_guardband_width") == pytest.approx(abs(record.spec_upper - 1.6))
+    assert per_test.get("required_guardband") == pytest.approx(record.guardband_full)
 
     lower_guardband_col = headers[sheet_utils.normalize_header("Lower Guardband")]
     upper_guardband_col = headers[sheet_utils.normalize_header("Upper Guardband")]

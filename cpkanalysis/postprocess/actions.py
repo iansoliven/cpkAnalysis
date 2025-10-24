@@ -199,6 +199,7 @@ def _should_skip_grr(
     spec_upper: float,
     min_cpk: float,
     max_cpk: float,
+    guardband_full: float,
 ) -> tuple[bool, Dict[str, float | None | str]]:
     info: Dict[str, float | None | str] = {}
     if not template_rows:
@@ -206,6 +207,10 @@ def _should_skip_grr(
 
     info["spec_lower"] = spec_lower
     info["spec_upper"] = spec_upper
+
+    if guardband_full <= PROPOSAL_TOLERANCE:
+        info["reason"] = "invalid_guardband_requirement"
+        return False, info
 
     if spec_upper <= spec_lower:
         info["reason"] = "invalid_spec_range"
@@ -226,16 +231,20 @@ def _should_skip_grr(
     if ll_ate is None or ul_ate is None:
         return False, info
 
-    lower_percent = abs(ll_ate - spec_lower) / spec_width
-    upper_percent = abs(spec_upper - ul_ate) / spec_width
-    info["lower_guardband_percent"] = lower_percent
-    info["upper_guardband_percent"] = upper_percent
+    lower_guardband_width = abs(ll_ate - spec_lower)
+    upper_guardband_width = abs(spec_upper - ul_ate)
+    info["lower_guardband_width"] = lower_guardband_width
+    info["upper_guardband_width"] = upper_guardband_width
+    info["required_guardband"] = guardband_full
 
-    guardband_met = (
-        lower_percent >= 1.0 - PROPOSAL_TOLERANCE
-        and upper_percent >= 1.0 - PROPOSAL_TOLERANCE
-    )
-    if not guardband_met:
+    if spec_width > PROPOSAL_TOLERANCE:
+        info["lower_guardband_percent"] = lower_guardband_width / spec_width
+        info["upper_guardband_percent"] = upper_guardband_width / spec_width
+
+    lower_met = lower_guardband_width + PROPOSAL_TOLERANCE >= guardband_full
+    upper_met = upper_guardband_width + PROPOSAL_TOLERANCE >= guardband_full
+    if not (lower_met and upper_met):
+        info["reason"] = "guardband_insufficient"
         return False, info
 
     current_cpk = descriptor.cpk
@@ -1201,6 +1210,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
             spec_upper=spec_upper_f,
             min_cpk=float(min_cpk),
             max_cpk=float(max_cpk),
+            guardband_full=float(grr_record.guardband_full),
         )
 
         if skip_guardband:
@@ -1239,6 +1249,7 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
                 "timestamp": timestamp,
                 "skipped": True,
                 "skip_reason": skip_info.get("reason"),
+                "required_guardband": float(grr_record.guardband_full),
             }
 
             audit_entry = {
@@ -1252,6 +1263,9 @@ def calculate_proposed_limits_grr(context: PostProcessContext, io: PostProcessIO
                 "spec_upper": spec_upper_f,
                 "existing_lower_guardband_percent": skip_info.get("lower_guardband_percent"),
                 "existing_upper_guardband_percent": skip_info.get("upper_guardband_percent"),
+                "existing_lower_guardband_width": skip_info.get("lower_guardband_width"),
+                "existing_upper_guardband_width": skip_info.get("upper_guardband_width"),
+                "required_guardband": skip_info.get("required_guardband"),
             }
             if grr_record.guardband_full is not None:
                 audit_entry["grr_full"] = grr_record.guardband_full
