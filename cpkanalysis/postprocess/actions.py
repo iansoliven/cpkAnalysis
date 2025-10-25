@@ -12,7 +12,7 @@ import logging
 import numpy as np
 import pandas as pd
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -32,6 +32,15 @@ __all__ = [
 
 PROPOSAL_TOLERANCE = 1e-6
 GRR_REFERENCE_SHEET = "_GRR_reference"
+SPEC_LEGEND_TEXT = "Light yellow highlight indicates Proposed Spec limit differs from Total_GRR spec."
+GUARD_LEGEND_TEXT = (
+    "Red guardband percent indicates guardband width is below 50% of required GRR guardband."
+)
+SPEC_LEGEND_COLOR = "FFFFF2CC"
+GUARD_LEGEND_COLOR = "FFFFC7CE"
+SPEC_LEGEND_FILL = PatternFill(start_color=SPEC_LEGEND_COLOR, end_color=SPEC_LEGEND_COLOR, fill_type="solid")
+GUARD_LEGEND_FILL = PatternFill(start_color=GUARD_LEGEND_COLOR, end_color=GUARD_LEGEND_COLOR, fill_type="solid")
+LEGEND_FONT = Font(bold=True)
 SHEET_VISIBLE = "visible"
 SHEET_HIDDEN = "hidden"
 
@@ -122,19 +131,36 @@ def _clear_conditional_formatting_range(ws, range_str: str) -> None:
             setattr(cf, "_cf_rules", filtered)
 
 
+def _write_fixed_legends(template_ws, spec_lower_col: int | None) -> None:
+    if spec_lower_col is None:
+        return
+
+    def _set(row: int, text: str, fill: PatternFill) -> None:
+        cell = template_ws.cell(row=row, column=spec_lower_col)
+        if cell.value != text:
+            cell.value = text
+        cell.font = LEGEND_FONT
+        cell.fill = fill
+
+    _set(1, GUARD_LEGEND_TEXT, GUARD_LEGEND_FILL)
+    _set(2, SPEC_LEGEND_TEXT, SPEC_LEGEND_FILL)
+
+
 def _apply_spec_difference_cf(template_ws, header_map: Dict[str, int], header_row: int) -> None:
     workbook = template_ws.parent
     if GRR_REFERENCE_SHEET not in workbook.sheetnames:
         return
 
-    data_start = header_row + 1
-    max_row = template_ws.max_row
-    if data_start > max_row:
-        return
-
     spec_lower_col = header_map.get(sheet_utils.normalize_header("Proposed Spec Lower"))
     spec_upper_col = header_map.get(sheet_utils.normalize_header("Proposed Spec Upper"))
     if spec_lower_col is None or spec_upper_col is None:
+        return
+
+    _write_fixed_legends(template_ws, spec_lower_col)
+
+    data_start = header_row + 1
+    max_row = template_ws.max_row
+    if data_start > max_row:
         return
 
     ref_ws = workbook[GRR_REFERENCE_SHEET]
@@ -180,7 +206,7 @@ def _apply_spec_difference_cf(template_ws, header_map: Dict[str, int], header_ro
     key_expr = f"${name_letter}{data_start}&\"|\"&${number_letter}{data_start}"
 
     base_guard = "1E-6"
-    highlight_fill = PatternFill(start_color="FFFFF2CC", end_color="FFFFF2CC", fill_type="solid")
+    highlight_fill = SPEC_LEGEND_FILL
 
     lower_formula = (
         f"IF(OR(${lower_letter}{data_start}=\"\",${number_letter}{data_start}=\"\",${name_letter}{data_start}=\"\"),FALSE,"
@@ -1453,3 +1479,4 @@ def _compute_yield_loss(
         return float("nan")
 
     return failures / len(finite_values)
+

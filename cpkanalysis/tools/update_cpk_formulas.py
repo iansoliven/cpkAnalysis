@@ -6,7 +6,7 @@ from typing import Union
 
 import openpyxl
 from openpyxl.utils import get_column_letter
-from openpyxl.styles import PatternFill
+from openpyxl.styles import PatternFill, Font
 from openpyxl.formatting.rule import CellIsRule
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -15,6 +15,15 @@ from ..postprocess import sheet_utils
 
 HELPER_SHEET = "cpk_helpers"
 GRR_REFERENCE_SHEET = "_GRR_reference"
+SPEC_LEGEND_TEXT = "Light yellow highlight indicates Proposed Spec limit differs from Total_GRR spec."
+GUARD_LEGEND_TEXT = (
+    "Red guardband percent indicates guardband width is below 50% of required GRR guardband."
+)
+SPEC_LEGEND_COLOR = "FFFFF2CC"
+GUARD_LEGEND_COLOR = "FFFFC7CE"
+LEGEND_FONT = Font(bold=True)
+SPEC_LEGEND_FILL = PatternFill(start_color=SPEC_LEGEND_COLOR, end_color=SPEC_LEGEND_COLOR, fill_type="solid")
+GUARD_LEGEND_FILL = PatternFill(start_color=GUARD_LEGEND_COLOR, end_color=GUARD_LEGEND_COLOR, fill_type="solid")
 
 
 def _set(cell, formula: str) -> None:
@@ -167,6 +176,18 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
     helper_ws.cell(row=header_row, column=1, value="CPL_SPEC")
     helper_ws.cell(row=header_row, column=2, value="CPU_SPEC")
     helper_ws.cell(row=header_row, column=3, value="CPK_SPEC")
+
+    def _write_legend(row: int, text: str, fill: PatternFill) -> None:
+        if not spec_prop_lower_col:
+            return
+        cell = ws.cell(row=row, column=spec_prop_lower_col)
+        if cell.value != text:
+            cell.value = text
+        cell.font = LEGEND_FONT
+        cell.fill = fill
+
+    _write_legend(1, GUARD_LEGEND_TEXT, GUARD_LEGEND_FILL)
+    _write_legend(2, SPEC_LEGEND_TEXT, SPEC_LEGEND_FILL)
 
     guardband_lookup: dict[str, str] | None = None
     if GRR_REFERENCE_SHEET in workbook.sheetnames:

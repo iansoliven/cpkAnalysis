@@ -64,6 +64,8 @@ def _build_workbook(path: Path) -> None:
     limits.append(["TestA", "1", None, None, None, None])
 
     template = wb.create_sheet("Template")
+    template.append(["Existing Template Title", None, None, None, None])
+    template.append(["Revision 1.0", None, None, None, None])
     template.append(
         [
             "Test Name",
@@ -127,7 +129,13 @@ def _build_workbook(path: Path) -> None:
     measurements.append(["TestA", "1", 0.2])
     measurements.append(["TestA", "1", 1.8])
     measurements.append(["TestA", "1", 1.0])
+
     wb.save(path)
+
+
+def _refresh_template(ws):
+    header_row, headers = sheet_utils.build_header_map(ws)
+    return header_row, headers, header_row + 1
 
 
 def test_prompt_scope_reprompts_until_target_valid(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -385,12 +393,11 @@ def test_apply_spec_limits_updates_template_and_limits(monkeypatch: pytest.Monke
     result = actions.apply_spec_limits(context, io, params)
 
     template_ws = context.template_sheet()
-    header_row, headers = sheet_utils.build_header_map(template_ws)
+    header_row, headers, row_idx = _refresh_template(template_ws)
     spec_lower_col = headers[sheet_utils.normalize_header("Spec Lower")]
     spec_upper_col = headers[sheet_utils.normalize_header("Spec Upper")]
     what_lower_col = headers[sheet_utils.normalize_header("What-if Lower")]
     what_upper_col = headers[sheet_utils.normalize_header("What-if Upper")]
-    row_idx = header_row + 1
 
     expected_lower = pytest.approx(1.0 - (3.0 * 1.0 * 0.2))
     expected_upper = pytest.approx(1.0 + (3.0 * 1.0 * 0.2))
@@ -553,6 +560,8 @@ def test_calculate_proposed_limits_respects_user_proposals(monkeypatch: pytest.M
         {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.2},
     )
 
+    header_row, _ = sheet_utils.build_header_map(template_ws)
+    data_row = header_row + 1
     assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(user_lower)
     assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(user_upper)
 
@@ -613,6 +622,8 @@ def test_calculate_proposed_limits_computes_blank_side(monkeypatch: pytest.Monke
         {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
     )
 
+    header_row, _ = sheet_utils.build_header_map(template_ws)
+    data_row = header_row + 1
     assert template_ws.cell(row=data_row, column=ll_prop).value == pytest.approx(0.4)
     assert template_ws.cell(row=data_row, column=ul_prop).value == pytest.approx(1.6)
 
@@ -701,6 +712,8 @@ def test_calculate_proposed_limits_recomputes_metrics_when_blank(monkeypatch: py
         {"scope": "single", "test_key": descriptor_key, "target_cpk": 1.0},
     )
 
+    header_row, headers = sheet_utils.build_header_map(template_ws)
+    data_row = header_row + 1
     cpk_cell = template_ws.cell(row=data_row, column=cpk_prop)
     assert cpk_cell.data_type == "f"
     assert cpk_cell.value == _expected_cpk_prop_formula(headers, data_row)
@@ -921,4 +934,5 @@ def test_calculate_proposed_limits_grr_skips_when_guardband_met(monkeypatch: pyt
     assert lower_guard_cell.value == _expected_lower_guardband_formula(headers, data_row)
     assert upper_guard_cell.data_type == "f"
     assert upper_guard_cell.value == _expected_upper_guardband_formula(headers, data_row)
+
 
