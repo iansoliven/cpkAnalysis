@@ -325,6 +325,16 @@
           </ol>
         </div>
 
+        <div class="card">
+          <h4>Quick Resume via GUI</h4>
+          <pre><code>python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx</code></pre>
+          <p>
+            Use <code>--resume</code> to jump straight into the menu for an existing workbook. The GUI reads the workbook's metadata JSON,
+            displays a summary of the last post-processing action plus key analysis options, and opens the menu immediately. Provide
+            <code>--resume-metadata path/to/file.json</code> if the metadata is stored separately.
+          </p>
+        </div>
+
         <div class="info-box">
           <strong>Metadata Requirement</strong>
           The menu requires the workbook's associated JSON metadata file (e.g., <code>CPK_Workbook.json</code>). This file is automatically created during analysis and contains crucial information about test configurations, original STDF limits, and processing history.

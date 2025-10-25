@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
+from datetime import datetime
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING
 
 from .cli import _select_template, _prepare_output_path
 from .models import AnalysisInputs, OutlierOptions, SourceFile, PluginConfig
 from .pipeline import run_analysis
 from .plugins import PluginRegistry, PluginRegistryError
 from .plugin_profiles import load_plugin_profile, save_plugin_profile, PROFILE_FILENAME
+from .postprocess.context import load_metadata
 from . import ingest, postprocess
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
@@ -284,6 +287,117 @@ class CPKAnalysisGUI:
         if entry:
             self.state.output_path = _prepare_output_path(Path(entry))
 
+    def resume(self, resume_target: Path, *, metadata_override: Path | None = None) -> int:
+        try:
+            workbook_path, metadata_path = self._resolve_resume_paths(resume_target, metadata_override)
+        except ValueError as exc:
+            print(f"Unable to resume session: {exc}")
+            return 1
+
+        try:
+            self._post_context = postprocess.create_context(
+                workbook_path=workbook_path,
+                metadata_path=metadata_path,
+            )
+        except (SystemExit, OSError, ValueError, RuntimeError) as exc:
+            print(f"Unable to initialise post-processing context: {exc}")
+            self._post_context = None
+            return 1
+
+        self._print_resume_summary(self._post_context)
+        self._open_postprocess_menu()
+        return 0
+
+    def _resolve_resume_paths(
+        self,
+        resume_target: Path,
+        metadata_override: Path | None,
+    ) -> tuple[Path, Path]:
+        target = resume_target.expanduser()
+        metadata_path = metadata_override.expanduser() if metadata_override else None
+        workbook_path: Path | None = None
+
+        if target.suffix.lower() == ".json":
+            metadata_path = metadata_path or target
+        else:
+            workbook_path = target
+            metadata_path = metadata_path or target.with_suffix(".json")
+
+        if metadata_path is None:
+            raise ValueError("Metadata path could not be determined for the selected resume target.")
+
+        metadata_path = metadata_path.resolve()
+        if not metadata_path.exists():
+            raise ValueError(f"Metadata JSON not found: {metadata_path}")
+
+        if workbook_path is None:
+            metadata = load_metadata(metadata_path)
+            candidate = metadata.get("output") or metadata.get("workbook")
+            if candidate:
+                candidate_path = Path(candidate)
+                if not candidate_path.is_absolute():
+                    candidate_path = (metadata_path.parent / candidate_path).resolve()
+                workbook_path = candidate_path
+            else:
+                workbook_path = metadata_path.with_suffix(".xlsx")
+
+        workbook_path = workbook_path.expanduser().resolve()
+        if not workbook_path.exists():
+            raise ValueError(f"Workbook not found: {workbook_path}")
+
+        return workbook_path, metadata_path
+
+    def _print_resume_summary(self, context: "PostProcessContext") -> None:
+        metadata = context.metadata or {}
+        print("\nResuming post-processing session")
+        print(f"Workbook: {context.workbook_path}")
+        print(f"Metadata: {context.metadata_path}")
+
+        generated = metadata.get("generated_at")
+        if generated:
+            print(f"Analysis generated at: {generated}")
+
+        template_sheet = metadata.get("template_sheet") or context.analysis_inputs.template_sheet
+        if template_sheet:
+            print(f"Template sheet: {template_sheet}")
+
+        options = metadata.get("analysis_options", {})
+        if options:
+            option_labels = {
+                "display_decimals": "Decimals",
+                "generate_histogram": "Histograms",
+                "generate_cdf": "CDF",
+                "generate_time_series": "Time-series",
+                "generate_yield_pareto": "Yield/Pareto",
+            }
+            highlights = [
+                f"{label}={options[key]}"
+                for key, label in option_labels.items()
+                if key in options
+            ]
+            if highlights:
+                print("Analysis options: " + ", ".join(str(item) for item in highlights))
+
+        runs = metadata.get("post_processing", {}).get("runs", [])
+        if runs:
+            last = runs[-1]
+            timestamp = last.get("timestamp", "n/a")
+            action = last.get("action", "n/a")
+            scope = last.get("scope", "n/a")
+            tests = last.get("tests") or []
+            print(
+                f"Last post-processing run: {timestamp} | action={action} | scope={scope} | tests={len(tests)}"
+            )
+
+        try:
+            modified = context.metadata_path.stat().st_mtime
+            readable = datetime.fromtimestamp(modified).isoformat(sep=" ", timespec="seconds")
+            print(f"Metadata last modified: {readable}")
+        except OSError:
+            pass
+
+        print()
+
     def _open_postprocess_menu(self) -> None:
         if self._post_context is None:
             print("Post-processing context unavailable.")
@@ -338,6 +452,24 @@ class CPKAnalysisGUI:
                 params.pop(key, None)
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="python -m cpkanalysis.gui",
+        description="Interactive console workflow for CPK analysis.",
+    )
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        help="Resume post-processing using an existing workbook (*.xlsx) or metadata JSON.",
+    )
+    parser.add_argument(
+        "--resume-metadata",
+        type=Path,
+        help="Explicit metadata JSON path when using --resume (optional).",
+    )
+    return parser
+
+
 def _yes_no(prompt: str, *, default: bool) -> bool:
     value = input(prompt).strip().lower()
     if not value:
@@ -345,9 +477,18 @@ def _yes_no(prompt: str, *, default: bool) -> bool:
     return value in {"y", "yes"}
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     """Entry point for launching the console workflow."""
-    CPKAnalysisGUI().launch()
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+    if args.resume_metadata and not args.resume:
+        parser.error("--resume-metadata requires --resume.")
+
+    gui = CPKAnalysisGUI()
+    if args.resume:
+        return gui.resume(args.resume, metadata_override=args.resume_metadata)
+
+    gui.launch()
     return 0
 
 

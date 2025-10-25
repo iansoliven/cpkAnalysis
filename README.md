@@ -333,6 +333,15 @@ The GUI walks through:
 6. Plugin selection
 7. Output path
 
+#### Resume an existing workbook
+
+```bash
+# Jump straight into post-processing for an existing workbook
+python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx
+```
+
+The `--resume` flag rehydrates the post-processing context from the workbook's companion metadata JSON, prints a small project summary (last post-processing action, analysis options, template sheet, etc.), and opens the post-processing menu immediately. Use `--resume-metadata PATH/to/file.json` if the metadata is stored separately. The command exits with an error if the workbook or metadata cannot be loaded so you can decide how to proceed.
+
 ### Post-Processing Existing Workbook
 
 ```bash
