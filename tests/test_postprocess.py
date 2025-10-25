@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pandas as pd
 import pytest
 from openpyxl import load_workbook, Workbook
+from openpyxl.utils import get_column_letter
 
 from cpkanalysis import postprocess
 from cpkanalysis.models import AnalysisInputs, OutlierOptions
@@ -16,6 +17,33 @@ from cpkanalysis.postprocess import actions
 from cpkanalysis.postprocess.io_adapters import CliIO
 from cpkanalysis.postprocess import sheet_utils
 from cpkanalysis.workbook_builder import SUMMARY_COLUMNS, TEST_LIMIT_COLUMNS, MEAS_COLUMNS
+
+
+def _column_ref(header_map: dict[str, int], header: str, row: int) -> str:
+    column = header_map[sheet_utils.normalize_header(header)]
+    return f"${get_column_letter(column)}{row}"
+
+
+def _expected_cpk_prop_formula(header_map: dict[str, int], row: int) -> str:
+    mean = _column_ref(header_map, "MEAN", row)
+    stdev = _column_ref(header_map, "STDEV", row)
+    ll_prop = _column_ref(header_map, "LL_PROP", row)
+    ul_prop = _column_ref(header_map, "UL_PROP", row)
+    return (
+        f"=IF(AND({stdev}>0,{ll_prop}<>\"\",{ul_prop}<>\"\"),"
+        f"MIN(({mean}-{ll_prop})/(3*{stdev}),({ul_prop}-{mean})/(3*{stdev})),\"\")"
+    )
+
+
+def _compute_cpk(mean: float, stdev: float, lower: float | None, upper: float | None) -> float | None:
+    if stdev is None or stdev <= 0:
+        return None
+    candidates: list[float] = []
+    if upper is not None:
+        candidates.append((upper - mean) / (3 * stdev))
+    if lower is not None:
+        candidates.append((mean - lower) / (3 * stdev))
+    return min(candidates) if candidates else None
 
 
 def _build_test_workbook(
@@ -84,12 +112,25 @@ def _build_test_workbook(
     template_headers = [
         "TEST NAME",
         "TEST NUM",
-        "LL_ATE",
-        "UL_ATE",
         "Spec Lower",
         "Spec Upper",
         "What-if Lower",
         "What-if Upper",
+        "LL_ATE",
+        "UL_ATE",
+        "MEAN",
+        "MEDIAN",
+        "STDEV",
+        "IQR",
+        "CPL",
+        "CPU",
+        "CPK",
+        "LL_2CPK",
+        "UL_2CPK",
+        "CPK_2.0",
+        "LL_3IQR",
+        "UL_3IQR",
+        "CPK_3IQR",
         "LL_PROP",
         "UL_PROP",
         "CPK_PROP",
@@ -101,12 +142,24 @@ def _build_test_workbook(
         [
             test_name,
             test_number,
-            0.7,
-            1.3,
             0.65,
             1.35,
             0.6,
             1.4,
+            0.7,
+            1.3,
+            1.0,
+            1.0,
+            0.1,
+            0.08,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
             "",
             "",
             "",
@@ -268,13 +321,18 @@ def test_calculate_proposed_limits(tmp_path):
     cpk_prop_col = header_map[sheet_utils.normalize_header("CPK_PROP")]
     ll_prop = template_ws.cell(row=header_row + 1, column=ll_prop_col).value
     ul_prop = template_ws.cell(row=header_row + 1, column=ul_prop_col).value
-    cpk_prop = template_ws.cell(row=header_row + 1, column=cpk_prop_col).value
+    cpk_cell = template_ws.cell(row=header_row + 1, column=cpk_prop_col)
 
     expected_ll = 1.0 - (1.1 * 3 * 0.1)
     expected_ul = 1.0 + (1.1 * 3 * 0.1)
     assert pytest.approx(ll_prop, rel=1e-4) == expected_ll
     assert pytest.approx(ul_prop, rel=1e-4) == expected_ul
-    assert pytest.approx(cpk_prop, rel=1e-4) == 1.1
+    assert cpk_cell.data_type == "f"
+    assert cpk_cell.value == _expected_cpk_prop_formula(header_map, header_row + 1)
+    mean = template_ws.cell(row=header_row + 1, column=header_map[sheet_utils.normalize_header("MEAN")]).value
+    stdev = template_ws.cell(row=header_row + 1, column=header_map[sheet_utils.normalize_header("STDEV")]).value
+    expected_cpk = _compute_cpk(mean, stdev, expected_ll, expected_ul)
+    assert expected_cpk == pytest.approx(1.1)
 
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
     runs = metadata.get("post_processing", {}).get("runs", [])

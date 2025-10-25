@@ -8,7 +8,7 @@ Thank you for contributing to CPK Analysis! This guide will help you get started
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
+git clone --recursive https://remote.example.com/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
@@ -121,7 +121,7 @@ This comprehensive guide covers:
 - Module coverage statistics
 - How to run tests (basic, coverage, parallel)
 - Writing new tests (naming, patterns, fixtures)
-- CI/CD integration (GitHub Actions, GitLab CI)
+- CI/CD integration (remote actions, GitLab CI)
 - Debugging test failures
 - Advanced techniques (mocking, property-based testing)
 - Pull request requirements
@@ -196,8 +196,8 @@ cpkAnalysis/
 ## Getting Help
 
 - 📖 **Documentation:** [help/index.html](help/index.html)
-- 🐛 **Issues:** [GitHub Issues](https://github.com/iansoliven/cpkAnalysis/issues)
-- 💬 **Discussions:** [GitHub Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)
+- 🐛 **Issues:** [Issue Tracker](https://remote.example.com/cpkAnalysis/issues)
+- 💬 **Discussions:** [Project Discussions](https://remote.example.com/cpkAnalysis/discussions)
 
 ## License
 
@@ -206,3 +206,4 @@ By contributing, you agree that your contributions will be licensed under the sa
 ---
 
 **Thank you for contributing to CPK Analysis!** 🎉
+

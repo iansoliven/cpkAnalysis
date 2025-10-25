@@ -110,9 +110,14 @@ class GRRRecord:
 
 
 class GRRTable:
-    """Lookup helper for GRR records keyed by test number/name."""
+    """Lookup helper for GRR records keyed by test number/name.
+
+    The supplied ``records`` iterable is fully materialised so that the table can
+    service repeated lookups without re-reading upstream sources.
+    """
 
     def __init__(self, records: Iterable[GRRRecord]):
+        records = list(records)
         by_number: Dict[Tuple[str, str], GRRRecord] = {}
         by_name: Dict[str, GRRRecord] = {}
         for record in records:
@@ -123,6 +128,7 @@ class GRRTable:
                 by_name.setdefault(record.test_name, record)
         self._by_number = by_number
         self._by_name = by_name
+        self._records = records
 
     def find(self, test_number: str, test_name: str) -> Optional[GRRRecord]:
         number_key = normalize_test_number(test_number)
@@ -132,6 +138,10 @@ class GRRTable:
             if record:
                 return record
         return self._by_name.get(name_key)
+
+    def records(self) -> List[GRRRecord]:
+        """Return a shallow copy of the GRR records backing this table."""
+        return list(self._records)
 
 
 class ComputationError(RuntimeError):

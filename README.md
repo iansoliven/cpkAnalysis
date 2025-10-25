@@ -45,7 +45,7 @@ Transform large volumes of STDF (Standard Test Data Format) files into comprehen
 ### Install
 
 ```bash
-git clone https://github.com/iansoliven/cpkAnalysis.git
+git clone https://remote.example.com/cpkAnalysis.git
 cd cpkAnalysis
 git submodule update --init --recursive
 pip install -r requirements.txt
@@ -118,7 +118,7 @@ python -m cpkanalysis.cli run Sample/lot2.stdf --postprocess
 ### 1. Clone Repository with Submodules
 
 ```bash
-git clone https://github.com/iansoliven/cpkAnalysis.git
+git clone https://remote.example.com/cpkAnalysis.git
 cd cpkAnalysis
 git submodule update --init --recursive
 ```
@@ -842,8 +842,8 @@ class MyPlugin(Plugin):
 
 - 📖 **[Full README](README.md)** — This file
 - 🏠 **[Help Index](help/index.html)** — Central documentation hub
-- 🐛 **[Issue Tracker](https://github.com/iansoliven/cpkAnalysis/issues)** — Bug reports
-- 💬 **[Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)** — Q&A
+- 🐛 **[Issue Tracker](https://remote.example.com/cpkAnalysis/issues)** — Bug reports
+- 💬 **[Discussions](https://remote.example.com/cpkAnalysis/discussions)** — Q&A
 
 ---
 
@@ -1055,7 +1055,7 @@ Device 5:  opt_flg=0x40, LO_LIMIT=None  → OLD: 1.0 ❌  NEW: None ✅ (explici
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/iansoliven/cpkAnalysis.git
+git clone --recursive https://remote.example.com/cpkAnalysis.git
 cd cpkAnalysis
 
 # Create virtual environment
@@ -1112,13 +1112,14 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Support
 
 - 📖 **Documentation**: [help/index.html](help/index.html)
-- 🐛 **Issues**: [GitHub Issues](https://github.com/iansoliven/cpkAnalysis/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/iansoliven/cpkAnalysis/discussions)
+- 🐛 **Issues**: [Issue Tracker](https://remote.example.com/cpkAnalysis/issues)
+- 💬 **Discussions**: [Project Discussions](https://remote.example.com/cpkAnalysis/discussions)
 
 ---
 
 **Made with ❤️ for semiconductor test engineers**
 
 *Last updated: 2025-10-19*
+
 
 
