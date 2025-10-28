@@ -10,6 +10,7 @@ from typing import Any
 import pandas as pd
 import pytest
 from openpyxl import Workbook
+from openpyxl.worksheet.worksheet import Worksheet
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -33,7 +34,21 @@ def test_pipeline_runs_stages_with_expected_data_flow(monkeypatch: pytest.Monkey
     monkeypatch.setattr(pipeline, "_create_session_dir", fake_session_dir)
     monkeypatch.setattr(pipeline, "_cleanup_session_dir", lambda path: None)
     monkeypatch.setattr(pipeline, "_spinner", lambda message: contextlib.nullcontext())
-    monkeypatch.setattr(pipeline, "apply_template", lambda workbook, sheet_name: sheet_name)
+    def fake_apply_template(workbook: Workbook, sheet_name: str | None) -> str:
+        target = sheet_name or "Template"
+        if target not in workbook.sheetnames:
+            workbook.create_sheet(target)
+        return target
+
+    monkeypatch.setattr(pipeline, "apply_template", fake_apply_template)
+
+    apply_calls: list[tuple[Workbook, str | None]] = []
+
+    def spy_apply_formulas(workbook: Workbook, sheet: str | Worksheet) -> None:
+        sheet_name = sheet.title if isinstance(sheet, Worksheet) else sheet
+        apply_calls.append((workbook, sheet_name))
+
+    monkeypatch.setattr(pipeline.update_cpk_formulas, "apply_formulas", spy_apply_formulas)
 
     raw_measurements = pd.DataFrame(
         [
@@ -203,6 +218,8 @@ def test_pipeline_runs_stages_with_expected_data_flow(monkeypatch: pytest.Monkey
     assert captured["summary_calls"] == 1
     assert captured["outlier_method"] == (config.outliers.method, config.outliers.k)
     assert result["stage_timings"]["workbook"] >= 0.0
+    assert apply_calls, "apply_formulas should be invoked during template stage"
+    assert isinstance(apply_calls[0][0], Workbook)
 
 
 def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

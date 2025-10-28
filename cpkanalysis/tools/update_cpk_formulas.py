@@ -388,8 +388,11 @@ def apply_formulas(workbook: Workbook, template_sheet: Union[str, Worksheet]) ->
 
 def update_workbook(path: Path, template_sheet: str) -> None:
     wb = openpyxl.load_workbook(path)
-    apply_formulas(wb, template_sheet)
-    wb.save(path)
+    try:
+        apply_formulas(wb, template_sheet)
+        wb.save(path)
+    finally:
+        wb.close()
 
 
 def parse_args() -> argparse.Namespace:

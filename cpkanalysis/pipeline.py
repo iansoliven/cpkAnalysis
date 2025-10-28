@@ -18,7 +18,7 @@ from . import ingest, outliers, stats, workbook_builder
 from .models import AnalysisInputs, IngestResult
 from .plugins import PluginRegistry, PluginRegistryError
 from .move_to_template import run as move_to_template, apply_template
-from .tools.update_cpk_formulas import update_workbook as apply_cpk_formulas
+from .tools import update_cpk_formulas
 from openpyxl import Workbook
 from .event_names import (
     DEFAULT_EVENT_NAMES,
@@ -446,6 +446,11 @@ class Pipeline:
         if workbook_obj is not None:
             if context.config.template or context.config.template_sheet:
                 template_sheet_used = apply_template(workbook_obj, context.config.template_sheet)
+
+            update_sheet = template_sheet_used or context.config.template_sheet
+            if update_sheet:
+                update_cpk_formulas.apply_formulas(workbook_obj, update_sheet)
+
             save_start = time.perf_counter()
             workbook_obj.save(context.config.output)
             save_elapsed = time.perf_counter() - save_start
@@ -457,11 +462,6 @@ class Pipeline:
 
             workbook_obj.close()
             update_sheet = template_sheet_used or context.config.template_sheet
-            if update_sheet:
-                try:
-                    apply_cpk_formulas(context.config.output, update_sheet)
-                except ValueError as exc:
-                    logger.warning("Skipping CPK formula update: %s", exc)
             return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None, stage_details=stage_details)
 
         if context.config.template or context.config.template_sheet:
@@ -469,7 +469,7 @@ class Pipeline:
         update_sheet = template_sheet_used or context.config.template_sheet
         if update_sheet:
             try:
-                apply_cpk_formulas(context.config.output, update_sheet)
+                update_cpk_formulas.update_workbook(context.config.output, update_sheet)
             except ValueError as exc:
                 logger.warning("Skipping CPK formula update: %s", exc)
         return context.with_updates(template_sheet=template_sheet_used, workbook_obj=None)
