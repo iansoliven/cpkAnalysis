@@ -302,6 +302,17 @@
           <p>The GUI will guide you through a series of prompts to configure your analysis.</p>
         </div>
 
+        <div class="card">
+          <h3>Resume an existing workbook</h3>
+          <p>Skip the configuration prompts and jump directly into post-processing:</p>
+          <pre><code>python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx</code></pre>
+          <p>
+            When <code>--resume</code> is used, the GUI reads the workbook's companion metadata JSON, prints a short project summary
+            (last post-processing action, analysis options, template sheet, metadata timestamp), and opens the post-processing menu immediately.
+            Provide <code>--resume-metadata path/to/file.json</code> if the metadata file is stored separately.
+          </p>
+        </div>
+
         <h2>Step-by-Step Workflow</h2>
         <p>The GUI walks you through the following configuration steps in order:</p>
 
