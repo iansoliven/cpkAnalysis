@@ -1088,14 +1088,17 @@ def _write_yield_section(
     _ensure_width("B", 14)
     _ensure_width("C", 12)
 
+    # Place Yield chart directly below its table and reserve vertical space
     yield_title = f"{_sanitize_label(file_name)} Yield"
     chart_bytes = render_yield_chart(pass_units, fail_units, yield_percent=chart_yield, title=yield_title)
     yield_chart_col = 6
     _ensure_width(get_column_letter(yield_chart_col), 45)
-    _place_image_at(ws, chart_bytes, yield_header_row, yield_chart_col)
-    _ensure_row_height(ws, yield_header_row)
+    yield_chart_anchor = yield_end_row + 2
+    _place_image_at(ws, chart_bytes, yield_chart_anchor, yield_chart_col)
+    _ensure_row_height(ws, yield_chart_anchor)
 
-    next_row = max(yield_end_row + 2, yield_header_row + ROW_STRIDE)
+    # Start Pareto section below both the yield table and the yield chart image
+    next_row = max(yield_end_row + 2, yield_chart_anchor + ROW_STRIDE)
 
     pareto_section_start = next_row
     pareto_header_cell = ws.cell(row=pareto_section_start, column=1, value="Pareto")
@@ -1188,11 +1191,13 @@ def _write_yield_section(
             dim.width = minimum
 
     pareto_chart_title = f"{_sanitize_label(file_name)} Pareto"
+    # Place Pareto chart directly below its table and reserve vertical space
     chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
-    _place_image_at(ws, chart_bytes, pareto_section_start + 1, 6)
-    _ensure_row_height(ws, pareto_section_start + 1)
+    pareto_chart_anchor = pareto_end_row + 2
+    _place_image_at(ws, chart_bytes, pareto_chart_anchor, 6)
+    _ensure_row_height(ws, pareto_chart_anchor)
 
-    return max(pareto_end_row + 2, pareto_section_start + ROW_STRIDE)
+    return max(pareto_end_row + 2, pareto_chart_anchor + ROW_STRIDE)
 
 
 def _write_site_yield_section(
@@ -1261,15 +1266,19 @@ def _write_site_yield_section(
         if existing < minimum:
             dim.width = minimum
 
+    # Place site Yield chart below the site yield table
     yield_chart_col = column_offset + 6
     chart_bytes = render_yield_chart(pass_units, fail_units, yield_percent=chart_yield, title=f"{_sanitize_label(file_name)} Site {site_label} Yield")
     dim = ws.column_dimensions[get_column_letter(yield_chart_col)]
     if (dim.width or 0) < 45:
         dim.width = 45
-    _place_image_at(ws, chart_bytes, start_row, yield_chart_col)
-    _ensure_row_height(ws, start_row)
+    site_yield_chart_anchor = start_row + (yield_end_row - (start_row + 1)) + 2  # below the site yield table
+    # Simplify: site_yield_chart_anchor equals yield_end_row + 2
+    site_yield_chart_anchor = yield_end_row + 2
+    _place_image_at(ws, chart_bytes, site_yield_chart_anchor, yield_chart_col)
+    _ensure_row_height(ws, site_yield_chart_anchor)
 
-    next_row = max(yield_end_row + 2, start_row + ROW_STRIDE)
+    next_row = max(yield_end_row + 2, site_yield_chart_anchor + ROW_STRIDE)
 
     pareto_section_start = next_row
     ws.cell(row=pareto_section_start, column=base_col, value="Pareto").font = Font(bold=True)
@@ -1360,10 +1369,12 @@ def _write_site_yield_section(
         if existing < minimum:
             dim.width = minimum
 
+    # Place site Pareto chart below the site pareto table
     pareto_chart_title = f"{_sanitize_label(file_name)} Site {site_label} Pareto"
     chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
-    _place_image_at(ws, chart_bytes, pareto_section_start + 1, column_offset + 6)
-    _ensure_row_height(ws, pareto_section_start + 1)
+    site_pareto_chart_anchor = pareto_end_row + 2
+    _place_image_at(ws, chart_bytes, site_pareto_chart_anchor, column_offset + 6)
+    _ensure_row_height(ws, site_pareto_chart_anchor)
 
 def _populate_cpk_report(
     workbook: Workbook,
