@@ -9,6 +9,7 @@ from cpkanalysis.workbook_builder import (
     build_workbook,
     ROW_STRIDE,
     ROW_HEIGHT_POINTS,
+    COL_STRIDE,
 )
 
 
@@ -213,3 +214,73 @@ def test_site_yield_pareto_anchors_non_overlapping(tmp_path: Path) -> None:
             break
     assert pareto_header_row is not None
     assert pareto_header_row >= site_yield_chart_anchor + ROW_STRIDE
+
+def test_pareto_alignment_across_sites(tmp_path: Path) -> None:
+    summary_df = pd.DataFrame([
+        {"File": "lotA.stdf", "Test Name": "VDD", "Test Number": "1", "Unit": "V", "COUNT": 4}
+    ])
+    measurements_df = pd.DataFrame([
+        {"file": "lotA.stdf", "device_id": "D1", "test_name": "VDD", "test_number": "1", "value": 0.5, "units": "V", "site": 1, "timestamp": 0.0},
+        {"file": "lotA.stdf", "device_id": "D2", "test_name": "VDD", "test_number": "1", "value": 1.5, "units": "V", "site": 2, "timestamp": 1.0},
+        {"file": "lotA.stdf", "device_id": "D3", "test_name": "VDD", "test_number": "1", "value": 1.6, "units": "V", "site": 2, "timestamp": 2.0},
+        {"file": "lotA.stdf", "device_id": "D4", "test_name": "VDD", "test_number": "1", "value": 0.6, "units": "V", "site": 1, "timestamp": 3.0},
+    ])
+    limits_df = pd.DataFrame([{"test_name": "VDD", "test_number": "1", "unit": "V"}])
+    yield_summary = pd.DataFrame([
+        {"file": "lotA.stdf", "devices_total": 4, "devices_pass": 2, "devices_fail": 2, "yield_percent": 0.5}
+    ])
+    pareto_summary = pd.DataFrame([
+        {"file": "lotA.stdf", "test_name": "VDD", "test_number": "1", "devices_fail": 2, "fail_rate_percent": 0.5, "cumulative_percent": 0.5, "lower_limit": 0.0, "upper_limit": 2.0}
+    ])
+    site_yield = pd.DataFrame([
+        {"file": "lotA.stdf", "site": 1, "devices_total": 2, "devices_pass": 1, "devices_fail": 1, "yield_percent": 0.5},
+        {"file": "lotA.stdf", "site": 2, "devices_total": 2, "devices_pass": 1, "devices_fail": 1, "yield_percent": 0.5},
+    ])
+    site_pareto = pd.DataFrame([
+        {"file": "lotA.stdf", "site": 1, "test_name": "VDD", "test_number": "1", "devices_fail": 1, "fail_rate_percent": 0.5, "cumulative_percent": 0.5, "lower_limit": 0.0, "upper_limit": 2.0},
+        {"file": "lotA.stdf", "site": 2, "test_name": "VDD", "test_number": "1", "devices_fail": 1, "fail_rate_percent": 0.5, "cumulative_percent": 0.5, "lower_limit": 0.0, "upper_limit": 2.0},
+    ])
+
+    output_path = tmp_path / "alignment.xlsx"
+    build_workbook(
+        summary=summary_df,
+        measurements=measurements_df,
+        test_limits=limits_df,
+        limit_sources={},
+        outlier_summary={"removed": 0},
+        per_file_stats=[],
+        output_path=output_path,
+        template_path=None,
+        include_histogram=False,
+        include_cdf=False,
+        include_time_series=False,
+        include_yield_pareto=True,
+        yield_summary=yield_summary,
+        pareto_summary=pareto_summary,
+        fallback_decimals=None,
+        temp_dir=tmp_path,
+        site_yield_summary=site_yield,
+        site_pareto_summary=site_pareto,
+        site_enabled=True,
+    )
+    wb = load_workbook(output_path)
+    ws = wb["Yield and Pareto"]
+    col_to_rows: dict[int, list[int]] = {}
+    for img in getattr(ws, "_images", []):
+        anc = getattr(img, "anchor", None)
+        fr = getattr(anc, "_from", None)
+        if fr is None:
+            continue
+        row = int(fr.row) + 1
+        col = int(fr.col) + 1
+        col_to_rows.setdefault(col, []).append(row)
+
+    # Identify the bottom-most image row (expected to be the aligned Pareto row)
+    all_rows = [r for rows in col_to_rows.values() for r in rows]
+    assert all_rows, "No images found in Yield and Pareto sheet"
+    max_row = max(all_rows)
+    # Count how many distinct columns have an image at this row
+    cols_at_max = {col for col, rows in col_to_rows.items() if max_row in rows}
+    # Expect at least aggregate + one site
+    assert len(cols_at_max) >= 2, f"Expected >=2 charts at row {max_row}, got columns {sorted(cols_at_max)}"
+
