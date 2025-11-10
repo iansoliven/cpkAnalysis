@@ -16,6 +16,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.drawing.image import Image as XLImage
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
+from openpyxl.styles import Alignment
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 from .mpl_charts import (
@@ -703,6 +704,8 @@ def _create_plot_sheets(
         render_elapsed = time.perf_counter() - render_start
 
     plot_positions: dict[tuple[str, str, str], dict[str, tuple[Any, int]]] = {}
+    # Stable per-file test ordering to compute deterministic anchor rows
+    order_by_file: dict[str, dict[tuple[str, str], int]] = {}
 
     for task in plot_tasks:
         key = task["key"]
@@ -724,9 +727,15 @@ def _create_plot_sheets(
         base_identifier = (file_name, test_name, test_number)
 
         if block_index == 0:
+            # Resolve deterministic row across all prefixes for this test
+            file_order = order_by_file.setdefault(file_name, {})
+            order_key = (test_name, test_number)
+            if order_key not in file_order:
+                file_order[order_key] = len(file_order)
+            anchor_row = 2 + file_order[order_key] * ROW_STRIDE
             if include_histogram:
                 anchor = _ensure_plot_anchor(hist_sheets, workbook, file_name, "Histogram")
-                row, sheet = anchor["row"], anchor["sheet"]
+                row, sheet = anchor_row, anchor["sheet"]
                 _ensure_site_block_width(sheet, 0)
                 image_bytes = image_bundle.get("histogram")
                 if image_bytes is not None:
@@ -734,7 +743,7 @@ def _create_plot_sheets(
                     sheet_ref = sheet.title.replace("'", "''")
                     plot_links[(file_name, test_name, test_number)] = f"#'{sheet_ref}'!{cell}"
                     _ensure_row_height(sheet, row)
-                hist_sheets[file_name]["row"] += ROW_STRIDE
+                hist_sheets[file_name]["row"] = anchor_row + ROW_STRIDE
                 plot_positions.setdefault(base_identifier, {})["histogram"] = (sheet, row)
 
             if include_cdf:
@@ -742,10 +751,10 @@ def _create_plot_sheets(
                 _ensure_site_block_width(anchor_cdf["sheet"], 0)
                 image_bytes = image_bundle.get("cdf")
                 if image_bytes is not None:
-                    _place_image(anchor_cdf["sheet"], image_bytes, anchor_cdf["row"], label=test_label)
-                    _ensure_row_height(anchor_cdf["sheet"], anchor_cdf["row"])
-                cdf_sheets[file_name]["row"] += ROW_STRIDE
-                plot_positions.setdefault(base_identifier, {})["cdf"] = (anchor_cdf["sheet"], anchor_cdf["row"])
+                    _place_image(anchor_cdf["sheet"], image_bytes, anchor_row, label=test_label)
+                    _ensure_row_height(anchor_cdf["sheet"], anchor_row)
+                cdf_sheets[file_name]["row"] = anchor_row + ROW_STRIDE
+                plot_positions.setdefault(base_identifier, {})["cdf"] = (anchor_cdf["sheet"], anchor_row)
 
             if include_time_series:
                 anchor_ts = _ensure_plot_anchor(time_sheets, workbook, file_name, "TimeSeries")
@@ -755,12 +764,12 @@ def _create_plot_sheets(
                     _place_image(
                         anchor_ts["sheet"],
                         image_bytes,
-                        anchor_ts["row"],
+                        anchor_row,
                         label=test_label,
                     )
-                    _ensure_row_height(anchor_ts["sheet"], anchor_ts["row"])
-                time_sheets[file_name]["row"] += ROW_STRIDE
-                plot_positions.setdefault(base_identifier, {})["time_series"] = (anchor_ts["sheet"], anchor_ts["row"])
+                    _ensure_row_height(anchor_ts["sheet"], anchor_row)
+                time_sheets[file_name]["row"] = anchor_row + ROW_STRIDE
+                plot_positions.setdefault(base_identifier, {})["time_series"] = (anchor_ts["sheet"], anchor_row)
             continue
 
         positions = plot_positions.get(base_identifier)
@@ -946,8 +955,13 @@ def _write_yield_pareto_sheet(
     row_cursor = _write_yield_summary_table(ws, yield_summary)
     for index, (_, yield_row) in enumerate(yield_summary.iterrows(), start=1):
         section_start = row_cursor
-        row_cursor = _write_yield_section(ws, yield_row, pareto_summary, index, row_cursor)
+        # Aggregate tables and pareto metadata (defer pareto chart placement)
+        agg_pareto_end, agg_pareto_col, agg_pareto_bytes = _write_yield_section(
+            ws, yield_row, pareto_summary, index, row_cursor
+        )
 
+        # Build per-site tables and collect pareto chart metadata
+        site_meta: list[tuple[int, int, bytes]] = []  # (end_row, col, bytes)
         if site_yield_summary is not None and not site_yield_summary.empty:
             file_name = str(yield_row.get("file", ""))
             site_subset = site_yield_summary[site_yield_summary["file"] == file_name]
@@ -962,7 +976,7 @@ def _write_yield_pareto_sheet(
                         ]
                     else:
                         site_pareto = pd.DataFrame(columns=PARETO_COLUMNS_SITE)
-                    _write_site_yield_section(
+                    end_row, col, bytes_ = _write_site_yield_section(
                         ws,
                         site_row,
                         site_pareto,
@@ -972,6 +986,26 @@ def _write_yield_pareto_sheet(
                         site_label=site_label,
                         site_index=site_idx,
                     )
+                    site_meta.append((end_row, col, bytes_))
+
+        # Choose a unified anchor below the longest pareto table across aggregate and sites
+        max_end = agg_pareto_end
+        for end_row, _, _ in site_meta:
+            if end_row > max_end:
+                max_end = end_row
+        aligned_anchor = max_end + 2
+
+        # Place aggregate pareto chart
+        _place_image_at(ws, agg_pareto_bytes, aligned_anchor, agg_pareto_col)
+        _ensure_row_height(ws, aligned_anchor)
+
+        # Place site pareto charts at the same aligned anchor
+        for _, col, bytes_ in site_meta:
+            _place_image_at(ws, bytes_, aligned_anchor, col)
+            _ensure_row_height(ws, aligned_anchor)
+
+        # Advance cursor for next section
+        row_cursor = aligned_anchor + ROW_STRIDE
 
 
 def _write_yield_summary_table(ws, yield_summary: pd.DataFrame) -> int:
@@ -1030,7 +1064,7 @@ def _write_yield_section(
     pareto_summary: pd.DataFrame,
     section_index: int,
     start_row: int,
-) -> int:
+) -> tuple[int, int, bytes]:
     row_cursor = start_row
     file_name = str(yield_row.get("file", ""))
     header_cell = ws.cell(row=row_cursor, column=1, value=f"File: {file_name}")
@@ -1191,13 +1225,9 @@ def _write_yield_section(
             dim.width = minimum
 
     pareto_chart_title = f"{_sanitize_label(file_name)} Pareto"
-    # Place Pareto chart directly below its table and reserve vertical space
-    chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
-    pareto_chart_anchor = pareto_end_row + 2
-    _place_image_at(ws, chart_bytes, pareto_chart_anchor, 6)
-    _ensure_row_height(ws, pareto_chart_anchor)
-
-    return max(pareto_end_row + 2, pareto_chart_anchor + ROW_STRIDE)
+    pareto_chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
+    # Defer placement; return table end row, target column, and chart bytes
+    return pareto_end_row, 6, pareto_chart_bytes
 
 
 def _write_site_yield_section(
@@ -1210,7 +1240,7 @@ def _write_site_yield_section(
     column_offset: int,
     site_label: str,
     site_index: int,
-) -> None:
+) -> tuple[int, int, bytes]:
     base_col = column_offset + 1
     file_name = str(yield_row.get("file", ""))
     header_cell = ws.cell(row=start_row, column=base_col, value=f"File: {file_name} (Site {site_label})")
@@ -1369,12 +1399,10 @@ def _write_site_yield_section(
         if existing < minimum:
             dim.width = minimum
 
-    # Place site Pareto chart below the site pareto table
+    # Defer site Pareto chart placement to allow alignment with aggregate chart
     pareto_chart_title = f"{_sanitize_label(file_name)} Site {site_label} Pareto"
-    chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
-    site_pareto_chart_anchor = pareto_end_row + 2
-    _place_image_at(ws, chart_bytes, site_pareto_chart_anchor, column_offset + 6)
-    _ensure_row_height(ws, site_pareto_chart_anchor)
+    site_pareto_chart_bytes = render_pareto_chart(chart_labels, chart_counts, chart_cumulative, title=pareto_chart_title)
+    return pareto_end_row, column_offset + 6, site_pareto_chart_bytes
 
 def _populate_cpk_report(
     workbook: Workbook,
@@ -1581,7 +1609,11 @@ def _ensure_plot_anchor(cache: dict[str, Any], workbook: Workbook, file_name: st
     sheet = workbook.create_sheet(sheet_name)
     sheet.sheet_view.showGridLines = False
     cache[file_name] = {"sheet": sheet, "row": 2}
-    sheet.cell(row=1, column=1, value=f"{prefix} plots for {file_name}")
+    header_cell = sheet.cell(row=1, column=1, value=f"{prefix} plots for {file_name}")
+    # Prevent header row from auto-expanding and causing vertical offsets
+    header_cell.alignment = Alignment(wrap_text=False, vertical="top")
+    # Fix header row height to a reasonable small size (points)
+    sheet.row_dimensions[1].height = 18
     label_col = get_column_letter(1)
     image_col = get_column_letter(IMAGE_ANCHOR_COLUMN)
     if sheet.column_dimensions[label_col].width is None or sheet.column_dimensions[label_col].width < 28:
@@ -1602,7 +1634,9 @@ def _place_image(
     position: int | None = None,
     anchor_cell: str | None = None,
 ) -> str:
-    sheet.cell(row=anchor_row, column=label_column, value=label)
+    cell = sheet.cell(row=anchor_row, column=label_column, value=label)
+    # Ensure label does not wrap and push the row height unexpectedly
+    cell.alignment = Alignment(wrap_text=False, vertical="top")
     image_stream = BytesIO(image_bytes)
     img = XLImage(image_stream)
     img.width = IMAGE_WIDTH

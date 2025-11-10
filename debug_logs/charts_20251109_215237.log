@@ -1,0 +1,152 @@
+[21:52:44.125] refresh_tests: start
+[21:52:44.133] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:44.365] place Histogram subset idx=0 row=2
+[21:52:44.587] place CDF subset idx=0 row=2
+[21:52:44.829] place TimeSeries subset idx=0 row=2
+[21:52:45.093] refresh_tests: start
+[21:52:45.099] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:45.398] place Histogram subset idx=0 row=2
+[21:52:45.669] place CDF subset idx=0 row=2
+[21:52:45.937] place TimeSeries subset idx=0 row=2
+[21:52:46.162] refresh_tests: start
+[21:52:46.169] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:46.446] place Histogram subset idx=0 row=2
+[21:52:46.706] place CDF subset idx=0 row=2
+[21:52:47.015] place TimeSeries subset idx=0 row=2
+[21:52:47.623] refresh_tests: start
+[21:52:47.629] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:47.906] place Histogram subset idx=0 row=2
+[21:52:48.175] place CDF subset idx=0 row=2
+[21:52:48.494] place TimeSeries subset idx=0 row=2
+[21:52:48.634] refresh_tests: start
+[21:52:48.641] subset:lot1|Voltage|0 idx=0 row=2
+[21:52:48.862] place Histogram subset idx=0 row=2
+[21:52:49.072] place CDF subset idx=0 row=2
+[21:52:49.585] place TimeSeries subset idx=0 row=2
+[21:52:49.854] refresh_tests: start
+[21:52:49.861] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:50.100] place Histogram subset idx=0 row=2
+[21:52:50.357] place CDF subset idx=0 row=2
+[21:52:50.621] place TimeSeries subset idx=0 row=2
+[21:52:50.841] refresh_tests: start
+[21:52:50.854] subset:lot1|Voltage|100 idx=0 row=2
+[21:52:51.101] place Histogram subset idx=0 row=2
+[21:52:51.363] place CDF subset idx=0 row=2
+[21:52:51.650] place TimeSeries subset idx=0 row=2
+[21:52:52.772] refresh_tests: start
+[21:52:52.785] full:lot1|TestA|1 idx=0 row=2
+[21:52:53.089] place Histogram full idx=0 row=2
+[21:52:53.325] place CDF full idx=0 row=2
+[21:52:53.590] place TimeSeries full idx=0 row=2
+[21:52:53.830] per-site Histogram site=A block=1 row=2 cell=J2
+[21:52:54.050] per-site CDF site=A block=1 row=2 cell=J2
+[21:52:54.269] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:52:54.502] per-site Histogram site=B block=2 row=2 cell=R2
+[21:52:54.716] per-site CDF site=B block=2 row=2 cell=R2
+[21:52:54.938] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:52:54.940] full:lot1|TestB|2 idx=1 row=9
+[21:52:55.183] place Histogram full idx=1 row=9
+[21:52:55.404] place CDF full idx=1 row=9
+[21:52:55.760] place TimeSeries full idx=1 row=9
+[21:52:55.981] per-site Histogram site=A block=1 row=9 cell=J9
+[21:52:56.198] per-site CDF site=A block=1 row=9 cell=J9
+[21:52:56.421] per-site TimeSeries site=A block=1 row=9 cell=J9
+[21:52:56.632] per-site Histogram site=B block=2 row=9 cell=R9
+[21:52:56.861] per-site CDF site=B block=2 row=9 cell=R9
+[21:52:57.089] per-site TimeSeries site=B block=2 row=9 cell=R9
+[21:52:57.091] refresh_tests: start
+[21:52:57.098] subset:lot1|TestA|1 idx=0 row=2
+[21:52:57.419] place Histogram subset idx=0 row=2
+[21:52:57.683] place CDF subset idx=0 row=2
+[21:52:58.033] place TimeSeries subset idx=0 row=2
+[21:52:58.305] per-site Histogram site=A block=1 row=2 cell=J2
+[21:52:58.578] per-site CDF site=A block=1 row=2 cell=J2
+[21:52:58.904] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:52:59.184] per-site Histogram site=B block=2 row=2 cell=R2
+[21:52:59.450] per-site CDF site=B block=2 row=2 cell=R2
+[21:52:59.727] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:52:59.826] refresh_tests: start
+[21:52:59.833] full:lot1|TestA|1 idx=0 row=2
+[21:53:00.073] place Histogram full idx=0 row=2
+[21:53:00.303] place CDF full idx=0 row=2
+[21:53:00.531] place TimeSeries full idx=0 row=2
+[21:53:00.754] per-site Histogram site=A block=1 row=2 cell=J2
+[21:53:00.967] per-site CDF site=A block=1 row=2 cell=J2
+[21:53:01.201] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:53:01.428] per-site Histogram site=B block=2 row=2 cell=R2
+[21:53:01.655] per-site CDF site=B block=2 row=2 cell=R2
+[21:53:01.871] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:53:01.874] full:lot1|TestB|2 idx=1 row=9
+[21:53:02.121] place Histogram full idx=1 row=9
+[21:53:02.339] place CDF full idx=1 row=9
+[21:53:02.573] place TimeSeries full idx=1 row=9
+[21:53:02.791] per-site Histogram site=A block=1 row=9 cell=J9
+[21:53:02.999] per-site CDF site=A block=1 row=9 cell=J9
+[21:53:03.217] per-site TimeSeries site=A block=1 row=9 cell=J9
+[21:53:03.490] per-site Histogram site=B block=2 row=9 cell=R9
+[21:53:03.716] per-site CDF site=B block=2 row=9 cell=R9
+[21:53:03.937] per-site TimeSeries site=B block=2 row=9 cell=R9
+[21:53:03.938] refresh_tests: start
+[21:53:03.952] full:lot1|TestA|1 idx=0 row=2
+[21:53:04.229] place Histogram full idx=0 row=2
+[21:53:04.505] place CDF full idx=0 row=2
+[21:53:04.796] place TimeSeries full idx=0 row=2
+[21:53:05.069] per-site Histogram site=A block=1 row=2 cell=J2
+[21:53:05.339] per-site CDF site=A block=1 row=2 cell=J2
+[21:53:05.650] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:53:05.971] per-site Histogram site=B block=2 row=2 cell=R2
+[21:53:06.250] per-site CDF site=B block=2 row=2 cell=R2
+[21:53:06.522] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:53:06.524] full:lot1|TestB|2 idx=1 row=9
+[21:53:06.808] place Histogram full idx=1 row=9
+[21:53:07.090] place CDF full idx=1 row=9
+[21:53:07.359] place TimeSeries full idx=1 row=9
+[21:53:07.622] per-site Histogram site=A block=1 row=9 cell=J9
+[21:53:07.872] per-site CDF site=A block=1 row=9 cell=J9
+[21:53:08.143] per-site TimeSeries site=A block=1 row=9 cell=J9
+[21:53:08.508] per-site Histogram site=B block=2 row=9 cell=R9
+[21:53:08.769] per-site CDF site=B block=2 row=9 cell=R9
+[21:53:09.031] per-site TimeSeries site=B block=2 row=9 cell=R9
+[21:53:09.125] refresh_tests: start
+[21:53:09.133] full:lot1|TestA|1 idx=0 row=2
+[21:53:09.365] place Histogram full idx=0 row=2
+[21:53:09.574] place CDF full idx=0 row=2
+[21:53:09.807] place TimeSeries full idx=0 row=2
+[21:53:10.036] per-site Histogram site=A block=1 row=2 cell=J2
+[21:53:10.250] per-site CDF site=A block=1 row=2 cell=J2
+[21:53:10.471] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:53:10.694] per-site Histogram site=B block=2 row=2 cell=R2
+[21:53:10.902] per-site CDF site=B block=2 row=2 cell=R2
+[21:53:11.124] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:53:11.126] full:lot1|TestB|2 idx=1 row=9
+[21:53:11.373] place Histogram full idx=1 row=9
+[21:53:11.598] place CDF full idx=1 row=9
+[21:53:11.830] place TimeSeries full idx=1 row=9
+[21:53:12.049] per-site Histogram site=A block=1 row=9 cell=J9
+[21:53:12.258] per-site CDF site=A block=1 row=9 cell=J9
+[21:53:12.483] per-site TimeSeries site=A block=1 row=9 cell=J9
+[21:53:12.700] per-site Histogram site=B block=2 row=9 cell=R9
+[21:53:12.923] per-site CDF site=B block=2 row=9 cell=R9
+[21:53:13.140] per-site TimeSeries site=B block=2 row=9 cell=R9
+[21:53:13.142] refresh_tests: start
+[21:53:13.296] refresh_tests: start
+[21:53:13.304] full:lot1|TestA|1 idx=0 row=2
+[21:53:13.547] place Histogram full idx=0 row=2
+[21:53:13.761] place CDF full idx=0 row=2
+[21:53:14.008] place TimeSeries full idx=0 row=2
+[21:53:14.231] per-site Histogram site=A block=1 row=2 cell=J2
+[21:53:14.472] per-site CDF site=A block=1 row=2 cell=J2
+[21:53:14.700] per-site TimeSeries site=A block=1 row=2 cell=J2
+[21:53:14.921] per-site Histogram site=B block=2 row=2 cell=R2
+[21:53:15.137] per-site CDF site=B block=2 row=2 cell=R2
+[21:53:15.372] per-site TimeSeries site=B block=2 row=2 cell=R2
+[21:53:15.374] full:lot1|TestB|2 idx=1 row=9
+[21:53:15.626] place Histogram full idx=1 row=9
+[21:53:15.845] place CDF full idx=1 row=9
+[21:53:16.107] place TimeSeries full idx=1 row=9
+[21:53:16.349] per-site Histogram site=A block=1 row=9 cell=J9
+[21:53:16.559] per-site CDF site=A block=1 row=9 cell=J9
+[21:53:16.770] per-site TimeSeries site=A block=1 row=9 cell=J9
+[21:53:16.998] per-site Histogram site=B block=2 row=9 cell=R9
+[21:53:17.206] per-site CDF site=B block=2 row=9 cell=R9
+[21:53:17.433] per-site TimeSeries site=B block=2 row=9 cell=R9
