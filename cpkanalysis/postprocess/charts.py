@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import numpy as np
@@ -56,6 +58,27 @@ def _ensure_chart_state(metadata: Dict[str, Any]) -> Dict[str, Any]:
     state = metadata.setdefault("post_processing_state", {})
     charts = state.setdefault("chart_positions", {})
     return charts
+
+# Debug logging for chart placement (writes to repo_root/debug_logs)
+_RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
+try:
+    _REPO_ROOT = Path(__file__).resolve().parents[2]
+    _DEBUG_DIR = _REPO_ROOT / "debug_logs"
+    _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+    _DEBUG_LOG = _DEBUG_DIR / f"charts_{_RUN_ID}.log"
+except Exception:
+    _DEBUG_LOG = None
+
+
+def _dbg(msg: str) -> None:
+    try:
+        if _DEBUG_LOG is None:
+            return
+        with _DEBUG_LOG.open("a", encoding="utf-8") as f:
+            ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+            f.write(f"[{ts}] {msg}\n")
+    except Exception:
+        pass
 
 
 def _make_test_key(file_key: str, test_name: str, test_number: str) -> str:
@@ -230,6 +253,7 @@ def refresh_tests(
 ) -> None:
     """Regenerate plot sheets to reflect updated limits."""
     workbook = context.workbook()
+    _dbg("refresh_tests: start")
     summary_df = context.summary_frame(refresh=True)
     measurements_df = context.measurements_frame(refresh=True)
     limits_df = context.limits_frame(refresh=True)
@@ -418,6 +442,7 @@ def _refresh_all_tests(
 
         order_map.setdefault(file_key, {})[test_key_str] = index
         anchor_row = _anchor_row_for_index(index)
+        _dbg(f"full:{file_key}|{safe_test_name}|{safe_test_number} idx={index} row={anchor_row}")
 
         hist_sheet = None
         if context.analysis_inputs.generate_histogram:
@@ -435,6 +460,7 @@ def _refresh_all_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place Histogram full idx={index} row={anchor_row}")
             _replace_chart_image(hist_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "Histogram", file_key, test_key_str, index)
 
@@ -454,6 +480,7 @@ def _refresh_all_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place CDF full idx={index} row={anchor_row}")
             _replace_chart_image(cdf_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "CDF", file_key, test_key_str, index)
 
@@ -474,6 +501,7 @@ def _refresh_all_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place TimeSeries full idx={index} row={anchor_row}")
             _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
@@ -630,6 +658,7 @@ def _refresh_subset_tests(
         index = _resolve_test_index(chart_state, file_key, test_key_str)
         order_map.setdefault(file_key, {})[test_key_str] = index
         anchor_row = _anchor_row_for_index(index)
+        _dbg(f"subset:{file_key}|{safe_test_name}|{safe_test_number} idx={index} row={anchor_row}")
 
         hist_sheet = None
         if context.analysis_inputs.generate_histogram:
@@ -647,6 +676,7 @@ def _refresh_subset_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place Histogram subset idx={index} row={anchor_row}")
             _replace_chart_image(hist_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "Histogram", file_key, test_key_str, index)
 
@@ -666,6 +696,7 @@ def _refresh_subset_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place CDF subset idx={index} row={anchor_row}")
             _replace_chart_image(cdf_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "CDF", file_key, test_key_str, index)
 
@@ -686,6 +717,7 @@ def _refresh_subset_tests(
                 title_font_size=10,
                 cpk_font_size=8,
             )
+            _dbg(f"place TimeSeries subset idx={index} row={anchor_row}")
             _replace_chart_image(ts_sheet, index, anchor_row, test_label, image_bytes)
             _record_prefix_index(chart_state, "TimeSeries", file_key, test_key_str, index)
 
@@ -901,7 +933,7 @@ def _refresh_site_charts(
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _place_image(
+            cell_ref = _place_image(
                 hist_sheet,
                 image_bytes,
                 anchor_row,
@@ -910,6 +942,7 @@ def _refresh_site_charts(
                 image_column=image_col,
                 anchor_cell=target_cell,
             )
+            _dbg(f"per-site Histogram site={site_value_norm} block={block_index} row={anchor_row} cell={cell_ref}")
             _ensure_row_height(hist_sheet, anchor_row)
 
         if include_cdf and cdf_sheet is not None:
@@ -929,7 +962,7 @@ def _refresh_site_charts(
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _place_image(
+            cell_ref = _place_image(
                 cdf_sheet,
                 image_bytes,
                 anchor_row,
@@ -938,6 +971,7 @@ def _refresh_site_charts(
                 image_column=image_col,
                 anchor_cell=target_cell,
             )
+            _dbg(f"per-site CDF site={site_value_norm} block={block_index} row={anchor_row} cell={cell_ref}")
             _ensure_row_height(cdf_sheet, anchor_row)
 
         if include_time_series and ts_sheet is not None:
@@ -958,7 +992,7 @@ def _refresh_site_charts(
                 title_font_size=10,
                 cpk_font_size=8,
             )
-            _place_image(
+            cell_ref = _place_image(
                 ts_sheet,
                 image_bytes,
                 anchor_row,
@@ -967,6 +1001,7 @@ def _refresh_site_charts(
                 image_column=image_col,
                 anchor_cell=target_cell,
             )
+            _dbg(f"per-site TimeSeries site={site_value_norm} block={block_index} row={anchor_row} cell={cell_ref}")
             _ensure_row_height(ts_sheet, anchor_row)
 
     stale_sites = set(test_sites.keys()) - processed_sites
