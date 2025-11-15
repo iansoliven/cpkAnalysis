@@ -94,33 +94,44 @@ def render_histogram(
         rug_ax = None
     
     # Adaptive styling based on data size and bin count to improve visibility
-    if clean.size <= 10:
-        # Very small dataset - use step histogram for better visibility
-        counts, bin_edges = np.histogram(clean, bins=bins)
-        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-        ax.step(bin_centers, counts, where='mid', color=HIST_COLOR, linewidth=2.5, alpha=1.0)  # Max intensity
-        ax.fill_between(bin_centers, counts, step='mid', color=HIST_COLOR, alpha=0.4)  # Slightly higher fill
-    elif bins <= 10:
-        # For few bins (thin bars), use maximum opacity and thicker edges
-        alpha = 1.0  # Maximum intensity for best visibility
-        edgecolor = "darkblue"
-        linewidth = 1.2
-        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha, 
-                edgecolor=edgecolor, linewidth=linewidth)
-    elif bins <= 20:
-        # Medium number of bins
-        alpha = 0.85  # Slightly higher than before for better visibility
-        edgecolor = "white" 
-        linewidth = 0.8
-        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
-                edgecolor=edgecolor, linewidth=linewidth)
-    else:
-        # Many bins (normal case)
-        alpha = 0.75
-        edgecolor = "white"
-        linewidth = 0.5
-        ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
-                edgecolor=edgecolor, linewidth=linewidth)
+    # Wrap histogram calls in try-except to handle edge cases with very small data ranges
+    try:
+        if clean.size <= 10:
+            # Very small dataset - use step histogram for better visibility
+            counts, bin_edges = np.histogram(clean, bins=bins)
+            bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+            ax.step(bin_centers, counts, where='mid', color=HIST_COLOR, linewidth=2.5, alpha=1.0)  # Max intensity
+            ax.fill_between(bin_centers, counts, step='mid', color=HIST_COLOR, alpha=0.4)  # Slightly higher fill
+        elif bins <= 10:
+            # For few bins (thin bars), use maximum opacity and thicker edges
+            alpha = 1.0  # Maximum intensity for best visibility
+            edgecolor = "darkblue"
+            linewidth = 1.2
+            ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha, 
+                    edgecolor=edgecolor, linewidth=linewidth)
+        elif bins <= 20:
+            # Medium number of bins
+            alpha = 0.85  # Slightly higher than before for better visibility
+            edgecolor = "white" 
+            linewidth = 0.8
+            ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
+                    edgecolor=edgecolor, linewidth=linewidth)
+        else:
+            # Many bins (normal case)
+            alpha = 0.75
+            edgecolor = "white"
+            linewidth = 0.5
+            ax.hist(clean, bins=bins, color=HIST_COLOR, alpha=alpha,
+                    edgecolor=edgecolor, linewidth=linewidth)
+    except ValueError as e:
+        # Fallback for very small data ranges where binning fails
+        # Use a simple bar chart with unique values
+        if "Too many bins" in str(e) or "finite-sized bins" in str(e):
+            unique_vals, counts = np.unique(clean, return_counts=True)
+            ax.bar(unique_vals, counts, width=np.ptp(clean)/20 if np.ptp(clean) > 0 else 0.1,
+                   color=HIST_COLOR, alpha=0.85, edgecolor="darkblue", linewidth=1.2)
+        else:
+            raise
     
     ax.set_xlabel("Measurement Value", fontsize=9)  # Smaller font for smaller chart
     ax.set_ylabel("Count", fontsize=9)  # Smaller font for smaller chart
@@ -312,9 +323,24 @@ def _freedman_diaconis_bins(values: np.ndarray) -> int:
         return 1
     bins = int(np.ceil(data_range / bin_width))
     
-    # Ensure reasonable bin count for visibility (avoid too few or too many bins)
-    bins = max(bins, 5)   # Minimum 5 bins for better visualization
-    bins = min(bins, 50)  # Maximum 50 bins to avoid overcrowding
+    # Ensure bins is at least 1
+    bins = max(bins, 1)
+    
+    # For very small data ranges, limit bins to avoid numpy histogram error
+    # Check if the data range can support the desired number of bins
+    # numpy requires finite bin width, so bins * epsilon < data_range
+    if bins > 1:
+        # Conservative check: ensure we can create distinct bins
+        min_bin_width = data_range / bins
+        if not np.isfinite(min_bin_width) or min_bin_width < np.finfo(float).eps * 10:
+            # Data range too small for this many bins
+            bins = 1
+        else:
+            # Apply minimum for better visualization only if range supports it
+            bins = max(bins, 5)
+    
+    # Maximum 50 bins to avoid overcrowding
+    bins = min(bins, 50)
     
     return bins
 
