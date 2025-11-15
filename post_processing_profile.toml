@@ -2,5 +2,5 @@
 
 [[plugins]]
 id = "builtin.summary_logger"
-enabled = false
+enabled = true
 priority = 0

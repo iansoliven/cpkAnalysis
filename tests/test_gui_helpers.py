@@ -18,7 +18,8 @@ def test_gui_main_invokes_launch(monkeypatch: pytest.MonkeyPatch) -> None:
             called["launch"] = True
 
     monkeypatch.setattr(gui, "CPKAnalysisGUI", DummyGUI)
-    assert gui.main() == 0
+    # Pass an empty argv list to avoid pytest flags leaking into sys.argv
+    assert gui.main([]) == 0
     assert called.get("launch") is True
 
 
