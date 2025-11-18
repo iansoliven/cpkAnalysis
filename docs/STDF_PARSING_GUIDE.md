@@ -89,8 +89,6 @@ def robust_record_iterator(file_object):
 
 **Testing Evidence**: Bhavik file extraction improved from 47 → 1,205 devices (25.6x increase).
 
-**See Also**: `docs/STDF_PARSER_ERROR_RECOVERY_GUIDE.md` for complete implementation details.
-
 ---
 
 ### Metadata Caching Pattern
@@ -657,13 +655,13 @@ def get_opt_flag(ptr_record):
 
 ### Generator Exhaustion (Critical)
 
-**See**: `docs/STDF_PARSER_ERROR_RECOVERY_GUIDE.md` for complete guide
+**Problem**: Generators die on first exception
 
-**Summary**:
-- **Problem**: Generators die on first exception
-- **Impact**: Single corrupted record stops extraction (47/1,205 devices = 3.9%)
-- **Solution**: Manual iteration with `robust_record_iterator()`
-- **Result**: 100% device extraction from corrupted files
+**Impact**: Single corrupted record stops extraction (47/1,205 devices = 3.9%)
+
+**Solution**: Manual iteration with `robust_record_iterator()`
+
+**Result**: 100% device extraction from corrupted files
 
 **Code Pattern**:
 ```python
@@ -1661,11 +1659,7 @@ df["scaled"] = df["value"].apply(
 
 ### Further Reading
 
-- **STDF V4 Specification**: Official format documentation
-- **STDF_INGESTION.md**: 914-line technical reference for OPT_FLAG semantics
-- **STDF_PARSER_ERROR_RECOVERY_GUIDE.md**: 660-line guide on generator exhaustion
-- **tests/test_ingest_limits.py**: 7 tests covering OPT_FLAG edge cases
-- **tests/test_outliers.py**: 16 tests covering NaN/Inf preservation
+- **STDF V4 Specification**: Official format documentation from your ATE vendor or search for "STDF V4 specification PDF"
 
 ---
 
@@ -1821,5 +1815,4 @@ cell.value = 0.04
 
 **Document Version**: 1.0  
 **Last Updated**: 2025-01-28  
-**Based On**: 20+ production bug fixes and enhancements  
-**See Also**: STDF_INGESTION.md, STDF_PARSER_ERROR_RECOVERY_GUIDE.md
+**Based On**: 20+ production bug fixes and enhancements from real-world STDF parser development
