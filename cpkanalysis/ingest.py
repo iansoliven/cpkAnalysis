@@ -276,9 +276,86 @@ def _parse_stdf_file(
     column_data: dict[str, list[Any]] = {column: [] for column in EXPECTED_COLUMNS}
     invalid_measurements_count = 0  # Track invalid measurements
     site_descriptions: list[SiteDescription] = []
+    corrupted_record_count = 0  # Track records that failed to parse
+    total_record_count = 0  # Track total records attempted
+
+    def robust_record_iterator(reader):
+        """Wrapper that catches parsing exceptions and continues iteration.
+        
+        Since exceptions inside a generator mark it as exhausted, we need to
+        manually drive the file reading to enable error recovery.
+        """
+        nonlocal corrupted_record_count, total_record_count
+        from istdf.records import RECORD_SPECS
+        
+        stream = reader._stream
+        byte_order = reader._byte_order
+        
+        while True:
+            try:
+                # Read record header  
+                header = stream.read(4)
+                if not header or len(header) < 4:
+                    break
+                
+                rec_typ = header[2]
+                rec_sub = header[3]
+                
+                # Determine byte order for FAR record
+                if not reader._byte_order_determined and rec_typ == 0 and rec_sub == 10:
+                    len_little = int.from_bytes(header[0:2], "little")
+                    len_big = int.from_bytes(header[0:2], "big")
+                    if len_big == 2 and len_little != 2:
+                        byte_order = "big"
+                    else:
+                        byte_order = "little"
+                    reader._byte_order = byte_order
+                    reader._byte_order_determined = True
+                
+                rec_len = int.from_bytes(header[0:2], byte_order)
+                payload = stream.read(rec_len)
+                
+                if len(payload) != rec_len:
+                    # Skip incomplete record
+                    corrupted_record_count += 1
+                    total_record_count += 1
+                    continue
+                
+                # Get record spec
+                spec = RECORD_SPECS.get((rec_typ, rec_sub))
+                if spec is None:
+                    total_record_count += 1
+                    if not reader._ignore_unknown:
+                        corrupted_record_count += 1
+                    continue
+                
+                # Try to decode the record
+                try:
+                    record = reader._decode_record(spec, payload, byte_order)
+                    if rec_typ == 0 and rec_sub == 10:
+                        reader._handle_far(record)
+                    total_record_count += 1
+                    yield record
+                except Exception as e:
+                    # Decoding failed, but file stream is still aligned
+                    corrupted_record_count += 1
+                    total_record_count += 1
+                    if corrupted_record_count == 1:
+                        warnings.warn(
+                            f"STDF parsing error at record #{total_record_count}: {type(e).__name__}: {e}. "
+                            f"Continuing with available data. (Further errors will be counted silently)",
+                            UserWarning,
+                            stacklevel=4
+                        )
+                    
+            except Exception as e:
+                # File-level read error - likely EOF or corrupted file structure
+                corrupted_record_count += 1
+                total_record_count += 1
+                break
 
     with STDFReader(source.path, ignore_unknown=True) as reader:
-        for record in reader:
+        for record in robust_record_iterator(reader):
             name = record.name
             data = record.to_dict()
             if name == "SDR":
@@ -362,7 +439,22 @@ def _parse_stdf_file(
         "measurement_count": int(len(frame)),
         "device_count": int(device_sequence),
         "invalid_measurements_filtered": invalid_measurements_count,
+        "total_records_attempted": total_record_count,
+        "corrupted_records_skipped": corrupted_record_count,
     }
+    
+    # Emit warning summary if any records were corrupted
+    if corrupted_record_count > 0:
+        warnings.warn(
+            f"STDF file '{source.file_name}' had {corrupted_record_count} corrupted/unparseable records "
+            f"out of {total_record_count} total ({corrupted_record_count * 100.0 / max(total_record_count, 1):.1f}%). "
+            f"Successfully parsed {total_record_count - corrupted_record_count} records and extracted "
+            f"{len(frame)} measurements from {device_sequence} devices. "
+            f"This may indicate non-standard STDF format from test equipment.",
+            UserWarning,
+            stacklevel=2
+        )
+    
     return frame, test_catalog, stats, site_descriptions
 
 
