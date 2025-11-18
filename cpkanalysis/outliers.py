@@ -41,8 +41,13 @@ def apply_outlier_filter(
             filtered_groups.append(group)
             continue
         if method == "iqr":
-            q1 = np.nanpercentile(values, 25)
-            q3 = np.nanpercentile(values, 75)
+            # Filter out inf/-inf values to avoid NumPy warnings during percentile calculation
+            finite_values = values[np.isfinite(values)]
+            if len(finite_values) == 0:
+                filtered_groups.append(group)
+                continue
+            q1 = np.percentile(finite_values, 25)
+            q3 = np.percentile(finite_values, 75)
             iqr = q3 - q1
             if not math.isfinite(iqr) or iqr <= 0:
                 filtered_groups.append(group)
@@ -50,8 +55,13 @@ def apply_outlier_filter(
             lower = q1 - k * iqr
             upper = q3 + k * iqr
         else:  # stdev
-            mean = float(np.nanmean(values))
-            std = float(np.nanstd(values, ddof=1))
+            # Filter out inf/-inf values to avoid NumPy warnings
+            finite_values = values[np.isfinite(values)]
+            if len(finite_values) == 0:
+                filtered_groups.append(group)
+                continue
+            mean = float(np.mean(finite_values))
+            std = float(np.std(finite_values, ddof=1))
             if not math.isfinite(std) or std <= 0:
                 filtered_groups.append(group)
                 continue
