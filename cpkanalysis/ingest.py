@@ -165,7 +165,7 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
     all_frames: list[pd.DataFrame] = []
     parquet_writer: pq.ParquetWriter | None = None
     parquet_schema: pa.Schema | None = None
-    test_catalog: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    test_catalog: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
     all_site_descriptions: list[SiteDescription] = []
 
     writer_opened = False
@@ -183,10 +183,12 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
             per_file_stats.append(stats)
             if site_configs:
                 all_site_descriptions.extend(site_configs)
+            file_key = source.file_name
             for key, info in test_meta.items():
-                existing = test_catalog.get(key)
+                catalog_key = (file_key, key[0], key[1])
+                existing = test_catalog.get(catalog_key)
                 if existing is None:
-                    test_catalog[key] = info
+                    test_catalog[catalog_key] = info
                     continue
                 if existing.get("unit") in ("", None) and info.get("unit"):
                     existing["unit"] = info["unit"]
@@ -231,8 +233,9 @@ def ingest_sources(sources: Sequence[SourceFile], temp_dir: Path) -> IngestResul
 
     catalog_rows = [
         {
-            "test_name": key[0],
-            "test_number": key[1],
+            "file": key[0],
+            "test_name": key[1],
+            "test_number": key[2],
             "unit": info.get("unit") or "",
             "stdf_lower": info.get("stdf_lower") if info.get("has_stdf_lower", info.get("stdf_lower") is not None) else None,
             "stdf_upper": info.get("stdf_upper") if info.get("has_stdf_upper", info.get("stdf_upper") is not None) else None,
@@ -287,20 +290,27 @@ def _parse_stdf_file(
         """
         nonlocal corrupted_record_count, total_record_count
         from istdf.records import RECORD_SPECS
-        
+
+        # Fast path for lightweight test doubles that only implement __iter__
+        if not hasattr(reader, "_stream") or not hasattr(reader, "_byte_order"):
+            for record in reader:
+                total_record_count += 1
+                yield record
+            return
+
         stream = reader._stream
         byte_order = reader._byte_order
-        
+
         while True:
             try:
                 # Read record header  
                 header = stream.read(4)
                 if not header or len(header) < 4:
                     break
-                
+
                 rec_typ = header[2]
                 rec_sub = header[3]
-                
+
                 # Determine byte order for FAR record
                 if not reader._byte_order_determined and rec_typ == 0 and rec_sub == 10:
                     len_little = int.from_bytes(header[0:2], "little")
@@ -311,16 +321,16 @@ def _parse_stdf_file(
                         byte_order = "little"
                     reader._byte_order = byte_order
                     reader._byte_order_determined = True
-                
+
                 rec_len = int.from_bytes(header[0:2], byte_order)
                 payload = stream.read(rec_len)
-                
+
                 if len(payload) != rec_len:
                     # Skip incomplete record
                     corrupted_record_count += 1
                     total_record_count += 1
                     continue
-                
+
                 # Get record spec
                 spec = RECORD_SPECS.get((rec_typ, rec_sub))
                 if spec is None:
@@ -328,7 +338,7 @@ def _parse_stdf_file(
                     if not reader._ignore_unknown:
                         corrupted_record_count += 1
                     continue
-                
+
                 # Try to decode the record
                 try:
                     record = reader._decode_record(spec, payload, byte_order)
@@ -347,7 +357,7 @@ def _parse_stdf_file(
                             UserWarning,
                             stacklevel=4
                         )
-                    
+
             except Exception as e:
                 # File-level read error - likely EOF or corrupted file structure
                 corrupted_record_count += 1

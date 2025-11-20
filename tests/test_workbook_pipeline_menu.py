@@ -99,7 +99,11 @@ def test_pipeline_metadata_failure_triggers_cleanup(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k, **kwargs: (frame, {"removed": 0}))
     summary_df = pd.DataFrame({"File": ["lot"], "Test Name": ["T"], "Test Number": ["1"]})
     monkeypatch.setattr(pipeline.stats, "compute_summary", lambda measurements, limits: (summary_df, {}))
-    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (pd.DataFrame(), pd.DataFrame()))
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_yield_pareto",
+        lambda measurements, limits, first_failure_only=False: (pd.DataFrame(), pd.DataFrame()),
+    )
 
     class DummyWorkbook:
         def save(self, path: Path) -> None:
@@ -141,7 +145,11 @@ def test_pipeline_event_listener_failure_triggers_cleanup(monkeypatch: pytest.Mo
     monkeypatch.setattr(pipeline.outliers, "apply_outlier_filter", lambda frame, method, k, **kwargs: (frame, {"removed": 0}))
     summary_df = pd.DataFrame({"File": ["lot"], "Test Name": ["T"], "Test Number": ["1"], "Unit": ["V"], "COUNT": [1], "MEAN": [1.0], "STDEV": [0.0]})
     monkeypatch.setattr(pipeline.stats, "compute_summary", lambda measurements, limits: (summary_df, {}))
-    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (pd.DataFrame(), pd.DataFrame()))
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_yield_pareto",
+        lambda measurements, limits, first_failure_only=False: (pd.DataFrame(), pd.DataFrame()),
+    )
 
     class DummyWorkbook:
         def save(self, path: Path) -> None:

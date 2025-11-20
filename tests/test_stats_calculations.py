@@ -156,6 +156,25 @@ def test_compute_yield_pareto_handles_all_pass_and_all_fail() -> None:
     assert set(pareto_df["test_name"]) == {"T1", "T2"}
 
 
+def test_compute_yield_pareto_uses_limits_when_status_missing() -> None:
+    measurements = pd.DataFrame(
+        [
+            {"file": "lot1", "device_id": "D1", "test_name": "T1", "test_number": "1", "value": 2.0, "units": "V"},
+            {"file": "lot1", "device_id": "D2", "test_name": "T1", "test_number": "1", "value": 0.5, "units": "V"},
+        ]
+    )
+    limits = pd.DataFrame(
+        [
+            {"test_name": "T1", "test_number": "1", "spec_upper": 1.0, "spec_lower": 0.0},
+        ]
+    )
+    yield_df, pareto_df = stats.compute_yield_pareto(measurements, limits)
+    lot1 = yield_df.iloc[0]
+    assert lot1["devices_fail"] == 1
+    assert not pareto_df.empty
+    assert pareto_df.iloc[0]["test_name"] == "T1"
+
+
 def test_compute_summary_by_site_returns_site_column() -> None:
     measurements = pd.DataFrame(
         [

@@ -1,0 +1,15 @@
+
+
+Ungraceful exits:
+ - File deleted while still in post-processing menu.
+
+ UX
+ - prompt user whenever a new folder is created
+ - Add spinner to post-processing action waits with status o
+ - instead of asking if GRR data is available, scan root directory of cpkanalysis then (if not found) scan root directory of stdf. If found, ask user if file is correct. user can type yes or enter directory directly - make sure prompt informs user about this behaviour somehow. 
+ - For any directory prompt, if user enters blank, ask to enter again or choose magic number (9) to exit menu.
+ - 
+
+16
+
+ - 

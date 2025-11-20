@@ -206,6 +206,9 @@ python -m cpkanalysis.cli run Sample/*.stdf --no-cdf --no-time-series
 ```bash
 # Create Yield and Pareto tables and charts
 python -m cpkanalysis.cli run Sample/*.stdf --generate-yield-pareto
+
+# Count only the first failing test per device in Pareto
+python -m cpkanalysis.cli run Sample/*.stdf --generate-yield-pareto --pareto-first-fail
 ```
 
 Generates a `Yield and Pareto` sheet with file-level yield summaries, per-test Pareto tables, and paired charts for each STDF file.

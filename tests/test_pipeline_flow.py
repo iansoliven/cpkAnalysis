@@ -155,7 +155,7 @@ def test_pipeline_runs_stages_with_expected_data_flow(monkeypatch: pytest.Monkey
         captured["summary_calls"] = captured.get("summary_calls", 0) + 1
         return summary_df, limit_sources
 
-    def fake_compute_yield_pareto(measurements, limits):
+    def fake_compute_yield_pareto(measurements, limits, first_failure_only=False):
         pd.testing.assert_frame_equal(measurements.reset_index(drop=True), raw_measurements)
         pd.testing.assert_frame_equal(limits.reset_index(drop=True), test_catalog)
         yield_df = pd.DataFrame(
@@ -431,11 +431,15 @@ def test_pipeline_site_breakdown_generates_site_outputs(monkeypatch: pytest.Monk
         "compute_summary_by_site",
         lambda measurements, limits: (site_summary_df, site_limit_sources),
     )
-    monkeypatch.setattr(pipeline.stats, "compute_yield_pareto", lambda measurements, limits: (yield_df, pareto_df))
+    monkeypatch.setattr(
+        pipeline.stats,
+        "compute_yield_pareto",
+        lambda measurements, limits, first_failure_only=False: (yield_df, pareto_df),
+    )
     monkeypatch.setattr(
         pipeline.stats,
         "compute_yield_pareto_by_site",
-        lambda measurements, limits: (site_yield_df, site_pareto_df),
+        lambda measurements, limits, first_failure_only=False: (site_yield_df, site_pareto_df),
     )
     def fake_build_workbook(**kwargs):
         captured["build_kwargs"] = kwargs
@@ -559,7 +563,7 @@ def test_pipeline_site_breakdown_requested_without_site_data(monkeypatch: pytest
     monkeypatch.setattr(
         pipeline.stats,
         "compute_yield_pareto",
-        lambda measurements, limits: (yield_summary, pareto_summary),
+        lambda measurements, limits, first_failure_only=False: (yield_summary, pareto_summary),
     )
     monkeypatch.setattr(pipeline.stats, "compute_yield_pareto_by_site", _fail_site_calls)
 
@@ -715,7 +719,7 @@ def test_pipeline_site_breakdown_disabled_skips_site_outputs(monkeypatch: pytest
     monkeypatch.setattr(
         pipeline.stats,
         "compute_yield_pareto",
-        lambda measurements, limits: (yield_summary, pareto_summary),
+        lambda measurements, limits, first_failure_only=False: (yield_summary, pareto_summary),
     )
     monkeypatch.setattr(pipeline.stats, "compute_yield_pareto_by_site", _fail_site_calls)
 

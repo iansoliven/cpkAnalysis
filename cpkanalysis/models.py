@@ -63,6 +63,7 @@ class AnalysisInputs:
     generate_cdf: bool = True
     generate_time_series: bool = True
     generate_yield_pareto: bool = False
+    pareto_first_failure_only: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
     max_render_processes: int | None = None
@@ -104,6 +105,7 @@ class AnalysisInputs:
             self.site_data_status = "unknown"
         self.keep_session = bool(self.keep_session)
         self.include_site_rows_in_cpk = bool(self.include_site_rows_in_cpk)
+        self.pareto_first_failure_only = bool(self.pareto_first_failure_only)
 
 
 @dataclass(frozen=True)

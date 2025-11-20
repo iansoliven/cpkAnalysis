@@ -36,6 +36,7 @@ class ApplicationState:
     include_time_series: bool = True
     include_histogram_rug: bool = False
     generate_yield_pareto: bool = False
+    pareto_first_failure_only: bool = False
     display_decimals: int = 4
     plugins: list[PluginConfig] = field(default_factory=list)
     enable_site_breakdown: bool = False
@@ -82,6 +83,7 @@ class CPKAnalysisGUI:
             histogram_rug=self.state.include_histogram and self.state.include_histogram_rug,
             enable_site_breakdown=self.state.enable_site_breakdown,
             site_data_status=self.state.site_data_status,
+            pareto_first_failure_only=self.state.pareto_first_failure_only,
         )
 
         result = run_analysis(config, registry=self.registry)
@@ -203,6 +205,13 @@ class CPKAnalysisGUI:
         self.state.include_cdf = _yes_no("Generate CDF charts? [Y/n]: ", default=True)
         self.state.include_time_series = _yes_no("Generate time-series charts? [Y/n]: ", default=True)
         self.state.generate_yield_pareto = _yes_no("Generate Yield & Pareto analysis? [y/N]: ", default=False)
+        if self.state.generate_yield_pareto:
+            self.state.pareto_first_failure_only = _yes_no(
+                "Pareto: use only the first failing test per device? [y/N]: ",
+                default=False,
+            )
+        else:
+            self.state.pareto_first_failure_only = False
 
     def _collect_format_preferences(self) -> None:
         prompt = f"Fallback decimal places when STDF hints are missing (0-9, default {self.state.display_decimals}): "

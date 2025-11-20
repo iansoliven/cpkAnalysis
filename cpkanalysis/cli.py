@@ -147,6 +147,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Generate the Yield and Pareto analysis sheet with associated charts.",
     )
     run_parser.add_argument(
+        "--pareto-first-fail",
+        action="store_true",
+        help="Count only the first failing test per device in the Pareto analysis.",
+    )
+    run_parser.add_argument(
+        "--pareto-all-fails",
+        action="store_true",
+        help="Include all failing tests per device in the Pareto analysis (default).",
+    )
+    run_parser.add_argument(
         "--site-breakdown",
         action="store_true",
         help="Generate per-site aggregates when SITE_NUM data is available.",
@@ -428,6 +438,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.no_cpk_include_site_rows:
             include_site_rows = False
 
+        if args.pareto_first_fail and args.pareto_all_fails:
+            parser.error("--pareto-first-fail and --pareto-all-fails cannot be used together.")
+        pareto_first_fail = bool(args.pareto_first_fail)
+        if (
+            args.generate_yield_pareto
+            and not pareto_first_fail
+            and not args.pareto_all_fails
+            and sys.stdin.isatty()
+        ):
+            pareto_first_fail = _prompt_yes_no(
+                "Pareto: use only the first failing test per device? [y/N]: ",
+                default=False,
+            )
+        if not args.generate_yield_pareto:
+            pareto_first_fail = False
+
         config = AnalysisInputs(
             sources=sources,
             output=output_path,
@@ -446,6 +472,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             site_data_status=site_status,
             keep_session=bool(args.keep_session),
             include_site_rows_in_cpk=include_site_rows,
+            pareto_first_failure_only=pareto_first_fail,
         )
         result = run_analysis(config, registry=registry)
         if args.validate_plugins:

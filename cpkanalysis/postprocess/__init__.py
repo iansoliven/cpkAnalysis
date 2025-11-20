@@ -123,6 +123,7 @@ def _analysis_inputs_from_metadata(workbook_path: Path, metadata: dict) -> Analy
         generate_cdf=_bool_option("generate_cdf", True),
         generate_time_series=_bool_option("generate_time_series", True),
         generate_yield_pareto=_bool_option("generate_yield_pareto", False),
+        pareto_first_failure_only=_bool_option("pareto_first_failure_only", False),
         display_decimals=display_decimals,
         plugins=plugin_configs,
         enable_site_breakdown=_bool_option("enable_site_breakdown", False),

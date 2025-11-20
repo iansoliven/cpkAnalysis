@@ -381,7 +381,9 @@ class Pipeline:
         assert context.filtered_measurements is not None, "Outlier stage must run before yield analysis."
         # Use the unfiltered measurements so yield/pareto stay aligned with the raw data set.
         yield_df, pareto_df = stats.compute_yield_pareto(
-            context.ingest_result.frame, context.ingest_result.test_catalog
+            context.ingest_result.frame,
+            context.ingest_result.test_catalog,
+            first_failure_only=context.config.pareto_first_failure_only,
         )
         site_yield = None
         site_pareto = None
@@ -389,6 +391,7 @@ class Pipeline:
             site_yield, site_pareto = stats.compute_yield_pareto_by_site(
                 context.ingest_result.frame,
                 context.ingest_result.test_catalog,
+                first_failure_only=context.config.pareto_first_failure_only,
             )
         return context.with_updates(
             yield_summary=yield_df,
@@ -708,6 +711,7 @@ def _build_metadata(
             "generate_cdf": config.generate_cdf,
             "generate_time_series": config.generate_time_series,
             "generate_yield_pareto": config.generate_yield_pareto,
+            "pareto_first_failure_only": config.pareto_first_failure_only,
             "display_decimals": config.display_decimals,
             "enable_site_breakdown": site_breakdown_requested,
             "include_site_rows_in_cpk": config.include_site_rows_in_cpk,
