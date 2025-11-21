@@ -425,7 +425,7 @@ Enter STDF files: [press Enter]</code></pre>
         </div>
 
         <h3>Post-Processing Command Loop</h3>
-        <p>Once post-processing context is initialized, you enter a special command mode with prompt <code>post&gt;</code></p>
+        <p>Once post-processing context is initialized, you enter a simple command loop with prompt <code>post&gt;</code>.</p>
 
         <table>
           <thead>
@@ -436,32 +436,16 @@ Enter STDF files: [press Enter]</code></pre>
           </thead>
           <tbody>
             <tr>
-              <td><code>post</code></td>
-              <td>Open the interactive post-processing menu with numbered options</td>
+              <td><code>post</code> or <code>p</code></td>
+              <td>Open the interactive post-processing menu with numbered options.</td>
             </tr>
             <tr>
-              <td><code>last</code></td>
-              <td>Re-run the previous post-processing action with same parameters</td>
+              <td><code>help</code> or <code>?</code></td>
+              <td>Display available commands and brief descriptions.</td>
             </tr>
             <tr>
-              <td><code>audit</code></td>
-              <td>Display complete audit log of all post-processing operations</td>
-            </tr>
-            <tr>
-              <td><code>reload</code></td>
-              <td>Discard unsaved changes and reload workbook/metadata from disk</td>
-            </tr>
-            <tr>
-              <td><code>save</code></td>
-              <td>Immediately save current workbook and metadata state</td>
-            </tr>
-            <tr>
-              <td><code>help</code></td>
-              <td>Display available commands and brief descriptions</td>
-            </tr>
-            <tr>
-              <td><code>quit</code> or blank line</td>
-              <td>Exit post-processing mode (prompts to save if changes exist)</td>
+              <td><code>quit</code>, <code>exit</code>, or blank line</td>
+              <td>Exit post-processing mode (prompts from the menu will still ask to save if changes exist).</td>
             </tr>
           </tbody>
         </table>
@@ -505,7 +489,18 @@ Enter STDF files: [press Enter]</code></pre>
         </div>
 
         <div class="card">
-          <h4>4. Re-run Last Action</h4>
+          <h4>4. Calculate Proposed Limits (GRR-Based)</h4>
+          <p>Use GRR data to propose spec and test limits with guardband protection</p>
+          <ul>
+            <li><strong>Requires:</strong> GRR workbook (for example, <code>Total_GRR.xlsx</code>) with worst-case R&amp;R values</li>
+            <li>Derives guardband requirements from GRR data</li>
+            <li>Suggests ATE (test) limits that maintain target CPK while honoring guardband</li>
+            <li>Highlights tests where spec widening is required to meet guardband constraints</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h4>5. Re-run Last Action</h4>
           <p>Repeat previous operation</p>
           <ul>
             <li>Uses same action, scope, and parameters</li>
@@ -515,7 +510,7 @@ Enter STDF files: [press Enter]</code></pre>
         </div>
 
         <div class="card">
-          <h4>5. Reload Workbook</h4>
+          <h4>6. Reload Workbook</h4>
           <p>Discard changes and reload from disk</p>
           <ul>
             <li>Abandons all unsaved modifications</li>
@@ -525,7 +520,7 @@ Enter STDF files: [press Enter]</code></pre>
         </div>
 
         <div class="card">
-          <h4>6. View Audit Log</h4>
+          <h4>7. View Audit Log</h4>
           <p>Review operation history</p>
           <ul>
             <li>Shows all saved operations</li>
@@ -535,7 +530,7 @@ Enter STDF files: [press Enter]</code></pre>
         </div>
 
         <div class="card">
-          <h4>7. Exit Menu</h4>
+          <h4>8. Exit Menu</h4>
           <p>Return to post&gt; command prompt or exit GUI</p>
           <ul>
             <li>Prompts to save if unsaved changes exist</li>
@@ -780,7 +775,7 @@ Goodbye!</code></pre>
             <li>Check <code>post_processing_profile.toml</code> syntax</li>
             <li>Delete profile to reset to defaults</li>
             <li>Verify plugin directory exists and is readable</li>
-            <li>Use <code>--debug</code> flag with CLI for detailed error info</li>
+            <li>Capture full CLI output to a log file when investigating failures</li>
           </ul>
         </div>
 

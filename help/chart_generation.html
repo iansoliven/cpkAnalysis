@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chart Generation - CPK Analysis</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Chart Generation</h1>
+        <p>Histogram, CDF, time-series, and Yield &amp; Pareto charts for CPK analysis</p>
+      </header>
+
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="statistical_analysis.html">Statistical Analysis</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+        <a href="post_processing.html">Post-Processing</a>
+      </nav>
+
+      <div class="content">
+        <p>
+          This page describes how the CPK Analysis toolkit renders charts from statistical results. It covers the
+          Matplotlib renderers in <code>cpkanalysis.mpl_charts</code> and the Excel integration handled by
+          <code>cpkanalysis.workbook_builder</code> and <code>cpkanalysis.postprocess.charts</code>.
+        </p>
+
+        <div class="info-box">
+          <strong>Where Charts Appear</strong>
+          <ul>
+            <li><strong>Histogram_*</strong>, <strong>CDF_*</strong>, <strong>TimeSeries_*</strong> sheets in the workbook</li>
+            <li><strong>Yield and Pareto</strong> sheet (bar/line charts) when enabled</li>
+            <li>Post‑processing plot sheets for updated limits and overlays</li>
+          </ul>
+        </div>
+
+        <h2>Chart Types</h2>
+
+        <p>The pipeline can generate four main chart families:</p>
+        <ul>
+          <li><strong>Histograms</strong> – Distribution of measurement values per test.</li>
+          <li><strong>Cumulative Distribution Functions (CDF)</strong> – Cumulative probability vs. measurement value.</li>
+          <li><strong>Time-Series / Index Plots</strong> – Measurement vs. device index or timestamp.</li>
+          <li><strong>Yield &amp; Pareto Charts</strong> – Yield bars and Pareto curves per limiting test.</li>
+        </ul>
+
+        <p>
+          Chart creation is controlled by command‑line options (<code>--no-histogram</code>, <code>--no-cdf</code>,
+          <code>--no-time-series</code>, <code>--generate-yield-pareto</code>) or equivalent GUI prompts.
+        </p>
+
+        <h2>Histogram Binning (Freedman–Diaconis)</h2>
+
+        <p>
+          Histograms use the Freedman–Diaconis rule to select an appropriate number of bins given the data spread:
+        </p>
+
+        <div class="card">
+          <h3>Bin Selection Strategy</h3>
+          <ul>
+            <li>Compute IQR from finite measurement values.</li>
+            <li>Derive an ideal bin width <code>w = 2 × IQR / n^(1/3)</code> (where <code>n</code> is the sample size).</li>
+            <li>Clamp to a reasonable bin count (minimum 1, maximum ~50) to avoid over‑segmentation.</li>
+            <li>Detect extremely small ranges and reduce the number of bins to avoid numeric issues.</li>
+          </ul>
+          <p>
+            For very small data sets, the renderer falls back to step plots or simple bar charts to maintain readability.
+          </p>
+        </div>
+
+        <h2>Limit Markers and Overlays</h2>
+
+        <p>
+          All chart types share a common concept of “markers” that indicate important vertical or horizontal lines, such as
+          limits and proposed thresholds. In code, these are represented by <code>ChartMarker</code> structures.
+        </p>
+
+        <ul>
+          <li><strong>STDF limits:</strong> ATE lower/upper limits used during testing.</li>
+          <li><strong>Spec limits:</strong> Product specification bounds.</li>
+          <li><strong>What‑If limits:</strong> Experimental customer limits.</li>
+          <li><strong>Proposed limits:</strong> CPK‑driven proposals from post‑processing.</li>
+        </ul>
+
+        <p>
+          The main pipeline normally plots only the active STDF/spec limits, while post‑processing overlays What‑If and
+          Proposed markers using different colors and line styles. CPK annotations are drawn above the chart title,
+          with font sizes tuned for legibility in Excel.
+        </p>
+
+        <div class="info-box">
+          <strong>Axis Metadata</strong>
+          Axis bounds and limit positions are written into a hidden <code>_PlotAxisRanges</code> sheet. This allows
+          post‑processing to regenerate charts with consistent zoom levels and limit alignments, even after workbook edits.
+        </div>
+
+        <h2>Time-Series Layout and Site Blocks</h2>
+
+        <p>
+          Time‑series charts plot measurement value vs. device index (or timestamp) for each test. When per‑site
+          breakdown is enabled, additional blocks are appended horizontally for each site:</p>
+
+        <ul>
+          <li>Overall chart (all sites combined) anchored on the left.</li>
+          <li>Site‑specific charts arranged to the right in fixed‑width blocks.</li>
+          <li>Consistent axis ranges across blocks to make site differences visually comparable.</li>
+        </ul>
+
+        <p>
+          This layout is used consistently across Histogram, CDF, and TimeSeries sheets so that a given row corresponds
+          to a single test, and columns advance across sites.
+        </p>
+
+        <h2>Rug Plots and Density Cues</h2>
+
+        <p>
+          For dense histograms, it can be difficult to see individual measurement positions. When
+          <code>--histogram-rug</code> (or the GUI “rug markers” prompt) is enabled:</p>
+
+        <ul>
+          <li>A thin horizontal panel is added below the histogram.</li>
+          <li>Rug markers (vertical lines) are drawn for a sampled subset of points.</li>
+          <li>Very large data sets are subsampled to a maximum configurable count to avoid performance issues.</li>
+        </ul>
+
+        <div class="warning-box">
+          <strong>Performance Consideration</strong>
+          Rug plots significantly increase the number of primitives drawn. For very large data sets, consider disabling
+          them or limiting histogram generation to the most critical tests.
+        </div>
+
+        <h2>Yield &amp; Pareto Charts</h2>
+
+        <p>
+          When <code>--generate-yield-pareto</code> is enabled, the toolkit builds a <strong>Yield and Pareto</strong>
+          sheet with charts derived from the statistics module:</p>
+
+        <ul>
+          <li><strong>Yield bar charts</strong> – pass/fail counts per file (and per site).</li>
+          <li><strong>Pareto bar + line charts</strong> – failing‑device counts per test with cumulative percentage line.</li>
+          <li>Optional per‑site sections appended to the right when site breakdown is active.</li>
+        </ul>
+
+        <p>
+          These charts use the same color palette as histograms and CDFs to keep the workbook visually consistent.
+        </p>
+
+        <h2>Performance and Parallelism</h2>
+
+        <p>
+          Chart rendering can be CPU‑intensive for large workbooks. The toolkit offers several mechanisms to manage
+          performance:</p>
+
+        <ul>
+          <li><strong>Selective generation:</strong> use <code>--no-histogram</code>, <code>--no-cdf</code>,
+              <code>--no-time-series</code>, or disable Yield &amp; Pareto entirely.</li>
+          <li><strong>Parallel rendering:</strong> limit the number of worker processes with
+              <code>--max-render-procs</code> or the <code>CPKANALYSIS_MAX_RENDER_PROCS</code> environment variable.</li>
+          <li><strong>Lower DPI and compact layouts:</strong> the renderer uses reduced DPI and tighter margins to
+              keep file size and rendering time reasonable.</li>
+        </ul>
+
+        <div class="success-box">
+          <strong>Recommended Settings for Large Lots</strong>
+          <ul>
+            <li>Disable rarely used chart types with <code>--no-*</code> flags.</li>
+            <li>Limit concurrent renderers to leave 1–2 CPU cores free for other tasks.</li>
+            <li>Enable Yield &amp; Pareto only when investigating process drift or excursions.</li>
+          </ul>
+        </div>
+
+        <h2>Post-Processing Chart Refresh</h2>
+
+        <p>
+          Post‑processing actions (Update STDF limits, Apply Spec/What‑If limits, Proposed limits, and GRR‑based limits)
+          can trigger chart regeneration for affected tests. The logic in <code>cpkanalysis.postprocess.charts</code>:</p>
+
+        <ul>
+          <li>Determines which tests and files need new charts based on changed limits.</li>
+          <li>Reuses cached axis ranges from <code>_PlotAxisRanges</code> when possible.</li>
+          <li>Creates or updates per‑file plot sheets (<code>Histogram_*</code>, <code>CDF_*</code>, <code>TimeSeries_*</code>).</li>
+          <li>Preserves or updates chart hyperlinks and labels in the CPK Report and Summary sheets.</li>
+        </ul>
+
+        <div class="info-box">
+          <strong>Debugging Chart Placement</strong>
+          Setting <code>CPK_CHART_DEBUG=1</code> in the environment enables detailed logging of chart positions and
+          axis decisions in <code>debug_logs/charts_*.log</code>. This is useful when verifying new layout changes or
+          troubleshooting unexpected chart locations.
+        </div>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="statistical_analysis.html">Statistical Analysis</a> – How the underlying metrics are computed.</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> – Regenerating charts after limit updates.</li>
+          <li><a href="cli_reference.html">CLI Reference</a> – Flags controlling chart generation and performance.</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> – Chart rendering edge case tests.</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
+  </body>
+</html>
+

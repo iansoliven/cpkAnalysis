@@ -310,8 +310,16 @@
 
         <div class="card">
           <h3><span class="badge">move-template</span> Copy Template Sheets</h3>
-          <p>Copy the CPK Report sheet data into another template workbook for integration with existing reports.</p>
-          <pre><code>python -m cpkanalysis.cli move-template --source src.xlsx --dest dest.xlsx</code></pre>
+          <p>Copy the <code>CPK Report</code> sheet contents into a template sheet within the same workbook.</p>
+          <pre><code>python -m cpkanalysis.cli move-template \
+  --workbook CPK_Workbook.xlsx \
+  --sheet "My Template Sheet"</code></pre>
+        </div>
+
+        <div class="card">
+          <h3><span class="badge">prune-sessions</span> Cleanup Session Directories</h3>
+          <p>Remove temporary <code>temp/session_*</code> directories created by previous runs.</p>
+          <pre><code>python -m cpkanalysis.cli prune-sessions --root temp --older-than 24</code></pre>
         </div>
 
         <div class="card">
@@ -368,10 +376,6 @@
             <tr>
               <td><code>--template-sheet name</code></td>
               <td>Target sheet name to receive CPK data when using custom templates. Default: <code>CPK Report</code></td>
-            </tr>
-            <tr>
-              <td><code>--skip-template</code></td>
-              <td>Run ingestion and statistics only, producing minimal workbook without full template population.</td>
             </tr>
           </tbody>
         </table>
@@ -472,8 +476,8 @@
   --plugin param:builtin.summary_logger:verbose=true</code></pre>
         </div>
 
-        <h3>Advanced Options</h3>
-        <table>
+          <h3>Advanced Options</h3>
+          <table>
           <thead>
             <tr>
               <th>Option</th>
@@ -486,19 +490,31 @@
               <td>Automatically launch post-processing menu after pipeline completes.</td>
             </tr>
             <tr>
-              <td><code>--session-dir path</code></td>
-              <td>Override default <code>temp/session_*</code> directory for intermediate Parquet files. Useful for parallel runs.</td>
+              <td><code>--keep-session</code></td>
+              <td>Preserve the temporary <code>temp/session_*</code> directory instead of cleaning it up automatically.</td>
             </tr>
             <tr>
-              <td><code>--debug</code></td>
-              <td>Enable verbose logging with stack traces and environment information for troubleshooting.</td>
+              <td><code>--display-decimals N</code></td>
+              <td>Override fallback decimal places (0-9) when STDF format hints are missing. Default: <code>4</code>.</td>
             </tr>
             <tr>
-              <td><code>--quiet</code></td>
-              <td>Suppress status messages (errors still print). Ideal for automation scripts.</td>
+              <td><code>--max-render-procs N</code></td>
+              <td>Limit parallel chart rendering processes (also controllable via <code>CPKANALYSIS_MAX_RENDER_PROCS</code> environment variable).</td>
+            </tr>
+            <tr>
+              <td><code>--site-breakdown</code>, <code>--no-site-breakdown</code></td>
+              <td>Enable or disable per-site statistics when <code>SITE_NUM</code> data is available.</td>
+            </tr>
+            <tr>
+              <td><code>--cpk-include-site-rows</code>, <code>--no-cpk-include-site-rows</code></td>
+              <td>Control whether per-site rows are added to the CPK Report when site breakdown is enabled.</td>
+            </tr>
+            <tr>
+              <td><code>--generate-yield-pareto</code></td>
+              <td>Generate the Yield &amp; Pareto analysis sheet, optionally combined with <code>--pareto-first-fail</code> or <code>--pareto-all-fails</code>.</td>
             </tr>
           </tbody>
-        </table>
+          </table>
 
         <h2>Common Usage Examples</h2>
 
@@ -582,11 +598,11 @@ python -m cpkanalysis.cli run --metadata temp/manifest.json \
             </tr>
             <tr>
               <td><code>--metadata path.json</code></td>
-              <td>Output JSON file path. Default: <code>stdf_manifest.json</code></td>
+              <td>Output JSON file path. Default: <code>stdf_sources.json</code></td>
             </tr>
             <tr>
-              <td><code>--pattern</code></td>
-              <td>File pattern to match. Default: <code>*.stdf</code></td>
+              <td><code>--recursive</code></td>
+              <td>Enable recursive search for STDF files under the chosen directory.</td>
             </tr>
           </tbody>
         </table>
@@ -618,11 +634,11 @@ python -m cpkanalysis.cli run --metadata temp/manifest.json \
           <tbody>
             <tr>
               <td><code>--workbook path.xlsx</code></td>
-              <td>Target workbook path. Required. Associated JSON metadata is loaded automatically.</td>
+              <td>Target workbook path. Default: <code>CPK_Workbook.xlsx</code>.</td>
             </tr>
             <tr>
-              <td><code>--debug</code></td>
-              <td>Enable verbose logging for troubleshooting menu operations.</td>
+              <td><code>--metadata path.json</code></td>
+              <td>Explicit metadata JSON path. Default: companion JSON next to the workbook (e.g., <code>CPK_Workbook.json</code>).</td>
             </tr>
           </tbody>
         </table>
@@ -665,7 +681,7 @@ python -m cpkanalysis.cli run --metadata temp/manifest.json \
           <p><strong>Solution:</strong></p>
           <ul>
             <li>Ensure write permissions on target directory</li>
-            <li>Use alternative session dir: <code>--session-dir ~/tmp/cpk_session</code></li>
+            <li>Run from a workspace where the <code>temp/</code> directory is writable</li>
             <li>Close Excel if workbook is open (file lock conflict)</li>
           </ul>
         </div>
@@ -677,13 +693,8 @@ python -m cpkanalysis.cli run --metadata temp/manifest.json \
           <ul>
             <li>Use <code>--validate-plugins</code> to test in isolation</li>
             <li>Check plugin profile syntax: <code>post_processing_profile.toml</code></li>
-            <li>Enable debug mode: <code>--debug</code> for detailed stack traces</li>
+            <li>Capture full CLI output to a log file when investigating failures</li>
           </ul>
-        </div>
-
-        <div class="warning-box">
-          <strong>Debug Mode</strong>
-          Add <code>--debug</code> to any command for comprehensive error diagnostics including environment details, stack traces, and internal state information.
         </div>
 
         <h2>Best Practices</h2>
@@ -691,10 +702,9 @@ python -m cpkanalysis.cli run --metadata temp/manifest.json \
         <div class="success-box">
           <strong>Automation-Friendly</strong>
           <ul>
-            <li>Use <code>--quiet</code> flag for scripted pipelines</li>
             <li>Check exit codes: 0 = success, non-zero = error</li>
             <li>Redirect output for logging: <code>2&gt;&amp;1 | tee analysis.log</code></li>
-            <li>Use <code>--session-dir</code> for parallel processing</li>
+            <li>Use separate working directories or containers for parallel processing</li>
           </ul>
         </div>
 

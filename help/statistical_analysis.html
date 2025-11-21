@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Statistical Analysis - CPK Analysis</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        line-height: 1.7;
+        color: #1a1a1a;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 2rem 1rem;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+      }
+
+      header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2.5rem 2rem;
+        text-align: center;
+      }
+
+      header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+      }
+
+      header p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+      }
+
+      nav {
+        background: #f8f9fb;
+        padding: 1rem 2rem;
+        border-bottom: 2px solid #e1e4e8;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      nav a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 600;
+        margin-right: 1.5rem;
+        transition: color 0.2s;
+      }
+
+      nav a:hover {
+        color: #764ba2;
+      }
+
+      .content {
+        padding: 3rem 2rem;
+      }
+
+      h2 {
+        color: #004c8c;
+        font-size: 1.8rem;
+        margin: 2.5rem 0 1rem 0;
+        padding-bottom: 0.5rem;
+        border-bottom: 3px solid #667eea;
+      }
+
+      h2:first-child {
+        margin-top: 0;
+      }
+
+      h3 {
+        color: #2c5282;
+        font-size: 1.4rem;
+        margin: 1.8rem 0 0.8rem 0;
+      }
+
+      h4 {
+        color: #667eea;
+        font-size: 1.1rem;
+        margin: 1.2rem 0 0.6rem 0;
+      }
+
+      p {
+        margin: 1rem 0;
+        color: #2d3748;
+      }
+
+      ul, ol {
+        margin: 1rem 0 1rem 2rem;
+        color: #2d3748;
+      }
+
+      li {
+        margin: 0.6rem 0;
+        line-height: 1.7;
+      }
+
+      code {
+        background: #f7fafc;
+        padding: 0.2rem 0.4rem;
+        border-radius: 4px;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        color: #c7254e;
+        border: 1px solid #f1e5e8;
+      }
+
+      .info-box {
+        background: #e6f3ff;
+        border-left: 4px solid #4c9aff;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .info-box strong {
+        color: #0052cc;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .success-box {
+        background: #e3fcef;
+        border-left: 4px solid #00c853;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .success-box strong {
+        color: #00875a;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .warning-box {
+        background: #fff3cd;
+        border-left: 4px solid #f39c12;
+        padding: 1.2rem;
+        margin: 1.5rem 0;
+        border-radius: 4px;
+      }
+
+      .warning-box strong {
+        color: #856404;
+        display: block;
+        margin-bottom: 0.5rem;
+      }
+
+      .card {
+        background: #f8f9fb;
+        border: 1px solid #e1e4e8;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin: 1.5rem 0;
+      }
+
+      .card h3 {
+        margin-top: 0;
+        color: #667eea;
+      }
+
+      a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        transition: color 0.2s;
+      }
+
+      a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+      }
+
+      footer {
+        background: #2d3748;
+        color: #e2e8f0;
+        padding: 2rem;
+        text-align: center;
+        font-size: 0.9rem;
+      }
+
+      footer a {
+        color: #90cdf4;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <h1>Statistical Analysis</h1>
+        <p>How CPK, limits, and yield metrics are computed from STDF measurements</p>
+      </header>
+
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="getting_started.html">Getting Started</a>
+        <a href="cli_reference.html">CLI Reference</a>
+        <a href="stdf_ingestion.html">STDF Ingestion</a>
+        <a href="chart_generation.html">Chart Generation</a>
+        <a href="post_processing.html">Post-Processing</a>
+      </nav>
+
+      <div class="content">
+        <p>
+          This page explains how the CPK Analysis toolkit converts filtered STDF measurements into summary statistics,
+          capability indices, and yield metrics. It reflects the current implementation in <code>cpkanalysis.stats</code>
+          and the associated Excel workbook sheets.
+        </p>
+
+        <div class="info-box">
+          <strong>Where These Numbers Appear</strong>
+          <ul>
+            <li><strong>Summary sheet:</strong> Per-file / per-test statistics and projections</li>
+            <li><strong>CPK Report:</strong> Template-facing view of key metrics and limit sources</li>
+            <li><strong>Yield and Pareto:</strong> File-level yields and failing-test breakdowns</li>
+          </ul>
+        </div>
+
+        <h2>Core Per-Test Metrics</h2>
+
+        <p>For each test (and optionally each site), the toolkit groups measurements by:</p>
+        <ul>
+          <li><code>File</code></li>
+          <li><code>Test Name</code></li>
+          <li><code>Test Number</code></li>
+          <li><code>Site</code> (when site breakdown is enabled)</li>
+        </ul>
+
+        <p>Within each group, the following values are computed:</p>
+
+        <ul>
+          <li><strong>COUNT</strong> – Number of finite measurements used in the calculation.</li>
+          <li><strong>MEAN</strong> – Arithmetic mean of the group.</li>
+          <li><strong>MEDIAN</strong> – 50th percentile (robust location estimate for IQR-based projections).</li>
+          <li><strong>STDEV</strong> – Sample standard deviation (ddof=1).</li>
+          <li><strong>IQR</strong> – Interquartile range (Q3 − Q1) based on finite values.</li>
+          <li><strong>CPL / CPU</strong> – One-sided capability indices relative to lower/upper limits.</li>
+          <li><strong>CPK</strong> – Minimum of CPL and CPU when both limits are present; otherwise the single-sided index.</li>
+          <li><strong>%YLD LOSS</strong> – Percentage of devices failing the active limits.</li>
+        </ul>
+
+        <div class="warning-box">
+          <strong>Finite Data Only</strong>
+          Non-finite values (NaN, ±Inf) are ignored for statistical calculations but may still be preserved in raw
+          measurement tables for traceability. If a test has no finite values, the row is omitted from the summary.
+        </div>
+
+        <h2>Limit Precedence and Sources</h2>
+
+        <p>
+          Each test can have several candidate limit sources. The toolkit resolves a single effective lower and upper
+          limit for statistics using a consistent precedence rule:
+        </p>
+
+        <ul>
+          <li><strong>What-If limits</strong> – User-entered experimental limits (highest precedence).</li>
+          <li><strong>Spec limits</strong> – Product / datasheet specification limits.</li>
+          <li><strong>STDF limits</strong> – ATE limits derived from STDF records.</li>
+        </ul>
+
+        <p>
+          For each test, the selected lower/upper limit and its provenance are tracked in the summary via internal
+          <code>_LOWER_SRC</code> and <code>_UPPER_SRC</code> fields and are surfaced into the workbook (for example,
+          as annotations or separate columns in the CPK report). Post‑processing actions update these sources when
+          you apply Spec, What‑If, or Proposed limits.
+        </p>
+
+        <div class="card">
+          <h3>Practical Implications</h3>
+          <ul>
+            <li>Updating Spec or What‑If limits in post‑processing can change CPK and yield without re‑ingesting STDF.</li>
+            <li>Summary sheets always reflect the currently active limit type for each test.</li>
+            <li>Audit metadata records the action that changed limit sources for traceability.</li>
+          </ul>
+        </div>
+
+        <h2>2.0 CPK Projections</h2>
+
+        <p>
+          To help answer “what limits would achieve CPK 2.0?”, the toolkit computes theoretical limits based on the
+          current mean and standard deviation:
+        </p>
+
+        <ul>
+          <li><strong>LL_2CPK / UL_2CPK</strong> – Mean ± 6σ when a corresponding lower/upper limit exists.</li>
+          <li><strong>CPK_2.0</strong> – Capability index using these projected limits.</li>
+          <li><strong>%YLD LOSS_2.0</strong> – Yield loss if those projected limits were applied.</li>
+        </ul>
+
+        <p>
+          These columns are informational only; they are not used for pass/fail decisions unless you explicitly
+          promote them to actual limits via post‑processing actions.
+        </p>
+
+        <h2>Robust 3×IQR Projections</h2>
+
+        <p>
+          For distributions with non‑Gaussian tails, the toolkit also provides IQR‑based projections:</p>
+
+        <ul>
+          <li><strong>LL_3IQR / UL_3IQR</strong> – <code>MEDIAN ± 3 × IQR</code> (falls back to MEDIAN when IQR = 0).</li>
+          <li><strong>CPK_3IQR</strong> – Capability index computed against these robust limits.</li>
+          <li><strong>%YLD LOSS_3IQR</strong> – Yield loss if these IQR‑based limits were used.</li>
+        </ul>
+
+        <div class="info-box">
+          <strong>When to Look at 3×IQR</strong>
+          Use the IQR projections for exploratory analysis when the distribution is skewed or heavily tailed, or when
+          a few extreme outliers dominate the standard deviation.
+        </div>
+
+        <h2>Outlier Filtering Integration</h2>
+
+        <p>
+          Outlier filtering is optional and controlled by the <code>--outlier-method</code> and <code>--outlier-k</code>
+          options (or the corresponding GUI prompts). When enabled:
+        </p>
+
+        <ul>
+          <li>Measurements are grouped by <code>(file, test_name, test_number)</code> (and site, when applicable).</li>
+          <li>For <code>iqr</code>: values outside <code>[Q1 − k × IQR, Q3 + k × IQR]</code> are removed.</li>
+          <li>For <code>stdev</code>: values outside <code>[μ − k × σ, μ + k × σ]</code> are removed.</li>
+          <li>NaN and ±Inf are preserved (they were already validated during ingestion).</li>
+        </ul>
+
+        <p>
+          The statistics described on this page always operate on the filtered measurement set. The metadata JSON
+          records how many points were removed per run so you can quantify the impact of filtering.
+        </p>
+
+        <h2>Site-Aware Statistics</h2>
+
+        <p>
+          When <code>SITE_NUM</code> information is available and the CLI/GUI enables site breakdown
+          (<code>--site-breakdown</code>), a second set of summary tables is produced:</p>
+
+        <ul>
+          <li>Per‑site summary rows with the same columns as the overall summary.</li>
+          <li>Per‑site yield and Pareto tables when <code>--generate-yield-pareto</code> is enabled.</li>
+          <li>Optional per‑site rows in the CPK Report when <code>--cpk-include-site-rows</code> is set.</li>
+        </ul>
+
+        <div class="success-box">
+          <strong>Use Cases for Site Breakdown</strong>
+          <ul>
+            <li>Identify site‑specific performance shifts (for example, one site consistently low CPK).</li>
+            <li>Correlate site‑level yield loss with equipment issues or probe card wear.</li>
+            <li>Retain a single overall CPK row while still having per‑site diagnostics.</li>
+          </ul>
+        </div>
+
+        <h2>Yield and Pareto Analysis</h2>
+
+        <p>
+          In addition to per‑test statistics, the toolkit can compute file‑level yields and Pareto breakdowns when
+          <code>--generate-yield-pareto</code> is used:</p>
+
+        <ul>
+          <li><strong>Yield summary:</strong> devices tested, passed, failed, and yield percent per file (and per site).</li>
+          <li><strong>Pareto details:</strong> per‑test failing‑device counts and cumulative contribution.</li>
+          <li><strong>First‑fail vs all‑fails:</strong> controlled via <code>--pareto-first-fail</code> or
+              <code>--pareto-all-fails</code> (first‑fail is recommended for root‑cause analysis).</li>
+        </ul>
+
+        <p>
+          These metrics feed the <strong>Yield and Pareto</strong> sheet and its charts, and are also used by
+          downstream reporting or dashboards.
+        </p>
+
+        <h2>Related Documentation</h2>
+        <ul>
+          <li><a href="stdf_ingestion.html">STDF Ingestion</a> – How measurements and raw limits are extracted.</li>
+          <li><a href="chart_generation.html">Chart Generation</a> – How histograms, CDFs, and time‑series plots visualize these statistics.</li>
+          <li><a href="post_processing.html">Post-Processing Menu</a> – Updating limits and regenerating charts after analysis.</li>
+          <li><a href="testing_guidance.html">Testing Guide</a> – Tests that validate statistical calculations.</li>
+        </ul>
+      </div>
+
+      <footer>
+        <p>CPK Analysis Toolkit | <a href="index.html">Help Center Home</a></p>
+        <p>For issues or questions, see the project README or contact your repository maintainer</p>
+      </footer>
+    </div>
+  </body>
+</html>
+

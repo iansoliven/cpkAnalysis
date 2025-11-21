@@ -360,7 +360,7 @@ git submodule update --init --recursive</code></pre>
         <ul>
           <li>One Parquet file per test containing all measurements</li>
           <li>Automatically removed when pipeline completes</li>
-          <li>Can be preserved using <code>--session-dir</code> for debugging</li>
+          <li>Can be preserved using <code>--keep-session</code> when you want to inspect them</li>
         </ul>
 
         <h2>🎨 Customizing Your Analysis</h2>
@@ -400,7 +400,7 @@ git submodule update --init --recursive</code></pre>
           <ul>
             <li>Plugin management and profiles</li>
             <li>Validation mode for testing</li>
-            <li>Session directory control</li>
+            <li>Session directory cleanup and retention</li>
             <li>Template sheet targeting</li>
           </ul>
         </div>
@@ -451,13 +451,15 @@ git submodule update --init --recursive</code></pre>
 
         <div class="card">
           <h3>PermissionError writing to temp/</h3>
-          <p><strong>Solution:</strong> Ensure write permissions or specify an alternative session directory:</p>
-          <pre><code>python -m cpkanalysis.cli run Sample/lot2.stdf --session-dir /tmp/cpk_session</code></pre>
+          <p><strong>Solution:</strong> Ensure write permissions in your workspace:</p>
+          <pre><code># Run from a directory where temp/ is writable
+cd /path/to/writeable/workspace
+python -m cpkanalysis.cli run Sample/lot2.stdf</code></pre>
         </div>
 
         <div class="info-box">
           <strong>🐛 Debug Mode</strong>
-          Add <code>--debug</code> flag to any command for detailed stack traces and environment information.
+          Redirect command output to a log file (for example, <code>python -m cpkanalysis.cli run ... 2&gt;&amp;1 | tee analysis.log</code>) when investigating issues.
         </div>
 
         <h2>📚 Additional Resources</h2>

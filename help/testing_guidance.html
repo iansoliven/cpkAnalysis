@@ -293,8 +293,8 @@
         <div class="success-box">
           <strong>Current Test Suite Status (2025-11-20)</strong>
           <ul>
-            <li><strong>Total Tests:</strong> 95+ tests across 18 test modules</li>
-            <li><strong>Overall Coverage:</strong> 75% (3,151 of 4,175 statements)</li>
+            <li><strong>Total Tests:</strong> 157 tests across 26 test modules</li>
+            <li><strong>Overall Coverage:</strong> 77% (5,065 of 6,593 statements)</li>
             <li><strong>Test Code:</strong> 2,900+ lines of comprehensive test coverage</li>
             <li><strong>Status:</strong> ✅ All tests passing</li>
             <li><strong>Platforms:</strong> Windows, macOS, Linux (Python 3.11+)</li>
@@ -315,8 +315,8 @@
         <h2>Test Suite Overview</h2>
 
         <div class="card">
-          <h3>Complete Test File List</h3>
-          <p>All 17 test modules with current counts and coverage areas:</p>
+          <h3>Representative Test File List</h3>
+          <p>Selected test modules with current counts and coverage areas:</p>
           <table>
             <thead>
               <tr>
@@ -643,7 +643,7 @@ def test_update_stdf_limits_all_tests():
           </ul>
 
           <h4>Running Integration Tests</h4>
-          <pre><code>pytest tests/test_pipeline.py -v</code></pre>
+          <pre><code>pytest tests/test_pipeline_flow.py -v</code></pre>
 
           <div class="warning-box">
             <strong>Performance Note</strong>
@@ -665,7 +665,7 @@ def test_update_stdf_limits_all_tests():
           </ul>
 
           <h4>Running Plugin Tests</h4>
-          <pre><code>pytest tests/test_plugins.py -v</code></pre>
+          <pre><code>pytest tests/test_plugin_system.py -v</code></pre>
         </div>
 
         <h2>Interpreting Test Results</h2>
@@ -679,28 +679,9 @@ platform win32 -- Python 3.13.0, pytest-8.4.2, pluggy-1.6.0
 rootdir: d:\AI_GEN\cpkAnalysis
 configfile: pyproject.toml
 testpaths: tests
-collected 95 items
+collected 157 items
 
-tests/test_cli_commands.py .......                              [  7%]
-tests/test_gui_helpers.py ...                                   [ 10%]
-tests/test_gui_resume.py .....                                  [ 15%]
-tests/test_ingest_limits.py ........                            [ 24%]
-tests/test_ingest_sources.py ..                                 [ 26%]
-tests/test_move_to_template.py ..                               [ 28%]
-tests/test_mpl_charts_edge_cases.py ....                        [ 32%]
-tests/test_outliers.py ................                         [ 49%]
-tests/test_pipeline_flow.py .                                   [ 50%]
-tests/test_plugin_system.py .....                               [ 55%]
-tests/test_postprocess.py ........                              [ 64%]
-tests/test_postprocess_actions.py ...                           [ 67%]
-tests/test_postprocess_update_limits.py .                       [ 68%]
-tests/test_stats_calculations.py ..............                 [ 83%]
-tests/test_stats_yield_pareto.py ..                             [ 85%]
-tests/test_workbook_formatting.py .....                         [ 91%]
-tests/test_workbook_pipeline_menu.py .....                      [ 96%]
-tests/test_workbook_yield_pareto.py ....                        [100%]
-
-========================== 95 passed in 25.12s ========================</code></pre>
+========================== 157 passed in ~52.0s =======================</code></pre>
           <ul>
             <li><strong>All dots (.)</strong> indicate passing tests</li>
             <li><strong>Total time:</strong> ~24 seconds is typical for full suite</li>
@@ -744,8 +725,8 @@ tests/test_ingest_limits.py:42: AssertionError
         <h3>Skipped Tests</h3>
         <div class="info-box">
           <strong>Skip Indicators</strong>
-          <pre><code>tests/test_pipeline.py::test_large_file_processing SKIPPED  [info]
-reason: Large file not available in CI environment</code></pre>
+          <pre><code>tests/test_pipeline_flow.py::test_large_file_processing SKIPPED  [info]
+reason: Large file not available in test environment</code></pre>
           <p>Tests can be skipped with <code>@pytest.mark.skip</code> or conditionally with <code>@pytest.mark.skipif</code>. This is normal for tests requiring specific resources or environments.</p>
         </div>
 
