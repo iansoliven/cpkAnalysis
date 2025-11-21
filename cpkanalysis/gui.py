@@ -296,9 +296,19 @@ class CPKAnalysisGUI:
         if entry:
             self.state.output_path = _prepare_output_path(Path(entry))
 
-    def resume(self, resume_target: Path, *, metadata_override: Path | None = None) -> int:
+    def resume(
+        self,
+        resume_target: Path,
+        *,
+        metadata_override: Path | None = None,
+        strict: bool = True,
+    ) -> int:
         try:
-            workbook_path, metadata_path = self._resolve_resume_paths(resume_target, metadata_override)
+            workbook_path, metadata_path = self._resolve_resume_paths(
+                resume_target,
+                metadata_override,
+                strict=strict,
+            )
         except ValueError as exc:
             print(f"Unable to resume session: {exc}")
             return 1
@@ -307,6 +317,7 @@ class CPKAnalysisGUI:
             self._post_context = postprocess.create_context(
                 workbook_path=workbook_path,
                 metadata_path=metadata_path,
+                metadata_strict=strict,
             )
         except (SystemExit, OSError, ValueError, RuntimeError) as exc:
             print(f"Unable to initialise post-processing context: {exc}")
@@ -315,16 +326,20 @@ class CPKAnalysisGUI:
 
         self._print_resume_summary(self._post_context)
         self._open_postprocess_menu()
+        self._postprocess_command_prompt()
         return 0
 
     def _resolve_resume_paths(
         self,
         resume_target: Path,
         metadata_override: Path | None,
+        *,
+        strict: bool,
     ) -> tuple[Path, Path]:
         target = resume_target.expanduser()
         metadata_path = metadata_override.expanduser() if metadata_override else None
         workbook_path: Path | None = None
+        metadata: dict[str, Any] = {}
 
         if target.suffix.lower() == ".json":
             metadata_path = metadata_path or target
@@ -336,11 +351,22 @@ class CPKAnalysisGUI:
             raise ValueError("Metadata path could not be determined for the selected resume target.")
 
         metadata_path = metadata_path.resolve()
-        if not metadata_path.exists():
+        metadata_exists = metadata_path.exists()
+        if not metadata_exists and strict:
             raise ValueError(f"Metadata JSON not found: {metadata_path}")
 
+        if metadata_exists:
+            try:
+                metadata = load_metadata(metadata_path, strict=strict)
+            except Exception as exc:
+                if strict:
+                    raise
+                print(f"Warning: metadata unreadable ({exc}); continuing in lax resume mode.")
+        else:
+            if not strict:
+                print(f"Warning: metadata JSON not found ({metadata_path}); continuing in lax resume mode.")
+
         if workbook_path is None:
-            metadata = load_metadata(metadata_path)
             candidate = metadata.get("output") or metadata.get("workbook")
             if candidate:
                 candidate_path = Path(candidate)
@@ -476,6 +502,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Explicit metadata JSON path when using --resume (optional).",
     )
+    parser.add_argument(
+        "--resume-lax",
+        action="store_true",
+        help="Best-effort resume that tolerates missing/invalid metadata (may reduce fidelity).",
+    )
+    parser.add_argument(
+        "--resume-strict",
+        action="store_true",
+        help="Fail fast on missing/invalid metadata when using --resume (default).",
+    )
     return parser
 
 
@@ -492,10 +528,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.resume_metadata and not args.resume:
         parser.error("--resume-metadata requires --resume.")
+    if args.resume_strict and args.resume_lax:
+        parser.error("--resume-strict and --resume-lax are mutually exclusive.")
 
     gui = CPKAnalysisGUI()
     if args.resume:
-        return gui.resume(args.resume, metadata_override=args.resume_metadata)
+        strict = not args.resume_lax
+        return gui.resume(args.resume, metadata_override=args.resume_metadata, strict=strict)
 
     gui.launch()
     return 0

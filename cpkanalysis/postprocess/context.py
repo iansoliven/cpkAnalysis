@@ -22,17 +22,23 @@ __all__ = [
 ]
 
 
-def load_metadata(path: Path) -> dict:
-    """Return metadata JSON if present; otherwise an empty structure."""
+def load_metadata(path: Path, *, strict: bool = True) -> dict:
+    """Return metadata JSON; optionally tolerate missing/invalid files when strict=False."""
     if not path.exists():
-        raise FileNotFoundError(f"Metadata file not found: {path}")
+        if strict:
+            raise FileNotFoundError(f"Metadata file not found: {path}")
+        return {}
     try:
         text = path.read_text(encoding="utf-8")
         return json.loads(text) if text else {}
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Metadata file '{path}' is not valid JSON: {exc}") from exc
+        if strict:
+            raise ValueError(f"Metadata file '{path}' is not valid JSON: {exc}") from exc
+        return {}
     except OSError as exc:
-        raise OSError(f"Failed to read metadata file '{path}': {exc}") from exc
+        if strict:
+            raise OSError(f"Failed to read metadata file '{path}': {exc}") from exc
+        return {}
 
 
 @dataclass

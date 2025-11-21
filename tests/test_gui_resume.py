@@ -43,7 +43,7 @@ def _prepare_project(tmp_path: Path) -> Tuple[Path, Path]:
     return workbook_path, metadata_path
 
 
-def _run_gui(args: list[str], *, input_text: str = "8\n") -> subprocess.CompletedProcess[str]:
+def _run_gui(args: list[str], *, input_text: str = "8\n\n") -> subprocess.CompletedProcess[str]:
     cmd = [sys.executable, "-m", "cpkanalysis.gui", *args]
     repo_root = Path(__file__).resolve().parents[1]
     return subprocess.run(
@@ -61,6 +61,7 @@ def test_gui_resume_opens_menu(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert "Resuming post-processing session" in result.stdout
     assert "Post-Processing Menu" in result.stdout
+    assert "post>" in result.stdout or "Enter 'post' to reopen the post-processing menu" in result.stdout
 
 
 def test_gui_resume_missing_workbook_fails(tmp_path: Path) -> None:
@@ -69,3 +70,30 @@ def test_gui_resume_missing_workbook_fails(tmp_path: Path) -> None:
     assert result.returncode == 1
     combined = result.stdout + result.stderr
     assert "Workbook not found" in combined or "Unable to resume session" in combined
+
+
+def test_gui_resume_missing_metadata_strict_fails(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "resume.xlsx"
+    test_postprocess_actions._build_workbook(workbook_path)
+    result = _run_gui(["--resume", str(workbook_path)], input_text="")
+    assert result.returncode == 1
+    combined = result.stdout + result.stderr
+    assert "Metadata JSON not found" in combined or "Unable to resume session" in combined
+
+
+def test_gui_resume_missing_metadata_lax_succeeds(tmp_path: Path) -> None:
+    workbook_path = tmp_path / "resume.xlsx"
+    test_postprocess_actions._build_workbook(workbook_path)
+    result = _run_gui(["--resume", str(workbook_path), "--resume-lax"])
+    assert result.returncode == 0, result.stderr
+    assert "Resuming post-processing session" in result.stdout
+    assert "Post-Processing Menu" in result.stdout
+
+
+def test_gui_resume_corrupt_metadata_lax_succeeds(tmp_path: Path) -> None:
+    workbook_path, metadata_path = _prepare_project(tmp_path)
+    metadata_path.write_text("{ not-json", encoding="utf-8")
+    result = _run_gui(["--resume", str(workbook_path), "--resume-lax"])
+    assert result.returncode == 0, result.stderr
+    assert "Resuming post-processing session" in result.stdout
+    assert "Post-Processing Menu" in result.stdout

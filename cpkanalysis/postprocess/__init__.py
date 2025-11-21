@@ -22,6 +22,7 @@ def create_context(
     workbook_path: Path,
     metadata_path: Optional[Path] = None,
     analysis_inputs: Optional[AnalysisInputs] = None,
+    metadata_strict: bool = True,
 ) -> PostProcessContext:
     """Build a :class:`PostProcessContext` from the supplied artefacts."""
     workbook_path = workbook_path.expanduser().resolve()
@@ -34,7 +35,7 @@ def create_context(
     if metadata_path.exists() and metadata_path.is_dir():
         print(f"Warning: Expected metadata file but received directory: {metadata_path}")
         raise SystemExit(f"Metadata path must be a file: {metadata_path}")
-    metadata = load_metadata(metadata_path)
+    metadata = load_metadata(metadata_path, strict=metadata_strict)
 
     if analysis_inputs is None:
         analysis_inputs = _analysis_inputs_from_metadata(workbook_path, metadata)
