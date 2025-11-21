@@ -25,12 +25,14 @@ __all__ = [
 def load_metadata(path: Path) -> dict:
     """Return metadata JSON if present; otherwise an empty structure."""
     if not path.exists():
-        return {}
+        raise FileNotFoundError(f"Metadata file not found: {path}")
     try:
         text = path.read_text(encoding="utf-8")
         return json.loads(text) if text else {}
-    except (OSError, json.JSONDecodeError):
-        return {}
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Metadata file '{path}' is not valid JSON: {exc}") from exc
+    except OSError as exc:
+        raise OSError(f"Failed to read metadata file '{path}': {exc}") from exc
 
 
 @dataclass
@@ -152,11 +154,7 @@ class PostProcessContext:
 
         message = "Unable to determine template sheet: no sheet contains 'Cpk Report' in the top row."
         print(message, file=sys.stderr)
-        try:
-            input("Press Enter to exit...")
-        except EOFError:
-            pass
-        raise SystemExit(1)
+        raise SystemExit(message)
 
     # ------------------------------------------------------------------
     # Helpers

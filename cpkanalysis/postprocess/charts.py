@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
@@ -60,13 +61,17 @@ def _ensure_chart_state(metadata: Dict[str, Any]) -> Dict[str, Any]:
     return charts
 
 # Debug logging for chart placement (writes to repo_root/debug_logs)
+_DEBUG_ENABLED = os.getenv("CPK_CHART_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
 _RUN_ID = datetime.now().strftime("%Y%m%d_%H%M%S")
-try:
-    _REPO_ROOT = Path(__file__).resolve().parents[2]
-    _DEBUG_DIR = _REPO_ROOT / "debug_logs"
-    _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
-    _DEBUG_LOG = _DEBUG_DIR / f"charts_{_RUN_ID}.log"
-except Exception:
+if _DEBUG_ENABLED:
+    try:
+        _REPO_ROOT = Path(__file__).resolve().parents[2]
+        _DEBUG_DIR = _REPO_ROOT / "debug_logs"
+        _DEBUG_DIR.mkdir(parents=True, exist_ok=True)
+        _DEBUG_LOG = _DEBUG_DIR / f"charts_{_RUN_ID}.log"
+    except Exception:
+        _DEBUG_LOG = None
+else:
     _DEBUG_LOG = None
 
 
