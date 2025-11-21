@@ -341,9 +341,26 @@ The GUI walks through:
 ```bash
 # Jump straight into post-processing for an existing workbook
 python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx
+
+# Resume with separate metadata location
+python -m cpkanalysis.gui --resume workbook.xlsx --resume-metadata /backup/metadata.json
+
+# Lax mode - continue even if metadata is missing or corrupt
+python -m cpkanalysis.gui --resume workbook.xlsx --resume-lax
 ```
 
-The `--resume` flag rehydrates the post-processing context from the workbook's companion metadata JSON, prints a small project summary (last post-processing action, analysis options, template sheet, etc.), and opens the post-processing menu immediately. Use `--resume-metadata PATH/to/file.json` if the metadata is stored separately. The command exits with an error if the workbook or metadata cannot be loaded so you can decide how to proceed.
+The `--resume` flag rehydrates the post-processing context from the workbook's companion metadata JSON, prints a project summary (last post-processing action, analysis options, template sheet, etc.), and opens the post-processing menu immediately.
+
+**Resume modes:**
+- **Strict mode** (default): Requires valid metadata JSON; exits with error if missing or corrupt
+- **Lax mode** (`--resume-lax`): Tolerates missing or invalid metadata; continues with best-effort context
+
+After post-processing, an interactive prompt allows reopening the menu:
+```
+post> post    # Reopen post-processing menu
+post> quit    # Exit session (prompts to save if unsaved changes)
+post> help    # Show available commands
+```
 
 ### Post-Processing Existing Workbook
 
@@ -1131,7 +1148,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 **Made with ❤️ for semiconductor test engineers**
 
-*Last updated: 2025-10-19*
+*Last updated: 2025-11-20*
 
 
 

@@ -327,12 +327,27 @@
 
         <div class="card">
           <h4>Quick Resume via GUI</h4>
-          <pre><code>python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx</code></pre>
+          <pre><code># Standard resume (strict mode - default)
+python -m cpkanalysis.gui --resume FinalizeLimits/shinynew.xlsx
+
+# Resume with separate metadata location
+python -m cpkanalysis.gui --resume workbook.xlsx --resume-metadata /backup/metadata.json
+
+# Lax mode - continue even if metadata is missing or corrupt
+python -m cpkanalysis.gui --resume workbook.xlsx --resume-lax</code></pre>
           <p>
             Use <code>--resume</code> to jump straight into the menu for an existing workbook. The GUI reads the workbook's metadata JSON,
-            displays a summary of the last post-processing action plus key analysis options, and opens the menu immediately. Provide
-            <code>--resume-metadata path/to/file.json</code> if the metadata is stored separately.
+            displays a summary of the last post-processing action plus key analysis options, and opens the menu immediately.
           </p>
+          <p><strong>Resume modes:</strong></p>
+          <ul>
+            <li><strong>Strict mode</strong> (default, or <code>--resume-strict</code>): Requires valid metadata JSON; exits with error if missing or corrupt</li>
+            <li><strong>Lax mode</strong> (<code>--resume-lax</code>): Tolerates missing or invalid metadata; continues with best-effort context for recovery scenarios</li>
+          </ul>
+          <p>After post-processing, an interactive prompt allows reopening the menu:</p>
+          <pre><code>post> post    # Reopen post-processing menu
+post> quit    # Exit session (prompts to save if unsaved changes)
+post> help    # Show available commands</code></pre>
         </div>
 
         <div class="info-box">

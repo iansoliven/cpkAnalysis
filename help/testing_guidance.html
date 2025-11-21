@@ -291,12 +291,12 @@
         </p>
 
         <div class="success-box">
-          <strong>Current Test Suite Status (2025-10-18)</strong>
+          <strong>Current Test Suite Status (2025-11-20)</strong>
           <ul>
-            <li><strong>Total Tests:</strong> 90 tests across 17 test modules</li>
+            <li><strong>Total Tests:</strong> 95+ tests across 18 test modules</li>
             <li><strong>Overall Coverage:</strong> 75% (3,151 of 4,175 statements)</li>
-            <li><strong>Test Code:</strong> 2,841 lines of comprehensive test coverage</li>
-            <li><strong>Status:</strong> ✅ All 90 tests passing</li>
+            <li><strong>Test Code:</strong> 2,900+ lines of comprehensive test coverage</li>
+            <li><strong>Status:</strong> ✅ All tests passing</li>
             <li><strong>Platforms:</strong> Windows, macOS, Linux (Python 3.11+)</li>
           </ul>
         </div>
@@ -335,6 +335,11 @@
                 <td><code>test_gui_helpers.py</code></td>
                 <td>3</td>
                 <td>GUI helper functions, prompts, parameter parsing</td>
+              </tr>
+              <tr>
+                <td><code>test_gui_resume.py</code></td>
+                <td>5</td>
+                <td>Resume functionality, strict/lax modes, metadata handling</td>
               </tr>
               <tr>
                 <td><code>test_ingest_limits.py</code></td>
@@ -674,27 +679,28 @@ platform win32 -- Python 3.13.0, pytest-8.4.2, pluggy-1.6.0
 rootdir: d:\AI_GEN\cpkAnalysis
 configfile: pyproject.toml
 testpaths: tests
-collected 90 items
+collected 95 items
 
 tests/test_cli_commands.py .......                              [  7%]
 tests/test_gui_helpers.py ...                                   [ 10%]
-tests/test_ingest_limits.py ........                            [ 18%]
-tests/test_ingest_sources.py ..                                 [ 20%]
-tests/test_move_to_template.py ..                               [ 22%]
-tests/test_mpl_charts_edge_cases.py ....                        [ 26%]
-tests/test_outliers.py ................                         [ 44%]
-tests/test_pipeline_flow.py .                                   [ 45%]
-tests/test_plugin_system.py .....                               [ 50%]
-tests/test_postprocess.py ........                              [ 59%]
-tests/test_postprocess_actions.py ...                           [ 62%]
-tests/test_postprocess_update_limits.py .                       [ 63%]
-tests/test_stats_calculations.py ..............                 [ 78%]
-tests/test_stats_yield_pareto.py ..                             [ 80%]
-tests/test_workbook_formatting.py .....                         [ 86%]
-tests/test_workbook_pipeline_menu.py .....                      [ 91%]
+tests/test_gui_resume.py .....                                  [ 15%]
+tests/test_ingest_limits.py ........                            [ 24%]
+tests/test_ingest_sources.py ..                                 [ 26%]
+tests/test_move_to_template.py ..                               [ 28%]
+tests/test_mpl_charts_edge_cases.py ....                        [ 32%]
+tests/test_outliers.py ................                         [ 49%]
+tests/test_pipeline_flow.py .                                   [ 50%]
+tests/test_plugin_system.py .....                               [ 55%]
+tests/test_postprocess.py ........                              [ 64%]
+tests/test_postprocess_actions.py ...                           [ 67%]
+tests/test_postprocess_update_limits.py .                       [ 68%]
+tests/test_stats_calculations.py ..............                 [ 83%]
+tests/test_stats_yield_pareto.py ..                             [ 85%]
+tests/test_workbook_formatting.py .....                         [ 91%]
+tests/test_workbook_pipeline_menu.py .....                      [ 96%]
 tests/test_workbook_yield_pareto.py ....                        [100%]
 
-========================== 90 passed in 24.34s ========================</code></pre>
+========================== 95 passed in 25.12s ========================</code></pre>
           <ul>
             <li><strong>All dots (.)</strong> indicate passing tests</li>
             <li><strong>Total time:</strong> ~24 seconds is typical for full suite</li>
